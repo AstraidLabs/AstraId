@@ -3,7 +3,9 @@ using AuthServer.Seeding;
 using AuthServer.Services;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using OpenIddict.Server.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
