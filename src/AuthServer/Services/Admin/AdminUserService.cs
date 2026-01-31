@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using AuthServer.Data;
@@ -55,7 +56,8 @@ public sealed class AdminUserService : IAdminUserService
 
     public async Task<IReadOnlyList<string>> GetUserRolesAsync(ApplicationUser user)
     {
-        return await _userManager.GetRolesAsync(user);
+        var roles = await _userManager.GetRolesAsync(user);
+        return roles.ToList();
     }
 
     public async Task<IdentityResult> SetUserRolesAsync(ApplicationUser user, IEnumerable<string> roles)
