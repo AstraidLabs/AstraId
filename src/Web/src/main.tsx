@@ -1,25 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { AuthProvider } from "react-oidc-context";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App";
-import "./styles.css";
-
-const authConfig = {
-  authority: "https://localhost:7001",
-  client_id: "web-spa",
-  redirect_uri: "http://localhost:5173/auth/callback",
-  post_logout_redirect_uri: "http://localhost:5173/",
-  response_type: "code",
-  scope: "openid profile email offline_access api",
-  automaticSilentRenew: false
-};
+import Callback from "./pages/Callback";
+import { oidcConfig } from "./auth/oidc";
+import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider {...authConfig}>
+    <AuthProvider {...oidcConfig}>
       <BrowserRouter>
-        <App />
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/auth/callback" element={<Callback />} />
+        </Routes>
       </BrowserRouter>
     </AuthProvider>
   </React.StrictMode>
