@@ -15,4 +15,8 @@
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.8.0" />
     <PackageReference Include="OpenIddict.Server.AspNetCore" Version="5.8.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Company.Auth.Contracts/Company.Auth.Contracts.csproj" />
+  </ItemGroup>
 </Project>

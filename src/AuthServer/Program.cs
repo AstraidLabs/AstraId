@@ -1,8 +1,9 @@
 using AuthServer.Data;
 using AuthServer.Seeding;
+using AuthServer.Services;
+using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,21 +15,25 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 
 builder.Services
-    .AddDefaultIdentity<IdentityUser>(options =>
+    .AddDefaultIdentity<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
         options.User.RequireUniqueEmail = true;
     })
+    .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages();
 
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+
 builder.Services.AddCors(options =>
 {
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"];
     options.AddPolicy("Web", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -42,7 +47,8 @@ builder.Services.AddOpenIddict()
     })
     .AddServer(options =>
     {
-        options.SetIssuer(new Uri("https://localhost:7001/"));
+        var issuer = builder.Configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
+        options.SetIssuer(new Uri(issuer));
 
         options.SetAuthorizationEndpointUris("/connect/authorize")
             .SetTokenEndpointUris("/connect/token")
@@ -54,10 +60,10 @@ builder.Services.AddOpenIddict()
             .RequireProofKeyForCodeExchange();
 
         options.RegisterScopes(
-            OpenIddictConstants.Scopes.OpenId,
-            OpenIddictConstants.Scopes.Profile,
-            OpenIddictConstants.Scopes.Email,
-            OpenIddictConstants.Scopes.OfflineAccess,
+            AuthConstants.Scopes.OpenId,
+            AuthConstants.Scopes.Profile,
+            AuthConstants.Scopes.Email,
+            AuthConstants.Scopes.OfflineAccess,
             "api");
 
         options.DisableAccessTokenEncryption();
@@ -72,7 +78,7 @@ builder.Services.AddOpenIddict()
             .EnableLogoutEndpointPassthrough();
     });
 
-builder.Services.AddHostedService<OpenIddictSeeder>();
+builder.Services.AddHostedService<AuthBootstrapHostedService>();
 
 var app = builder.Build();
 
