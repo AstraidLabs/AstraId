@@ -38,10 +38,10 @@
 
 <nav>
     <ul class="pagination">
-        @for (var page = 1; page <= Model.TotalPages; page++)
+        @for (var p = 1; p <= Model.TotalPages; p++)
         {
-            <li class="page-item @(page == Model.Page ? "active" : "")">
-                <a class="page-link" asp-page="Index" asp-route-page="@page" asp-route-search="@Model.Search">@page</a>
+            <li class="page-item @(p == Model.Page ? "active" : "")">
+                <a class="page-link" asp-page="Index" asp-route-page="@p" asp-route-search="@Model.Search">@p</a>
             </li>
         }
     </ul>
