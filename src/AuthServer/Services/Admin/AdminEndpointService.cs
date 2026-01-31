@@ -41,7 +41,8 @@ public sealed class AdminEndpointService : IAdminEndpointService
         endpoint.Id = Guid.NewGuid();
         endpoint.CreatedUtc = DateTime.UtcNow;
         endpoint.UpdatedUtc = endpoint.CreatedUtc;
-        endpoint.Method = endpoint.Method.ToUpperInvariant();
+        endpoint.Method = NormalizeMethod(endpoint.Method);
+        endpoint.Path = NormalizePath(endpoint.Path);
         _dbContext.ApiEndpoints.Add(endpoint);
         await _dbContext.SaveChangesAsync(cancellationToken);
         await LogAuditAsync("api-endpoint.created", "ApiEndpoint", endpoint.Id.ToString(), endpoint);
@@ -50,7 +51,8 @@ public sealed class AdminEndpointService : IAdminEndpointService
 
     public async Task UpdateEndpointAsync(ApiEndpoint endpoint, CancellationToken cancellationToken)
     {
-        endpoint.Method = endpoint.Method.ToUpperInvariant();
+        endpoint.Method = NormalizeMethod(endpoint.Method);
+        endpoint.Path = NormalizePath(endpoint.Path);
         endpoint.UpdatedUtc = DateTime.UtcNow;
         _dbContext.ApiEndpoints.Update(endpoint);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -102,17 +104,17 @@ public sealed class AdminEndpointService : IAdminEndpointService
 
         var created = 0;
         var updated = 0;
-        var payloadKeys = new HashSet<(string method, string path)>(StringComparer.OrdinalIgnoreCase);
+        var payloadKeys = new HashSet<(string method, string path)>();
 
         foreach (var dto in endpoints)
         {
-            var method = dto.Method.ToUpperInvariant();
-            var path = dto.Path;
+            var method = NormalizeMethod(dto.Method);
+            var path = NormalizePath(dto.Path);
             payloadKeys.Add((method, path));
 
             var match = existing.FirstOrDefault(item =>
-                string.Equals(item.Method, method, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase));
+                NormalizeMethod(item.Method) == method &&
+                NormalizePath(item.Path) == path);
 
             if (match is null)
             {
@@ -135,6 +137,8 @@ public sealed class AdminEndpointService : IAdminEndpointService
                 continue;
             }
 
+            match.Method = method;
+            match.Path = path;
             match.DisplayName = dto.DisplayName;
             match.IsDeprecated = dto.Deprecated ?? match.IsDeprecated;
             match.Tags = dto.Tags;
@@ -146,7 +150,7 @@ public sealed class AdminEndpointService : IAdminEndpointService
         var deactivated = 0;
         foreach (var endpoint in existing)
         {
-            if (!payloadKeys.Contains((endpoint.Method, endpoint.Path)) && endpoint.IsActive)
+            if (!payloadKeys.Contains((NormalizeMethod(endpoint.Method), NormalizePath(endpoint.Path))) && endpoint.IsActive)
             {
                 endpoint.IsActive = false;
                 endpoint.UpdatedUtc = now;
@@ -187,5 +191,23 @@ public sealed class AdminEndpointService : IAdminEndpointService
     {
         var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(userId, out var parsed) ? parsed : null;
+    }
+
+    private static string NormalizeMethod(string method)
+    {
+        return string.IsNullOrWhiteSpace(method) ? string.Empty : method.Trim().ToUpperInvariant();
+    }
+
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = path.Trim();
+        return trimmed.Length > 1 && trimmed.EndsWith("/", StringComparison.Ordinal)
+            ? trimmed.TrimEnd('/')
+            : trimmed;
     }
 }
