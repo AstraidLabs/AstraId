@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using AuthServer.Seeding;
 using AuthServer.Services;
+using AuthServer.Services.Admin;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
@@ -29,6 +30,26 @@ builder.Services.AddControllers();
 builder.Services.AddRazorPages();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IAdminRoleService, AdminRoleService>();
+builder.Services.AddScoped<IAdminPermissionAdminService, AdminPermissionAdminService>();
+builder.Services.AddScoped<IAdminApiResourceService, AdminApiResourceService>();
+builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+    {
+        policy.RequireRole("Admin");
+        policy.RequireAssertion(context =>
+        {
+            var hasPermissionClaim = context.User.HasClaim(claim => claim.Type == AuthConstants.ClaimTypes.Permission);
+            return !hasPermissionClaim || context.User.HasClaim(AuthConstants.ClaimTypes.Permission, "system.admin");
+        });
+    });
+});
+
 
 builder.Services.AddCors(options =>
 {
@@ -46,7 +67,7 @@ builder.Services.AddOpenIddict()
     {
         options.UseEntityFrameworkCore()
                .UseDbContext<ApplicationDbContext>();
-        // Pokud používáš Guid jako PK:
+        // Pokud pouï¿½ï¿½vï¿½ Guid jako PK:
         // .ReplaceDefaultEntities<Guid>();
     })
     .AddServer(options =>

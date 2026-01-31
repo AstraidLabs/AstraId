@@ -1,0 +1,39 @@
+@page "{apiId:guid}"
+@model AuthServer.Areas.Admin.Pages.Apis.Endpoints.IndexModel
+
+<h1>Endpoints - @Model.ApiName</h1>
+
+<div class="mb-3">
+    <a class="btn btn-primary" asp-page="Create" asp-route-apiId="@Model.ApiId">Create Endpoint</a>
+    <a class="btn btn-outline-secondary" asp-page="Import" asp-route-apiId="@Model.ApiId">Import Endpoints</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Display</th>
+            <th>Permissions</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var endpoint in Model.Endpoints)
+    {
+        <tr>
+            <td>@endpoint.Method</td>
+            <td>@endpoint.Path</td>
+            <td>@endpoint.DisplayName</td>
+            <td>
+                @string.Join(", ", endpoint.EndpointPermissions.Select(permission => permission.Permission?.Key).Where(key => !string.IsNullOrWhiteSpace(key)))
+            </td>
+            <td>@endpoint.IsActive</td>
+            <td>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-apiId="@Model.ApiId" asp-route-endpointId="@endpoint.Id">Edit</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

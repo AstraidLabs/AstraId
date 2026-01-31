@@ -1,0 +1,33 @@
+@page "{id:guid}"
+@model AuthServer.Areas.Admin.Pages.Permissions.EditModel
+
+<h1>Edit Permission</h1>
+
+<form method="post">
+    <input type="hidden" asp-for="Permission.Id" />
+    <div class="mb-3">
+        <label class="form-label">Key</label>
+        @if (Model.Permission.IsSystem)
+        {
+            <input class="form-control" asp-for="Permission.Key" readonly />
+        }
+        else
+        {
+            <input class="form-control" asp-for="Permission.Key" />
+        }
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <input class="form-control" asp-for="Permission.Description" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Group</label>
+        <input class="form-control" asp-for="Permission.Group" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">System</label>
+        <input type="checkbox" class="form-check-input" asp-for="Permission.IsSystem" disabled />
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-secondary" asp-page="Index">Back</a>
+</form>

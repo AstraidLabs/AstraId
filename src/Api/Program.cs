@@ -1,5 +1,7 @@
 using Api.Contracts;
+using Api.Middleware;
 using Api.Models;
+using Api.Services;
 using Company.Auth.Api;
 using Company.Auth.Contracts;
 using Mapster;
@@ -23,6 +25,11 @@ builder.Services.AddAuthorization(options =>
             context.User.HasClaim(AuthConstants.ClaimTypes.Permission, "system.admin")));
 });
 
+builder.Services.AddHttpClient();
+builder.Services.Configure<PolicyMapOptions>(builder.Configuration.GetSection("Api:AuthServer"));
+builder.Services.AddSingleton<PolicyMapClient>();
+builder.Services.AddHostedService<PolicyMapRefreshService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Web", policy =>
@@ -38,6 +45,7 @@ var app = builder.Build();
 app.UseHttpsRedirection();
 app.UseCors("Web");
 app.UseAuthentication();
+app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/api/public", () => new { message = "Hello from public endpoint." });

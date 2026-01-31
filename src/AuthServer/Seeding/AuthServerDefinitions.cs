@@ -26,6 +26,15 @@ public static class AuthServerDefinitions
         }
     ];
 
+    public static readonly IReadOnlyCollection<ApiResourceSeedDefinition> ApiResourceSeeds =
+    [
+        new ApiResourceSeedDefinition(
+            Name: "api",
+            DisplayName: "Core API",
+            BaseUrl: "https://localhost:7002",
+            IsActive: true)
+    ];
+
     public static readonly IReadOnlyCollection<OAuthClientDefinition> Clients =
     [
         new OAuthClientDefinition

@@ -1,0 +1,20 @@
+@page "{id:guid}"
+@model AuthServer.Areas.Admin.Pages.Apis.ApiKeyModel
+
+<h1>API Key</h1>
+
+<p>API: <strong>@Model.ApiName</strong></p>
+
+@if (!string.IsNullOrWhiteSpace(Model.GeneratedApiKey))
+{
+    <div class="alert alert-warning">
+        <strong>New API Key (showing once):</strong>
+        <code>@Model.GeneratedApiKey</code>
+    </div>
+}
+
+<form method="post">
+    <input type="hidden" asp-for="ApiResourceId" />
+    <button class="btn btn-danger" type="submit">Rotate API Key</button>
+    <a class="btn btn-secondary" asp-page="Index">Back</a>
+</form>

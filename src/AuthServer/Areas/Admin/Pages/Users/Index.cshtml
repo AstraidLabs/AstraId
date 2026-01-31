@@ -1,0 +1,48 @@
+@page
+@model AuthServer.Areas.Admin.Pages.Users.IndexModel
+
+<h1>Users</h1>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <input type="text" name="search" value="@Model.Search" class="form-control" placeholder="Search email or username" />
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" type="submit">Search</button>
+    </div>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Username</th>
+            <th>Confirmed</th>
+            <th>Locked</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var user in Model.Users)
+    {
+        <tr>
+            <td>@user.Email</td>
+            <td>@user.UserName</td>
+            <td>@user.EmailConfirmed</td>
+            <td>@user.IsLockedOut</td>
+            <td><a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-id="@user.Id">Edit</a></td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<nav>
+    <ul class="pagination">
+        @for (var page = 1; page <= Model.TotalPages; page++)
+        {
+            <li class="page-item @(page == Model.Page ? "active" : "")">
+                <a class="page-link" asp-page="Index" asp-route-page="@page" asp-route-search="@Model.Search">@page</a>
+            </li>
+        }
+    </ul>
+</nav>

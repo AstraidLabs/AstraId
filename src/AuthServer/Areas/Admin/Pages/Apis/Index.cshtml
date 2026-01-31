@@ -1,0 +1,34 @@
+@page
+@model AuthServer.Areas.Admin.Pages.Apis.IndexModel
+
+<h1>API Resources</h1>
+
+<a class="btn btn-primary mb-3" asp-page="Create">Create API</a>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Display Name</th>
+            <th>Base URL</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var api in Model.ApiResources)
+    {
+        <tr>
+            <td>@api.Name</td>
+            <td>@api.DisplayName</td>
+            <td>@api.BaseUrl</td>
+            <td>@api.IsActive</td>
+            <td>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-id="@api.Id">Edit</a>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="ApiKey" asp-route-id="@api.Id">API Key</a>
+                <a class="btn btn-sm btn-outline-secondary" asp-page="/Apis/Endpoints/Index" asp-route-apiId="@api.Id">Endpoints</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
