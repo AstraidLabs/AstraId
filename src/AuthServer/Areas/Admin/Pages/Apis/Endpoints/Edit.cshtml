@@ -1,0 +1,54 @@
+@page "{apiId:guid}/{endpointId:guid}"
+@model AuthServer.Areas.Admin.Pages.Apis.Endpoints.EditModel
+
+<h1>Edit Endpoint</h1>
+
+<form method="post">
+    <input type="hidden" asp-for="ApiId" />
+    <input type="hidden" asp-for="EndpointId" />
+
+    <div class="mb-3">
+        <label class="form-label">Method</label>
+        <input class="form-control" asp-for="Endpoint.Method" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Path</label>
+        <input class="form-control" asp-for="Endpoint.Path" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Display Name</label>
+        <input class="form-control" asp-for="Endpoint.DisplayName" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Tags</label>
+        <input class="form-control" asp-for="Endpoint.Tags" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Deprecated</label>
+        <input type="checkbox" class="form-check-input" asp-for="Endpoint.IsDeprecated" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Active</label>
+        <input type="checkbox" class="form-check-input" asp-for="Endpoint.IsActive" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Required Permissions</label>
+        @foreach (var group in Model.PermissionGroups)
+        {
+            <div class="mb-2">
+                <strong>@group.Group</strong>
+                @foreach (var permission in group.Permissions)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="SelectedPermissions" value="@permission.Id" @(Model.SelectedPermissions.Contains(permission.Id) ? "checked" : string.Empty) />
+                        <label class="form-check-label">@permission.Key</label>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-secondary" asp-page="Index" asp-route-apiId="@Model.ApiId">Back</a>
+</form>

@@ -8,7 +8,7 @@ namespace AuthServer.Controllers;
 
 [ApiController]
 [Route("admin")]
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminController : ControllerBase
 {
     private readonly IOpenIddictApplicationManager _applicationManager;

@@ -29,6 +29,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
         await dbContext.Database.MigrateAsync(cancellationToken);
 
         await SyncPermissionsAsync(dbContext, cancellationToken);
+        await SyncApiResourcesAsync(dbContext, cancellationToken);
 
         var scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
         var applicationManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
@@ -270,6 +271,37 @@ public sealed class AuthBootstrapHostedService : IHostedService
         {
             await userManager.AddToRoleAsync(adminUser, adminRole.Name!);
         }
+    }
+
+    private static async Task SyncApiResourcesAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ApiResources.ToListAsync(cancellationToken);
+
+        foreach (var definition in AuthServerDefinitions.ApiResourceSeeds)
+        {
+            var resource = existing.FirstOrDefault(item => item.Name == definition.Name);
+            if (resource is null)
+            {
+                dbContext.ApiResources.Add(new ApiResource
+                {
+                    Id = Guid.NewGuid(),
+                    Name = definition.Name,
+                    DisplayName = definition.DisplayName,
+                    BaseUrl = definition.BaseUrl,
+                    IsActive = definition.IsActive,
+                    CreatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = DateTime.UtcNow
+                });
+                continue;
+            }
+
+            resource.DisplayName = definition.DisplayName;
+            resource.BaseUrl = definition.BaseUrl;
+            resource.IsActive = definition.IsActive;
+            resource.UpdatedUtc = DateTime.UtcNow;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static async Task SyncRolePermissionsAsync(

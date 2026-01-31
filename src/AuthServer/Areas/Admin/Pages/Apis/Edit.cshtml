@@ -1,0 +1,26 @@
+@page "{id:guid}"
+@model AuthServer.Areas.Admin.Pages.Apis.EditModel
+
+<h1>Edit API Resource</h1>
+
+<form method="post">
+    <input type="hidden" asp-for="ApiResource.Id" />
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input class="form-control" asp-for="ApiResource.Name" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Display Name</label>
+        <input class="form-control" asp-for="ApiResource.DisplayName" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Base URL</label>
+        <input class="form-control" asp-for="ApiResource.BaseUrl" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Active</label>
+        <input type="checkbox" class="form-check-input" asp-for="ApiResource.IsActive" />
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-secondary" asp-page="Index">Back</a>
+</form>
