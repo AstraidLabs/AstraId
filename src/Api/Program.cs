@@ -1,8 +1,10 @@
-using Api.Models;
 using Api.Contracts;
+using Api.Models;
+using Company.Auth.Api;
+using Company.Auth.Contracts;
 using Mapster;
 using MapsterMapper;
-using OpenIddict.Validation.AspNetCore;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,18 +14,14 @@ mapsterConfig.NewConfig<UserProfileModel, MeDto>();
 builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 
-builder.Services.AddAuthentication(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
-
-builder.Services.AddOpenIddict()
-    .AddValidation(options =>
-    {
-        options.SetIssuer("https://localhost:7001/");
-        options.AddAudiences("api");
-        options.UseSystemNetHttp();
-        options.UseAspNetCore();
-    });
-
-builder.Services.AddAuthorization();
+builder.Services.AddCompanyAuth(builder.Configuration, builder.Configuration["Auth:Audience"] ?? "api");
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOrPermission", policy =>
+        policy.RequireAssertion(context =>
+            context.User.IsInRole("Admin") ||
+            context.User.HasClaim(AuthConstants.ClaimTypes.Permission, "system.admin")));
+});
 
 builder.Services.AddCors(options =>
 {
@@ -50,12 +48,19 @@ app.MapGet("/api/me", (HttpContext context, IMapper mapper) =>
         {
             Sub = context.User.FindFirst("sub")?.Value ?? string.Empty,
             Name = context.User.Identity?.Name,
-            Email = context.User.FindFirst("email")?.Value
+            Email = context.User.FindFirst("email")?.Value,
+            Permissions = context.User.FindAll(AuthConstants.ClaimTypes.Permission)
+                .Select(claim => claim.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
         };
 
         var dto = mapper.Map<MeDto>(model);
         return Results.Ok(dto);
     })
     .RequireAuthorization();
+
+app.MapGet("/api/admin/ping", () => Results.Ok(new { status = "pong" }))
+    .RequireAuthorization("AdminOrPermission");
 
 app.Run();

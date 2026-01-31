@@ -1,6 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using AuthServer.Data;
+using AuthServer.Services;
+using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
@@ -13,22 +16,25 @@ public class AuthorizationController : ControllerBase
 {
     private static readonly HashSet<string> AllowedScopes =
     [
-        OpenIddictConstants.Scopes.OpenId,
-        OpenIddictConstants.Scopes.Profile,
-        OpenIddictConstants.Scopes.Email,
-        OpenIddictConstants.Scopes.OfflineAccess,
+        AuthConstants.Scopes.OpenId,
+        AuthConstants.Scopes.Profile,
+        AuthConstants.Scopes.Email,
+        AuthConstants.Scopes.OfflineAccess,
         "api"
     ];
 
-    private readonly UserManager<IdentityUser> _userManager;
-    private readonly SignInManager<IdentityUser> _signInManager;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IPermissionService _permissionService;
 
     public AuthorizationController(
-        UserManager<IdentityUser> userManager,
-        SignInManager<IdentityUser> signInManager)
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        IPermissionService permissionService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _permissionService = permissionService;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -111,16 +117,22 @@ public class AuthorizationController : ControllerBase
         return SignOut(new AuthenticationProperties { RedirectUri = "/" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private async Task<ClaimsPrincipal> CreatePrincipalAsync(IdentityUser user, IEnumerable<string> requestedScopes)
+    private async Task<ClaimsPrincipal> CreatePrincipalAsync(ApplicationUser user, IEnumerable<string> requestedScopes)
     {
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
-        identity.AddClaim(OpenIddictConstants.Claims.Subject, user.Id);
+        identity.AddClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
         identity.AddClaim(OpenIddictConstants.Claims.Name, user.UserName ?? string.Empty);
 
         if (!string.IsNullOrEmpty(user.Email))
         {
             identity.AddClaim(OpenIddictConstants.Claims.Email, user.Email);
+        }
+
+        var permissions = await _permissionService.GetPermissionsForUserAsync(user.Id, HttpContext.RequestAborted);
+        foreach (var permission in permissions)
+        {
+            identity.AddClaim(AuthConstants.ClaimTypes.Permission, permission);
         }
 
         var principal = new ClaimsPrincipal(identity);
@@ -141,12 +153,14 @@ public class AuthorizationController : ControllerBase
     {
         return claim.Type switch
         {
-            OpenIddictConstants.Claims.Name when principal.HasScope(OpenIddictConstants.Scopes.Profile) =>
+            OpenIddictConstants.Claims.Name when principal.HasScope(AuthConstants.Scopes.Profile) =>
                 [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            OpenIddictConstants.Claims.Email when principal.HasScope(OpenIddictConstants.Scopes.Email) =>
+            OpenIddictConstants.Claims.Email when principal.HasScope(AuthConstants.Scopes.Email) =>
                 [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
             OpenIddictConstants.Claims.Subject =>
                 [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
+            AuthConstants.ClaimTypes.Permission =>
+                [OpenIddictConstants.Destinations.AccessToken],
             _ =>
                 [OpenIddictConstants.Destinations.AccessToken]
         };
