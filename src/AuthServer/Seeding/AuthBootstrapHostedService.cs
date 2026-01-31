@@ -114,7 +114,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
             {
                 ClientId = client.ClientId,
                 DisplayName = client.DisplayName,
-                Type = client.Type
+                ClientType = client.Type
             };
 
             foreach (var uri in client.RedirectUris)
@@ -147,7 +147,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
             await applicationManager.PopulateAsync(currentDescriptor, application, cancellationToken);
 
             currentDescriptor.DisplayName = descriptor.DisplayName;
-            currentDescriptor.Type = descriptor.Type;
+            currentDescriptor.ClientType = descriptor.ClientType;
 
             currentDescriptor.RedirectUris.Clear();
             foreach (var uri in descriptor.RedirectUris)
@@ -181,10 +181,9 @@ public sealed class AuthBootstrapHostedService : IHostedService
     {
         var permissions = new HashSet<string>
         {
-            OpenIddictConstants.Permissions.Endpoints.Authorization,
-            OpenIddictConstants.Permissions.Endpoints.Token,
-            OpenIddictConstants.Permissions.Endpoints.Logout,
-            OpenIddictConstants.Permissions.Endpoints.Userinfo
+           OpenIddictConstants.Permissions.Endpoints.Authorization,
+           OpenIddictConstants.Permissions.Endpoints.Token,
+           OpenIddictConstants.Permissions.Endpoints.EndSession
         };
 
         foreach (var grantType in client.AllowedGrantTypes)

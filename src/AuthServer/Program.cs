@@ -43,21 +43,23 @@ builder.Services.AddOpenIddict()
     .AddCore(options =>
     {
         options.UseEntityFrameworkCore()
-            .UseDbContext<ApplicationDbContext>();
+               .UseDbContext<ApplicationDbContext>();
+        // Pokud používáš Guid jako PK:
+        // .ReplaceDefaultEntities<Guid>();
     })
     .AddServer(options =>
     {
         var issuer = builder.Configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
         options.SetIssuer(new Uri(issuer));
 
-        options.SetAuthorizationEndpointUris("/connect/authorize")
-            .SetTokenEndpointUris("/connect/token")
-            .SetUserinfoEndpointUris("/connect/userinfo")
-            .SetLogoutEndpointUris("/connect/logout");
+        options.SetAuthorizationEndpointUris("connect/authorize")
+               .SetTokenEndpointUris("connect/token")
+               .SetUserInfoEndpointUris("connect/userinfo")
+               .SetEndSessionEndpointUris("connect/logout");
 
         options.AllowAuthorizationCodeFlow()
-            .AllowRefreshTokenFlow()
-            .RequireProofKeyForCodeExchange();
+               .AllowRefreshTokenFlow()
+               .RequireProofKeyForCodeExchange();
 
         options.RegisterScopes(
             AuthConstants.Scopes.OpenId,
@@ -69,13 +71,13 @@ builder.Services.AddOpenIddict()
         options.DisableAccessTokenEncryption();
 
         options.AddDevelopmentEncryptionCertificate()
-            .AddDevelopmentSigningCertificate();
+               .AddDevelopmentSigningCertificate();
 
         options.UseAspNetCore()
-            .EnableAuthorizationEndpointPassthrough()
-            .EnableTokenEndpointPassthrough()
-            .EnableUserinfoEndpointPassthrough()
-            .EnableLogoutEndpointPassthrough();
+               .EnableAuthorizationEndpointPassthrough()
+               .EnableTokenEndpointPassthrough()
+               .EnableUserInfoEndpointPassthrough()
+               .EnableEndSessionEndpointPassthrough();
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
