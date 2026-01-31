@@ -1,0 +1,6 @@
+@AstraId_HostAddress = http://localhost:5047
+
+GET {{AstraId_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
