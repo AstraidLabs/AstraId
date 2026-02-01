@@ -93,7 +93,7 @@ builder.Services.AddHttpClient<AuthServerClient>((sp, client) =>
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddHttpMessageHandler(sp =>
         new ApiKeyHandler(ServiceNames.AuthServer, sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>()))
-    .AddPolicyHandler(sp => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
+    .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
 builder.Services.AddHttpClient<CmsClient>((sp, client) =>
     {
@@ -109,7 +109,7 @@ builder.Services.AddHttpClient<CmsClient>((sp, client) =>
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddHttpMessageHandler(sp =>
         new ApiKeyHandler(ServiceNames.Cms, sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>()))
-    .AddPolicyHandler(sp => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
+    .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
 builder.Services.AddHttpClient("HealthCheck", (sp, client) =>
 {
