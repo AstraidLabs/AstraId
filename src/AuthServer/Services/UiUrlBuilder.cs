@@ -28,11 +28,36 @@ public sealed class UiUrlBuilder
         return _options.IsHosted ? "/" : _options.UiBaseUrl.TrimEnd('/');
     }
 
+    public string BuildActivationUrl(string email, string token)
+    {
+        return BuildUiUrl("/activate", new Dictionary<string, string?>
+        {
+            ["email"] = email,
+            ["token"] = token
+        });
+    }
+
+    public string BuildResetPasswordUrl(string email, string token)
+    {
+        return BuildUiUrl("/reset-password", new Dictionary<string, string?>
+        {
+            ["email"] = email,
+            ["token"] = token
+        });
+    }
+
     private string BuildUiUrl(string path, string returnUrl)
     {
         var baseUrl = _options.IsHosted ? string.Empty : _options.UiBaseUrl.TrimEnd('/');
         var url = $"{baseUrl}{EnsureLeadingSlash(path)}";
         return QueryHelpers.AddQueryString(url, "returnUrl", returnUrl);
+    }
+
+    private string BuildUiUrl(string path, IReadOnlyDictionary<string, string?> queryParameters)
+    {
+        var baseUrl = _options.IsHosted ? string.Empty : _options.UiBaseUrl.TrimEnd('/');
+        var url = $"{baseUrl}{EnsureLeadingSlash(path)}";
+        return QueryHelpers.AddQueryString(url, queryParameters);
     }
 
     private static string EnsureLeadingSlash(string path)

@@ -4,6 +4,8 @@ using AuthServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
+using System.Text;
 
 namespace AuthServer.Controllers;
 
@@ -16,19 +18,22 @@ public class AuthController : ControllerBase
     private readonly IPermissionService _permissionService;
     private readonly ReturnUrlValidator _returnUrlValidator;
     private readonly UiUrlBuilder _uiUrlBuilder;
+    private readonly IEmailSender _emailSender;
 
     public AuthController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IPermissionService permissionService,
         ReturnUrlValidator returnUrlValidator,
-        UiUrlBuilder uiUrlBuilder)
+        UiUrlBuilder uiUrlBuilder,
+        IEmailSender emailSender)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _permissionService = permissionService;
         _returnUrlValidator = returnUrlValidator;
         _uiUrlBuilder = uiUrlBuilder;
+        _emailSender = emailSender;
     }
 
     [HttpPost("login")]
@@ -51,6 +56,11 @@ public class AuthController : ControllerBase
         if (user is null)
         {
             return BadRequest(new AuthResponse(false, null, "Neplatné přihlašovací údaje."));
+        }
+
+        if (!user.EmailConfirmed)
+        {
+            return BadRequest(new AuthResponse(false, null, "Účet není aktivní. Zkontrolujte potvrzovací e-mail."));
         }
 
         var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, false);
@@ -97,7 +107,7 @@ public class AuthController : ControllerBase
         {
             UserName = request.Email,
             Email = request.Email,
-            EmailConfirmed = true
+            EmailConfirmed = false
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);
@@ -107,13 +117,137 @@ public class AuthController : ControllerBase
             return BadRequest(new AuthResponse(false, null, message));
         }
 
-        await _signInManager.SignInAsync(user, false);
+        var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = EncodeToken(confirmationToken);
+        var activationLink = _uiUrlBuilder.BuildActivationUrl(user.Email!, encodedToken);
+        var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+        await _emailSender.SendAsync(
+            new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
+            HttpContext.RequestAborted);
 
         var redirectTo = string.IsNullOrWhiteSpace(request.ReturnUrl)
-            ? _uiUrlBuilder.BuildHomeUrl()
-            : request.ReturnUrl;
+            ? _uiUrlBuilder.BuildLoginUrl(string.Empty)
+            : _uiUrlBuilder.BuildLoginUrl(request.ReturnUrl);
 
         return Ok(new AuthResponse(true, redirectTo, null));
+    }
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user is not null)
+        {
+            var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var encodedToken = EncodeToken(resetToken);
+            var resetLink = _uiUrlBuilder.BuildResetPasswordUrl(user.Email!, encodedToken);
+            var (subject, htmlBody, textBody) = EmailTemplates.BuildResetPasswordEmail(resetLink);
+            await _emailSender.SendAsync(
+                new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
+                HttpContext.RequestAborted);
+        }
+
+        return Ok(new AuthResponse(true, null, null));
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.Token) ||
+            string.IsNullOrWhiteSpace(request.NewPassword) ||
+            string.IsNullOrWhiteSpace(request.ConfirmPassword))
+        {
+            return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
+        }
+
+        if (!string.Equals(request.NewPassword, request.ConfirmPassword, StringComparison.Ordinal))
+        {
+            return BadRequest(new AuthResponse(false, null, "Hesla se neshodují."));
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user is null)
+        {
+            return Ok(new AuthResponse(true, null, null));
+        }
+
+        var decodedToken = DecodeToken(request.Token);
+        if (decodedToken is null)
+        {
+            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var message = string.Join(" ", result.Errors.Select(error => error.Description));
+            return BadRequest(new AuthResponse(false, null, message));
+        }
+
+        return Ok(new AuthResponse(true, null, null));
+    }
+
+    [HttpPost("resend-activation")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendActivation([FromBody] ResendActivationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user is not null && !user.EmailConfirmed)
+        {
+            var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var encodedToken = EncodeToken(confirmationToken);
+            var activationLink = _uiUrlBuilder.BuildActivationUrl(user.Email!, encodedToken);
+            var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+            await _emailSender.SendAsync(
+                new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
+                HttpContext.RequestAborted);
+        }
+
+        return Ok(new AuthResponse(true, null, null));
+    }
+
+    [HttpPost("activate")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ActivateAccount([FromBody] ActivateAccountRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token))
+        {
+            return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
+        }
+
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user is null)
+        {
+            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+        }
+
+        var decodedToken = DecodeToken(request.Token);
+        if (decodedToken is null)
+        {
+            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+        }
+
+        var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
+        if (!result.Succeeded)
+        {
+            var message = string.Join(" ", result.Errors.Select(error => error.Description));
+            return BadRequest(new AuthResponse(false, null, message));
+        }
+
+        return Ok(new AuthResponse(true, null, null));
     }
 
     [HttpPost("logout")]
@@ -148,5 +282,22 @@ public class AuthController : ControllerBase
             user.UserName,
             roles.ToList(),
             permissions));
+    }
+
+    private static string EncodeToken(string token)
+    {
+        return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+    }
+
+    private static string? DecodeToken(string encodedToken)
+    {
+        try
+        {
+            return Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(encodedToken));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 }
