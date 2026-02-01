@@ -22,7 +22,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = false;
+        options.SignIn.RequireConfirmedAccount = true;
         options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -65,6 +65,25 @@ builder.Services.AddAuthorization(options =>
 builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.PostConfigure<EmailOptions>(options =>
+    {
+        options.FromEmail = string.IsNullOrWhiteSpace(options.FromEmail)
+            ? "no-reply@local.test"
+            : options.FromEmail;
+        options.FromName ??= "AstraId";
+        options.Smtp.Host = string.IsNullOrWhiteSpace(options.Smtp.Host)
+            ? "localhost"
+            : options.Smtp.Host;
+        options.Smtp.Port = options.Smtp.Port <= 0 ? 2525 : options.Smtp.Port;
+        options.Smtp.TimeoutSeconds = options.Smtp.TimeoutSeconds <= 0 ? 10 : options.Smtp.TimeoutSeconds;
+    });
+}
+
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 builder.Services.AddCors(options =>
 {
@@ -123,6 +142,9 @@ builder.Services.AddHostedService<AuthBootstrapHostedService>();
 
 var app = builder.Build();
 
+var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Value;
+ValidateEmailOptions(emailOptions, app.Environment);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -164,3 +186,22 @@ if (uiOptions.IsHosted)
 }
 
 app.Run();
+
+static void ValidateEmailOptions(EmailOptions options, IHostEnvironment environment)
+{
+    var missingFrom = string.IsNullOrWhiteSpace(options.FromEmail);
+    var missingHost = string.IsNullOrWhiteSpace(options.Smtp.Host);
+    var invalidPort = options.Smtp.Port <= 0;
+
+    if (missingFrom || missingHost || invalidPort)
+    {
+        if (environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "Email configuration is missing. Set Email:FromEmail, Email:Smtp:Host, and Email:Smtp:Port.");
+        }
+
+        throw new InvalidOperationException(
+            "Email configuration is missing. Provide Email settings or use Development defaults.");
+    }
+}
