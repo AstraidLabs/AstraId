@@ -69,6 +69,32 @@ Nebo použijte připravené skripty:
 4. Zobrazí se odpověď z `/api/me`.
 5. Pokud má uživatel permission `system.admin`, zobrazí se tlačítko **Admin Ping** a odpověď z `/api/admin/ping`.
 
+## Návod na spuštění (detailní)
+
+1. **Nainstalujte prerekvizity**
+   - .NET SDK 10
+   - Node.js 20+
+   - PostgreSQL
+2. **Připravte databázi**
+   - vytvořte databázi `identity_demo` a uživatele `app`/`app`
+   - případně upravte connection string v `src/AuthServer/appsettings.Development.json`
+3. **Povolte HTTPS certifikát**
+   - `dotnet dev-certs https --trust`
+4. **Spusťte migrace**
+   - migrace se spouští automaticky při startu AuthServeru
+   - pro ruční migraci použijte: `dotnet ef database update --project src/AuthServer --startup-project src/AuthServer`
+5. **Spusťte všechny služby**
+   - AuthServer: `dotnet run --project src/AuthServer --launch-profile AuthServer`
+   - API: `dotnet run --project src/Api --launch-profile Api`
+   - Web:
+     - `cd src/Web`
+     - `npm install`
+     - `npm run dev`
+   - alternativně použijte skripty `./scripts/dev.sh` nebo `./scripts/dev.ps1`
+6. **Ověřte funkčnost**
+   - otevřete `http://localhost:5173`
+   - přihlaste se přes **Login** a zkuste **Call API**
+
 ## Porty a URL
 
 - AuthServer: `https://localhost:7001`
