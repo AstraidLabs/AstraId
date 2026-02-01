@@ -3,10 +3,9 @@ import { useAuth } from "react-oidc-context";
 import TopNav from "./components/TopNav";
 import Container from "./components/Container";
 import Home from "./pages/Home";
-import Profile from "./pages/Profile";
-import Admin from "./pages/Admin";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Callback from "./pages/Callback";
-import Integrations from "./pages/Integrations";
 import NotFound from "./pages/NotFound";
 import Alert from "./components/Alert";
 
@@ -27,9 +26,8 @@ const App = () => {
           ) : null}
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/auth/callback" element={<Callback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

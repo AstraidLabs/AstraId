@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
-using Microsoft.AspNetCore;
 
 namespace AuthServer.Controllers;
 
@@ -27,15 +26,18 @@ public class AuthorizationController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IPermissionService _permissionService;
+    private readonly UiUrlBuilder _uiUrlBuilder;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IPermissionService permissionService)
+        IPermissionService permissionService,
+        UiUrlBuilder uiUrlBuilder)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _permissionService = permissionService;
+        _uiUrlBuilder = uiUrlBuilder;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -50,7 +52,7 @@ public class AuthorizationController : ControllerBase
         if (!User.Identity?.IsAuthenticated ?? true)
         {
             var redirectUri = Request.PathBase + Request.Path + Request.QueryString;
-            return Challenge(new AuthenticationProperties { RedirectUri = redirectUri }, IdentityConstants.ApplicationScheme);
+            return Redirect(_uiUrlBuilder.BuildLoginUrl(redirectUri));
         }
 
         var user = await _userManager.GetUserAsync(User);

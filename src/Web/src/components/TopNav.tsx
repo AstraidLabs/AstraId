@@ -1,7 +1,7 @@
-import { NavLink } from "react-router-dom";
-import { useAuth } from "react-oidc-context";
+import { NavLink, useNavigate } from "react-router-dom";
 import Container from "./Container";
-import { usePermissions } from "../auth/usePermissions";
+import { logout } from "../api/authServer";
+import { useAuthSession } from "../auth/useAuthSession";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-3 py-1 text-sm transition ${
@@ -11,15 +11,13 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 const TopNav = () => {
-  const auth = useAuth();
-  const { hasPermission } = usePermissions();
+  const navigate = useNavigate();
+  const { session, refresh } = useAuthSession();
 
-  const handleLogin = () => {
-    void auth.signinRedirect();
-  };
-
-  const handleLogout = () => {
-    void auth.signoutRedirect();
+  const handleLogout = async () => {
+    await logout();
+    await refresh();
+    navigate("/", { replace: true });
   };
 
   return (
@@ -30,47 +28,35 @@ const TopNav = () => {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               AstraId
             </p>
-            <h1 className="text-xl font-semibold text-white">OIDC Web</h1>
+            <h1 className="text-xl font-semibold text-white">AuthServer UI</h1>
           </div>
           <nav className="flex flex-wrap items-center gap-2">
             <NavLink to="/" className={linkClass}>
               Home
             </NavLink>
-            <NavLink to="/profile" className={linkClass}>
-              Profile
+            <NavLink to="/login" className={linkClass}>
+              Login
             </NavLink>
-            {hasPermission("system.admin") ? (
-              <NavLink to="/admin" className={linkClass}>
-                Admin
-              </NavLink>
-            ) : null}
-            <NavLink to="/integrations" className={linkClass}>
-              Integrations
+            <NavLink to="/register" className={linkClass}>
+              Register
             </NavLink>
           </nav>
           <div className="flex flex-wrap items-center gap-3">
-            {auth.isAuthenticated ? (
+            {session && session.isAuthenticated ? (
               <div className="text-sm text-slate-300">
-                {auth.user?.profile?.name ?? "Přihlášen"}
+                {session.userName ?? session.email ?? "Přihlášen"}
               </div>
             ) : (
               <span className="text-sm text-slate-500">Nepřihlášen</span>
             )}
-            {!auth.isAuthenticated ? (
-              <button
-                className="rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
-                onClick={handleLogin}
-              >
-                Login
-              </button>
-            ) : (
+            {session && session.isAuthenticated ? (
               <button
                 className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
                 onClick={handleLogout}
               >
                 Logout
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </Container>
