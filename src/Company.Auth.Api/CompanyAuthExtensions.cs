@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
 
 namespace Company.Auth.Api;
@@ -59,5 +60,12 @@ public static class PermissionPolicies
         string permission)
     {
         return builder.RequireClaim(AuthConstants.ClaimTypes.Permission, permission);
+    }
+
+    public static AuthorizationPolicyBuilder RequireScope(
+        this AuthorizationPolicyBuilder builder,
+        string scope)
+    {
+        return builder.RequireClaim(OpenIddictConstants.Claims.Scope, scope);
     }
 }
