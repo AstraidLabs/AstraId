@@ -146,7 +146,7 @@ public class AuthController : ControllerBase
             user.Id.ToString(),
             user.Email,
             user.UserName,
-            roles,
+            roles.ToList(),
             permissions));
     }
 }
