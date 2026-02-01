@@ -1,28 +1,36 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "react-oidc-context";
 import { useNavigate } from "react-router-dom";
+import Card from "../components/Card";
+import Alert from "../components/Alert";
 
 const Callback = () => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
     const handleCallback = async () => {
-      await auth.signinRedirectCallback();
-      navigate("/");
+      try {
+        await auth.signinRedirectCallback();
+        navigate("/profile", { replace: true });
+      } catch {
+        setError("Nepodařilo se dokončit přihlášení.");
+      }
     };
 
     void handleCallback();
   }, [auth, navigate]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="text-2xl font-semibold">Signing you in...</h1>
-        <p className="mt-2 text-slate-300">
-          Processing authentication callback.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <Card title="Přihlašování" description="Zpracováváme OIDC callback.">
+        {error ? (
+          <Alert variant="error">{error}</Alert>
+        ) : (
+          <Alert variant="info">Zpracováváme přihlášení...</Alert>
+        )}
+      </Card>
     </div>
   );
 };
