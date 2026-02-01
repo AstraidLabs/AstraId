@@ -15,6 +15,7 @@ cp .env.example .env
 
 Proměnné:
 
+- `VITE_AUTHSERVER_BASE_URL` (default `https://localhost:7001`)
 - `VITE_AUTH_AUTHORITY` (default `https://localhost:7001`)
 - `VITE_AUTH_CLIENT_ID` (default `web-spa`)
 - `VITE_AUTH_REDIRECT_URI` (default `http://localhost:5173/auth/callback`)
