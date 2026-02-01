@@ -1,12 +1,14 @@
 using AuthServer.Data;
+using AuthServer.Options;
 using AuthServer.Seeding;
 using AuthServer.Services;
 using AuthServer.Services.Admin;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 using OpenIddict.Server.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,13 +20,23 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 
 builder.Services
-    .AddDefaultIdentity<ApplicationUser>(options =>
+    .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
         options.User.RequireUniqueEmail = true;
     })
-    .AddRoles<IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = "AstraId.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.LoginPath = "/login";
+    options.AccessDeniedPath = "/access-denied";
+});
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages();
@@ -50,6 +62,9 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
+builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
+builder.Services.AddSingleton<UiUrlBuilder>();
+builder.Services.AddSingleton<ReturnUrlValidator>();
 
 builder.Services.AddCors(options =>
 {
@@ -58,7 +73,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -113,7 +129,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+
+var uiOptions = app.Services.GetRequiredService<IOptions<AuthServerUiOptions>>().Value;
+if (uiOptions.IsHosted)
+{
+    var hostedPath = uiOptions.GetHostedUiPath(app.Environment.ContentRootPath);
+    var fileProvider = new PhysicalFileProvider(hostedPath);
+
+    var defaultFiles = new DefaultFilesOptions { FileProvider = fileProvider };
+    defaultFiles.DefaultFileNames.Clear();
+    defaultFiles.DefaultFileNames.Add("index.html");
+    app.UseDefaultFiles(defaultFiles);
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+}
+else
+{
+    app.UseStaticFiles();
+}
 app.UseRouting();
 
 app.UseCors("Web");
@@ -123,5 +155,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapRazorPages();
+
+if (uiOptions.IsHosted)
+{
+    var hostedPath = uiOptions.GetHostedUiPath(app.Environment.ContentRootPath);
+    var fileProvider = new PhysicalFileProvider(hostedPath);
+    app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = fileProvider });
+}
 
 app.Run();

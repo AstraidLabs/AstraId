@@ -13,7 +13,7 @@ const Callback = () => {
     const handleCallback = async () => {
       try {
         await auth.signinRedirectCallback();
-        navigate("/profile", { replace: true });
+        navigate("/", { replace: true });
       } catch {
         setError("Nepodařilo se dokončit přihlášení.");
       }
