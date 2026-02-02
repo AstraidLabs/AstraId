@@ -3,7 +3,7 @@ import { useAuth } from "react-oidc-context";
 import { Link } from "react-router-dom";
 import Card from "../components/Card";
 import Alert from "../components/Alert";
-import { logout } from "../api/authServer";
+import { AUTH_SERVER_BASE_URL, logout } from "../api/authServer";
 import { useAuthSession } from "../auth/useAuthSession";
 
 const Home = () => {
@@ -75,7 +75,7 @@ const Home = () => {
                 {session.permissions.includes("system.admin") ? (
                   <a
                     className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
-                    href="/admin"
+                    href={`${AUTH_SERVER_BASE_URL}/admin`}
                   >
                     Admin
                   </a>
