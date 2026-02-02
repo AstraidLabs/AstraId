@@ -188,8 +188,8 @@ public class AuthorizationController : ControllerBase
     {
         return new AuthenticationProperties(new Dictionary<string, string?>
         {
-            [OpenIddictConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidClient,
-            [OpenIddictConstants.Properties.ErrorDescription] = "The client application is disabled."
+            [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.InvalidClient,
+            [OpenIddictConstants.Parameters.ErrorDescription] = "The client application is disabled."
         });
     }
 }
