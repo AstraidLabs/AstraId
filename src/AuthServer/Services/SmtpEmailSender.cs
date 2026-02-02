@@ -43,12 +43,15 @@ public sealed class SmtpEmailSender : IEmailSender
             ? SecureSocketOptions.SslOnConnect
             : smtp.UseStartTls
                 ? SecureSocketOptions.StartTls
-                : SecureSocketOptions.None;
+                : SecureSocketOptions.StartTlsWhenAvailable;
+
+        if (!smtp.UseSsl && !smtp.UseStartTls)
+        {
+            _logger.LogWarning("SMTP is not configured for TLS; using STARTTLS when available.");
+        }
 
         _logger.LogInformation(
-            "Sending email to {ToEmail} with subject {Subject} via {Host}:{Port}.",
-            message.ToEmail,
-            message.Subject,
+            "Sending email via {Host}:{Port}.",
             smtp.Host,
             smtp.Port);
 

@@ -3,8 +3,10 @@ using AuthServer.Models;
 using AuthServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using System.Globalization;
 using System.Text;
 
 namespace AuthServer.Controllers;
@@ -19,6 +21,14 @@ public class AuthController : ControllerBase
     private readonly ReturnUrlValidator _returnUrlValidator;
     private readonly UiUrlBuilder _uiUrlBuilder;
     private readonly IEmailSender _emailSender;
+    private readonly AuthRateLimiter _rateLimiter;
+
+    private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ResetWindow = TimeSpan.FromMinutes(10);
+    private const int LoginMaxAttempts = 5;
+    private const int RegistrationMaxAttempts = 3;
+    private const int ResetMaxAttempts = 3;
 
     public AuthController(
         SignInManager<ApplicationUser> signInManager,
@@ -26,7 +36,8 @@ public class AuthController : ControllerBase
         IPermissionService permissionService,
         ReturnUrlValidator returnUrlValidator,
         UiUrlBuilder uiUrlBuilder,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        AuthRateLimiter rateLimiter)
     {
         _signInManager = signInManager;
         _userManager = userManager;
@@ -34,44 +45,47 @@ public class AuthController : ControllerBase
         _returnUrlValidator = returnUrlValidator;
         _uiUrlBuilder = uiUrlBuilder;
         _emailSender = emailSender;
+        _rateLimiter = rateLimiter;
     }
 
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.EmailOrUsername) || string.IsNullOrWhiteSpace(request.Password))
+        if (IsRateLimited("login", LoginMaxAttempts, LoginWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var emailOrUsername = request.EmailOrUsername?.Trim();
+        if (string.IsNullOrWhiteSpace(emailOrUsername) || string.IsNullOrWhiteSpace(request.Password))
         {
             return BadRequest(new AuthResponse(false, null, "Zadejte e-mail/uživatelské jméno a heslo."));
         }
 
-        if (!string.IsNullOrWhiteSpace(request.ReturnUrl) && !_returnUrlValidator.IsValidReturnUrl(request.ReturnUrl))
+        var returnUrl = request.ReturnUrl?.Trim();
+        if (!string.IsNullOrWhiteSpace(returnUrl) && !_returnUrlValidator.IsValidReturnUrl(returnUrl))
         {
             return BadRequest(new AuthResponse(false, null, "Neplatný returnUrl."));
         }
 
-        var user = await _userManager.FindByEmailAsync(request.EmailOrUsername)
-                   ?? await _userManager.FindByNameAsync(request.EmailOrUsername);
+        var user = await _userManager.FindByEmailAsync(emailOrUsername)
+                   ?? await _userManager.FindByNameAsync(emailOrUsername);
 
         if (user is null)
         {
             return BadRequest(new AuthResponse(false, null, "Neplatné přihlašovací údaje."));
         }
 
-        if (!user.EmailConfirmed)
-        {
-            return BadRequest(new AuthResponse(false, null, "Účet není aktivní. Zkontrolujte potvrzovací e-mail."));
-        }
-
-        var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, false);
+        var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, true);
         if (!result.Succeeded)
         {
             return BadRequest(new AuthResponse(false, null, "Neplatné přihlašovací údaje."));
         }
 
-        var redirectTo = string.IsNullOrWhiteSpace(request.ReturnUrl)
+        var redirectTo = string.IsNullOrWhiteSpace(returnUrl)
             ? _uiUrlBuilder.BuildHomeUrl()
-            : request.ReturnUrl;
+            : returnUrl;
 
         return Ok(new AuthResponse(true, redirectTo, null));
     }
@@ -80,7 +94,13 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) ||
+        if (IsRateLimited("register", RegistrationMaxAttempts, RegistrationWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email) ||
             string.IsNullOrWhiteSpace(request.Password) ||
             string.IsNullOrWhiteSpace(request.ConfirmPassword))
         {
@@ -92,29 +112,40 @@ public class AuthController : ControllerBase
             return BadRequest(new AuthResponse(false, null, "Hesla se neshodují."));
         }
 
-        if (!string.IsNullOrWhiteSpace(request.ReturnUrl) && !_returnUrlValidator.IsValidReturnUrl(request.ReturnUrl))
+        var returnUrl = request.ReturnUrl?.Trim();
+        if (!string.IsNullOrWhiteSpace(returnUrl) && !_returnUrlValidator.IsValidReturnUrl(returnUrl))
         {
             return BadRequest(new AuthResponse(false, null, "Neplatný returnUrl."));
         }
 
-        var existing = await _userManager.FindByEmailAsync(request.Email);
+        var existing = await _userManager.FindByEmailAsync(email);
         if (existing is not null)
         {
-            return BadRequest(new AuthResponse(false, null, "Uživatel s tímto e-mailem již existuje."));
+            if (!existing.EmailConfirmed)
+            {
+                var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(existing);
+                var encodedToken = EncodeToken(confirmationToken);
+                var activationLink = _uiUrlBuilder.BuildActivationUrl(existing.Email!, encodedToken);
+                var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+                await _emailSender.SendAsync(
+                    new EmailMessage(existing.Email!, existing.UserName, subject, htmlBody, textBody),
+                    HttpContext.RequestAborted);
+            }
+
+            return Ok(BuildRegistrationResponse(returnUrl));
         }
 
         var user = new ApplicationUser
         {
-            UserName = request.Email,
-            Email = request.Email,
+            UserName = email,
+            Email = email,
             EmailConfirmed = false
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);
         if (!createResult.Succeeded)
         {
-            var message = string.Join(" ", createResult.Errors.Select(error => error.Description));
-            return BadRequest(new AuthResponse(false, null, message));
+            return BadRequest(new AuthResponse(false, null, "Registrace se nezdařila."));
         }
 
         var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -125,23 +156,25 @@ public class AuthController : ControllerBase
             new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
             HttpContext.RequestAborted);
 
-        var redirectTo = string.IsNullOrWhiteSpace(request.ReturnUrl)
-            ? _uiUrlBuilder.BuildLoginUrl(string.Empty)
-            : _uiUrlBuilder.BuildLoginUrl(request.ReturnUrl);
-
-        return Ok(new AuthResponse(true, redirectTo, null));
+        return Ok(BuildRegistrationResponse(returnUrl));
     }
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email))
+        if (IsRateLimited("forgot-password", ResetMaxAttempts, ResetWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email))
         {
             return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByEmailAsync(email);
         if (user is not null)
         {
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
@@ -160,7 +193,13 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) ||
+        if (IsRateLimited("reset-password", ResetMaxAttempts, ResetWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email) ||
             string.IsNullOrWhiteSpace(request.Token) ||
             string.IsNullOrWhiteSpace(request.NewPassword) ||
             string.IsNullOrWhiteSpace(request.ConfirmPassword))
@@ -173,7 +212,7 @@ public class AuthController : ControllerBase
             return BadRequest(new AuthResponse(false, null, "Hesla se neshodují."));
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByEmailAsync(email);
         if (user is null)
         {
             return Ok(new AuthResponse(true, null, null));
@@ -188,8 +227,7 @@ public class AuthController : ControllerBase
         var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
         if (!result.Succeeded)
         {
-            var message = string.Join(" ", result.Errors.Select(error => error.Description));
-            return BadRequest(new AuthResponse(false, null, message));
+            return BadRequest(new AuthResponse(false, null, "Obnovení hesla se nezdařilo."));
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -199,12 +237,18 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ResendActivation([FromBody] ResendActivationRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email))
+        if (IsRateLimited("resend-activation", ResetMaxAttempts, ResetWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email))
         {
             return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByEmailAsync(email);
         if (user is not null && !user.EmailConfirmed)
         {
             var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -223,12 +267,18 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> ActivateAccount([FromBody] ActivateAccountRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token))
+        if (IsRateLimited("activate", ResetMaxAttempts, ResetWindow, out var retryAfter))
+        {
+            return TooManyRequestsResponse(retryAfter);
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(request.Token))
         {
             return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
         }
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByEmailAsync(email);
         if (user is null)
         {
             return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
@@ -243,8 +293,7 @@ public class AuthController : ControllerBase
         var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
         if (!result.Succeeded)
         {
-            var message = string.Join(" ", result.Errors.Select(error => error.Description));
-            return BadRequest(new AuthResponse(false, null, message));
+            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -299,5 +348,31 @@ public class AuthController : ControllerBase
         {
             return null;
         }
+    }
+
+    private bool IsRateLimited(string action, int maxAttempts, TimeSpan window, out int retryAfterSeconds)
+    {
+        return _rateLimiter.IsLimited(HttpContext, action, maxAttempts, window, out retryAfterSeconds);
+    }
+
+    private IActionResult TooManyRequestsResponse(int retryAfterSeconds)
+    {
+        if (retryAfterSeconds > 0)
+        {
+            Response.Headers.RetryAfter = retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return StatusCode(
+            StatusCodes.Status429TooManyRequests,
+            new AuthResponse(false, null, "Příliš mnoho pokusů. Zkuste to prosím později."));
+    }
+
+    private AuthResponse BuildRegistrationResponse(string? returnUrl)
+    {
+        var redirectTo = string.IsNullOrWhiteSpace(returnUrl)
+            ? _uiUrlBuilder.BuildLoginUrl(string.Empty)
+            : _uiUrlBuilder.BuildLoginUrl(returnUrl);
+
+        return new AuthResponse(true, redirectTo, null);
     }
 }

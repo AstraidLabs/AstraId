@@ -26,6 +26,9 @@ public sealed class AdminUserService : IAdminUserService
 
     public async Task<PagedResult<AdminUserListItem>> GetUsersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Max(1, pageSize);
+
         var query = _userManager.Users.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))

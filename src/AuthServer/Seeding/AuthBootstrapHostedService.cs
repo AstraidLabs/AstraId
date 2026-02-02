@@ -1,7 +1,11 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using AuthServer.Data;
+using AuthServer.Options;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
 namespace AuthServer.Seeding;
@@ -10,15 +14,21 @@ public sealed class AuthBootstrapHostedService : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IWebHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
+    private readonly IOptions<BootstrapAdminOptions> _bootstrapOptions;
     private readonly ILogger<AuthBootstrapHostedService> _logger;
 
     public AuthBootstrapHostedService(
         IServiceProvider serviceProvider,
         IWebHostEnvironment environment,
+        IConfiguration configuration,
+        IOptions<BootstrapAdminOptions> bootstrapOptions,
         ILogger<AuthBootstrapHostedService> logger)
     {
         _serviceProvider = serviceProvider;
         _environment = environment;
+        _configuration = configuration;
+        _bootstrapOptions = bootstrapOptions;
         _logger = logger;
     }
 
@@ -224,39 +234,87 @@ public sealed class AuthBootstrapHostedService : IHostedService
         ApplicationDbContext dbContext,
         CancellationToken cancellationToken)
     {
+        var options = _bootstrapOptions.Value;
+        var hasBootstrapConfig = _configuration.GetSection(BootstrapAdminOptions.SectionName).Exists();
+        var isDevelopment = _environment.IsDevelopment();
+
+        if (options.OnlyInDevelopment && !isDevelopment)
+        {
+            return;
+        }
+
+        if (!hasBootstrapConfig && !isDevelopment)
+        {
+            return;
+        }
+
+        if (hasBootstrapConfig && !options.Enabled)
+        {
+            return;
+        }
+
+        var roleName = string.IsNullOrWhiteSpace(options.RoleName) ? "Admin" : options.RoleName;
+
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var adminRole = await roleManager.FindByNameAsync("Admin");
+        var adminRole = await roleManager.FindByNameAsync(roleName);
         if (adminRole is null)
         {
-            adminRole = new IdentityRole<Guid> { Name = "Admin" };
+            adminRole = new IdentityRole<Guid> { Name = roleName };
             var created = await roleManager.CreateAsync(adminRole);
             if (!created.Succeeded)
             {
                 _logger.LogWarning("Failed to create Admin role: {Errors}", created.Errors);
                 return;
             }
+
+            await LogAuditAsync(
+                dbContext,
+                "role.created",
+                "Role",
+                adminRole.Id.ToString(),
+                new { roleName },
+                cancellationToken);
         }
 
         await SyncRolePermissionsAsync(adminRole, dbContext, cancellationToken);
 
-        if (!_environment.IsDevelopment())
+        var adminEmail = options.Email;
+        var adminPassword = options.Password;
+
+        if (!hasBootstrapConfig && isDevelopment)
         {
-            return;
+            adminEmail ??= "admin@local.test";
+            adminPassword ??= "Password123!";
         }
 
-        const string adminEmail = "admin@local.test";
-        const string adminPassword = "Password123!";
+        if (string.IsNullOrWhiteSpace(adminEmail))
+        {
+            _logger.LogWarning("Bootstrap admin user skipped because Email is not configured.");
+            return;
+        }
 
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
         if (adminUser is null)
         {
+            if (string.IsNullOrWhiteSpace(adminPassword))
+            {
+                if (!options.GeneratePasswordWhenMissing)
+                {
+                    _logger.LogWarning("Bootstrap admin user skipped because Password is not configured.");
+                    return;
+                }
+
+                adminPassword = GeneratePassword();
+                _logger.LogInformation("Generated bootstrap admin password for {Email}.", adminEmail);
+            }
+
             adminUser = new ApplicationUser
             {
                 UserName = adminEmail,
                 Email = adminEmail,
-                EmailConfirmed = true
+                EmailConfirmed = options.RequireConfirmedEmail
             };
 
             var createdUser = await userManager.CreateAsync(adminUser, adminPassword);
@@ -265,11 +323,38 @@ public sealed class AuthBootstrapHostedService : IHostedService
                 _logger.LogWarning("Failed to create admin user: {Errors}", createdUser.Errors);
                 return;
             }
+
+            await LogAuditAsync(
+                dbContext,
+                "user.admin.created",
+                "User",
+                adminUser.Id.ToString(),
+                new { email = adminEmail },
+                cancellationToken);
+
+            if (!hasBootstrapConfig && isDevelopment)
+            {
+                _logger.LogInformation("Bootstrap admin user created in development.");
+            }
+            else
+            {
+                _logger.LogInformation("Bootstrap admin user created.");
+            }
         }
 
-        if (!await userManager.IsInRoleAsync(adminUser, adminRole.Name!))
+        if (!await userManager.IsInRoleAsync(adminUser, roleName))
         {
-            await userManager.AddToRoleAsync(adminUser, adminRole.Name!);
+            var result = await userManager.AddToRoleAsync(adminUser, roleName);
+            if (result.Succeeded)
+            {
+                await LogAuditAsync(
+                    dbContext,
+                    "user.role.assigned",
+                    "User",
+                    adminUser.Id.ToString(),
+                    new { roleName },
+                    cancellationToken);
+            }
         }
     }
 
@@ -338,5 +423,61 @@ public sealed class AuthBootstrapHostedService : IHostedService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task LogAuditAsync(
+        ApplicationDbContext dbContext,
+        string action,
+        string targetType,
+        string? targetId,
+        object data,
+        CancellationToken cancellationToken)
+    {
+        dbContext.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TimestampUtc = DateTime.UtcNow,
+            Action = action,
+            TargetType = targetType,
+            TargetId = targetId,
+            DataJson = JsonSerializer.Serialize(data)
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string GeneratePassword(int length = 16)
+    {
+        const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const string lower = "abcdefghijklmnopqrstuvwxyz";
+        const string digits = "0123456789";
+        const string symbols = "!@#$%^&*_-+=";
+
+        var required = new[]
+        {
+            upper[RandomNumberGenerator.GetInt32(upper.Length)],
+            lower[RandomNumberGenerator.GetInt32(lower.Length)],
+            digits[RandomNumberGenerator.GetInt32(digits.Length)],
+            symbols[RandomNumberGenerator.GetInt32(symbols.Length)]
+        };
+
+        var allChars = upper + lower + digits + symbols;
+        var buffer = new char[length];
+        var remaining = length - required.Length;
+
+        for (var i = 0; i < remaining; i++)
+        {
+            buffer[i] = allChars[RandomNumberGenerator.GetInt32(allChars.Length)];
+        }
+
+        Array.Copy(required, 0, buffer, remaining, required.Length);
+
+        for (var i = buffer.Length - 1; i > 0; i--)
+        {
+            var swapIndex = RandomNumberGenerator.GetInt32(i + 1);
+            (buffer[i], buffer[swapIndex]) = (buffer[swapIndex], buffer[i]);
+        }
+
+        return new string(buffer);
     }
 }

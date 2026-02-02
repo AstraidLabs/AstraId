@@ -39,27 +39,44 @@ public sealed class PolicyMapClient
             return;
         }
 
-        var url = new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map");
-        var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("X-Api-Key", options.ApiKey);
-
-        var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
         {
-            _logger.LogWarning("Policy map refresh failed with status {StatusCode}.", response.StatusCode);
+            _logger.LogWarning("Policy map refresh skipped: missing API key.");
             return;
         }
 
-        var entries = await response.Content.ReadFromJsonAsync<List<PolicyMapEntry>>(cancellationToken: cancellationToken)
-            ?? new List<PolicyMapEntry>();
-
-        lock (_lock)
+        try
         {
-            _entries = entries;
-        }
+            var url = new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map");
+            var client = _httpClientFactory.CreateClient();
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("X-Api-Key", options.ApiKey);
 
-        _logger.LogInformation("Policy map refreshed: {Count} entries.", entries.Count);
+            var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Policy map refresh failed with status {StatusCode}.", response.StatusCode);
+                return;
+            }
+
+            var entries = await response.Content.ReadFromJsonAsync<List<PolicyMapEntry>>(cancellationToken: cancellationToken)
+                ?? new List<PolicyMapEntry>();
+
+            lock (_lock)
+            {
+                _entries = entries;
+            }
+
+            _logger.LogInformation("Policy map refreshed: {Count} entries.", entries.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Policy map refresh cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Policy map refresh failed due to unexpected error.");
+        }
     }
 
     public IReadOnlyCollection<string>? FindRequiredPermissions(string method, string path)
