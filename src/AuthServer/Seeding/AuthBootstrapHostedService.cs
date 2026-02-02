@@ -287,6 +287,12 @@ public sealed class AuthBootstrapHostedService : IHostedService
         object application,
         CancellationToken cancellationToken)
     {
+        var status = await applicationManager.GetStatusAsync(application, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            return !IsLegacyDisabled(status);
+        }
+
         var properties = await applicationManager.GetPropertiesAsync(application, cancellationToken);
         if (TryGetLegacyStatusValue(properties, out var statusValue))
         {
