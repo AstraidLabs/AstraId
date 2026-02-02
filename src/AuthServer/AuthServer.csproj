@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
     <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.9" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
-    <PackageReference Include="MailKit" Version="4.12.1" />
+    <PackageReference Include="MailKit" Version="4.14.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -33,13 +33,8 @@
       <AdminUiOutput>$(MSBuildProjectDirectory)/wwwroot/admin-ui</AdminUiOutput>
     </PropertyGroup>
 
-    <Exec
-      Condition="!Exists('$(AdminUiRoot)/node_modules')"
-      WorkingDirectory="$(AdminUiRoot)"
-      Command="npm ci" />
-    <Exec
-      WorkingDirectory="$(AdminUiRoot)"
-      Command="npm run build" />
+    <Exec Condition="!Exists('$(AdminUiRoot)/node_modules')" WorkingDirectory="$(AdminUiRoot)" Command="npm ci" />
+    <Exec WorkingDirectory="$(AdminUiRoot)" Command="npm run build" />
 
     <RemoveDir Directories="$(AdminUiOutput)" />
     <MakeDir Directories="$(AdminUiOutput)" />
@@ -48,9 +43,6 @@
       <AdminUiDistFiles Include="$(AdminUiDist)/**" />
     </ItemGroup>
 
-    <Copy
-      SourceFiles="@(AdminUiDistFiles)"
-      DestinationFiles="@(AdminUiDistFiles->'$(AdminUiOutput)/%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(AdminUiDistFiles)" DestinationFiles="@(AdminUiDistFiles->'$(AdminUiOutput)/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 </Project>
