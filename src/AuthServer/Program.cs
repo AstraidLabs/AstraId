@@ -66,6 +66,7 @@ builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
 
 if (builder.Environment.IsDevelopment())
 {
