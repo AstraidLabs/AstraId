@@ -40,6 +40,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddHttpContextAccessor();
@@ -48,6 +49,7 @@ builder.Services.AddScoped<IAdminRoleService, AdminRoleService>();
 builder.Services.AddScoped<IAdminPermissionAdminService, AdminPermissionAdminService>();
 builder.Services.AddScoped<IAdminApiResourceService, AdminApiResourceService>();
 builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
+builder.Services.AddSingleton<AuthRateLimiter>();
 
 builder.Services.AddAuthorization(options =>
 {
