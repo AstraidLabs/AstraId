@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
+using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
@@ -46,6 +47,9 @@ public sealed class AdminClientService : IAdminClientService
         pageSize = Math.Max(1, pageSize);
 
         var items = new List<AdminClientListItem>();
+        var clientStates = await _dbContext.ClientStates
+            .AsNoTracking()
+            .ToDictionaryAsync(state => state.ApplicationId, cancellationToken);
 
         await foreach (var application in _applicationManager.ListAsync(count: null, offset: null, cancellationToken))
         {
@@ -61,14 +65,14 @@ public sealed class AdminClientService : IAdminClientService
 
             var id = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
             var clientType = await _applicationManager.GetClientTypeAsync(application, cancellationToken) ?? string.Empty;
-            var status = await _applicationManager.GetStatusAsync(application, cancellationToken);
+            var enabled = ResolveEnabled(id, clientStates);
 
             items.Add(new AdminClientListItem(
                 id,
                 clientId,
                 displayName,
                 clientType,
-                IsEnabled(status)));
+                enabled));
         }
 
         var totalCount = items.Count;
@@ -100,8 +104,7 @@ public sealed class AdminClientService : IAdminClientService
         {
             ClientId = config.ClientId,
             DisplayName = config.DisplayName,
-            ClientType = config.ClientType,
-            Status = config.Enabled ? OpenIddictConstants.Statuses.Valid : OpenIddictConstants.Statuses.Inactive
+            ClientType = config.ClientType
         };
 
         foreach (var uri in config.RedirectUris)
@@ -135,6 +138,9 @@ public sealed class AdminClientService : IAdminClientService
 
         var application = await _applicationManager.FindByClientIdAsync(config.ClientId, cancellationToken)
             ?? throw new InvalidOperationException("Created client was not found.");
+
+        var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
+        await UpsertClientStateAsync(applicationId, config.Enabled, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync("client.created", "OpenIddictApplication", detail.Id, new
@@ -175,7 +181,6 @@ public sealed class AdminClientService : IAdminClientService
         descriptor.ClientId = config.ClientId;
         descriptor.DisplayName = config.DisplayName;
         descriptor.ClientType = config.ClientType;
-        descriptor.Status = config.Enabled ? OpenIddictConstants.Statuses.Valid : OpenIddictConstants.Statuses.Inactive;
 
         descriptor.RedirectUris.Clear();
         foreach (var uri in config.RedirectUris)
@@ -207,6 +212,9 @@ public sealed class AdminClientService : IAdminClientService
         }
 
         await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+
+        var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
+        await UpsertClientStateAsync(applicationId, config.Enabled, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync("client.updated", "OpenIddictApplication", detail.Id, new
@@ -261,11 +269,8 @@ public sealed class AdminClientService : IAdminClientService
             return null;
         }
 
-        var descriptor = new OpenIddictApplicationDescriptor();
-        await _applicationManager.PopulateAsync(descriptor, application, cancellationToken);
-        descriptor.Status = enabled ? OpenIddictConstants.Statuses.Valid : OpenIddictConstants.Statuses.Inactive;
-
-        await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
+        var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
+        await UpsertClientStateAsync(applicationId, enabled, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync(enabled ? "client.enabled" : "client.disabled", "OpenIddictApplication", detail.Id, new
@@ -304,7 +309,7 @@ public sealed class AdminClientService : IAdminClientService
         var clientId = await _applicationManager.GetClientIdAsync(application, cancellationToken) ?? string.Empty;
         var displayName = await _applicationManager.GetDisplayNameAsync(application, cancellationToken);
         var clientType = await _applicationManager.GetClientTypeAsync(application, cancellationToken) ?? string.Empty;
-        var status = await _applicationManager.GetStatusAsync(application, cancellationToken);
+        var enabled = await GetEnabledAsync(id, cancellationToken);
         var permissions = await _applicationManager.GetPermissionsAsync(application, cancellationToken);
         var requirements = await _applicationManager.GetRequirementsAsync(application, cancellationToken);
         var redirectUris = await _applicationManager.GetRedirectUrisAsync(application, cancellationToken);
@@ -319,7 +324,7 @@ public sealed class AdminClientService : IAdminClientService
             clientId,
             displayName,
             clientType,
-            IsEnabled(status),
+            enabled,
             grantTypes,
             pkceRequired,
             scopes,
@@ -595,16 +600,62 @@ public sealed class AdminClientService : IAdminClientService
             .ToList();
     }
 
-    private static bool IsEnabled(string? status)
+    private static bool ResolveEnabled(string applicationId, IReadOnlyDictionary<string, ClientState> states)
     {
-        return string.IsNullOrWhiteSpace(status)
-            || string.Equals(status, OpenIddictConstants.Statuses.Valid, StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(applicationId))
+        {
+            return true;
+        }
+
+        return states.TryGetValue(applicationId, out var state) ? state.Enabled : true;
     }
 
     private static string GenerateSecret()
     {
         var bytes = RandomNumberGenerator.GetBytes(32);
         return Convert.ToBase64String(bytes);
+    }
+
+    private async Task<bool> GetEnabledAsync(string applicationId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId))
+        {
+            return true;
+        }
+
+        var state = await _dbContext.ClientStates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(clientState => clientState.ApplicationId == applicationId, cancellationToken);
+
+        return state?.Enabled ?? true;
+    }
+
+    private async Task UpsertClientStateAsync(string applicationId, bool enabled, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId))
+        {
+            return;
+        }
+
+        var state = await _dbContext.ClientStates
+            .FirstOrDefaultAsync(clientState => clientState.ApplicationId == applicationId, cancellationToken);
+
+        if (state is null)
+        {
+            _dbContext.ClientStates.Add(new ClientState
+            {
+                ApplicationId = applicationId,
+                Enabled = enabled,
+                UpdatedUtc = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            state.Enabled = enabled;
+            state.UpdatedUtc = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task LogAuditAsync(string action, string targetType, string targetId, object data)
