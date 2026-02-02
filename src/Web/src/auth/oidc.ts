@@ -1,4 +1,4 @@
-import type { UserManagerSettings } from "oidc-client-ts";
+import { WebStorageStateStore, type UserManagerSettings } from "oidc-client-ts";
 
 const authority = import.meta.env.VITE_AUTH_AUTHORITY ?? "https://localhost:7001";
 const clientId = import.meta.env.VITE_AUTH_CLIENT_ID ?? "web-spa";
@@ -17,5 +17,6 @@ export const oidcConfig: UserManagerSettings = {
   redirect_uri: redirectUri,
   post_logout_redirect_uri: postLogoutRedirectUri,
   response_type: "code",
-  scope
+  scope,
+  userStore: new WebStorageStateStore({ store: window.sessionStorage })
 };
