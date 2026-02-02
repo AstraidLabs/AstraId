@@ -28,7 +28,7 @@ const TopNav = () => {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               AstraId
             </p>
-            <h1 className="text-xl font-semibold text-white">AuthServer UI</h1>
+            <h1 className="text-xl font-semibold text-white">Public UI</h1>
           </div>
           <nav className="flex flex-wrap items-center gap-2">
             <NavLink to="/" className={linkClass}>
@@ -39,6 +39,9 @@ const TopNav = () => {
             </NavLink>
             <NavLink to="/register" className={linkClass}>
               Register
+            </NavLink>
+            <NavLink to="/forgot-password" className={linkClass}>
+              Forgot password
             </NavLink>
           </nav>
           <div className="flex flex-wrap items-center gap-3">

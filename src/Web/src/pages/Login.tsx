@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
 import { login, resolveReturnUrl } from "../api/authServer";
@@ -74,6 +74,11 @@ const Login = () => {
           >
             {isSubmitting ? "Přihlašování..." : "Přihlásit"}
           </button>
+          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+            <Link className="hover:text-slate-200" to="/forgot-password">
+              Zapomenuté heslo
+            </Link>
+          </div>
         </form>
       </Card>
     </div>
