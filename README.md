@@ -101,6 +101,51 @@ Nebo použijte připravené skripty:
 - Api: `https://localhost:7002`
 - Web: `http://localhost:5173`
 
+## AuthServer – funkce
+
+- **OAuth2/OIDC server** postavený na OpenIddict (authorization code + PKCE, refresh tokeny, userinfo, logout).【F:src/AuthServer/Program.cs†L97-L143】【F:src/AuthServer/Controllers/AuthorizationController.cs†L35-L177】
+- **Vlastní auth API** pro registraci, login, aktivaci účtu a obnovu hesla (`/auth/*`).【F:src/AuthServer/Controllers/AuthController.cs†L41-L275】
+- **Správa rolí a permission** (system/admin permission, mapování rolí, audit log při změnách).【F:src/AuthServer/Seeding/AuthServerDefinitions.cs†L7-L47】【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L256-L437】
+- **Správa API resources a endpointů** (API key pro sync, policy map).【F:src/AuthServer/Controllers/ApiManagementController.cs†L10-L100】【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L318-L390】
+- **Admin API** pro výpis klientů a permissions (chráněno policy `AdminOnly`).【F:src/AuthServer/Controllers/AdminController.cs†L10-L71】【F:src/AuthServer/Program.cs†L45-L61】
+- **Email workflow** pro aktivace a reset hesla (SMTP).【F:src/AuthServer/Services/EmailTemplates.cs†L1-L41】【F:src/AuthServer/Options/EmailOptions.cs†L1-L29】
+- **Rate limiting** pro citlivé auth akce (login/registrace/reset).【F:src/AuthServer/Controllers/AuthController.cs†L35-L189】【F:src/AuthServer/Services/AuthRateLimiter.cs†L1-L66】
+
+## Jak AuthServer funguje
+
+1. **Identity + DB**: ASP.NET Identity ukládá uživatele/role/permissions do PostgreSQL přes `ApplicationDbContext`.【F:src/AuthServer/Program.cs†L13-L33】
+2. **OpenIddict server**: vystavuje standardní OIDC endpointy (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`) a vydává JWT access tokeny (bez šifrování).【F:src/AuthServer/Program.cs†L97-L143】【F:src/AuthServer/Controllers/AuthorizationController.cs†L35-L170】
+3. **Auth API**: Web UI komunikuje s `/auth/*` (login/registrace/aktivace/reset), validuje returnUrl a posílá e-maily s tokeny pro aktivaci/reset hesla.【F:src/AuthServer/Controllers/AuthController.cs†L46-L275】【F:src/AuthServer/Services/ReturnUrlValidator.cs†L1-L51】
+4. **Seeding**: při startu se migruje DB a synchronizují se scope, clients, permissions a API resources podle `AuthServerDefinitions`.【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L33-L137】【F:src/AuthServer/Seeding/AuthServerDefinitions.cs†L7-L56】
+5. **Admin role**: volitelně se bootstrapuje admin účet podle `BootstrapAdmin` konfigurace (v dev lze použít implicitní).【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L164-L312】【F:src/AuthServer/Options/BootstrapAdminOptions.cs†L1-L14】
+
+## Režimy AuthServer (UI)
+
+AuthServer umí běžet se dvěma režimy UI podle `AuthServer:UiMode`:
+
+- **Separate** (default): UI běží zvlášť jako SPA (`UiBaseUrl`, typicky `http://localhost:5173`). AuthServer pouze generuje redirecty zpět do SPA.【F:src/AuthServer/Options/AuthServerUiOptions.cs†L5-L27】
+- **Hosted**: AuthServer hostuje statické buildy SPA (složka `src/Web/dist` nebo cesta z `AuthServer:HostedUiPath`). V tomto režimu se statika obsluhuje přímo z AuthServeru a fallbackuje na `index.html`.【F:src/AuthServer/Options/AuthServerUiOptions.cs†L5-L27】【F:src/AuthServer/Program.cs†L158-L195】
+
+## Správné nastavení AuthServer
+
+1. **Issuer (OIDC)**  
+   - Nastavte `AuthServer:Issuer` na veřejnou URL AuthServeru (např. `https://localhost:7001/`).【F:src/AuthServer/appsettings.json†L8-L12】
+2. **UI režim**  
+   - `AuthServer:UiMode` = `Separate` nebo `Hosted`.  
+   - Pro `Separate` nastavte `AuthServer:UiBaseUrl`.  
+   - Pro `Hosted` případně nastavte `AuthServer:HostedUiPath` (jinak se použije `src/Web/dist`).【F:src/AuthServer/Options/AuthServerUiOptions.cs†L5-L27】
+3. **CORS**  
+   - Pokud UI běží odděleně, přidejte jeho origin do `Cors:AllowedOrigins`.【F:src/AuthServer/Program.cs†L81-L90】【F:src/AuthServer/appsettings.json†L25-L29】
+4. **Email (aktivace/reset)**  
+   - Vyplňte `Email:FromEmail` a `Email:Smtp:*`.  
+   - V produkci nesmí být prázdné (jinak start selže).【F:src/AuthServer/Program.cs†L150-L215】【F:src/AuthServer/Options/EmailOptions.cs†L1-L29】  
+   - Detailní návod: `src/AuthServer/EmailSetup.md`.【F:src/AuthServer/EmailSetup.md†L1-L22】
+5. **Bootstrap admin** (volitelně)  
+   - Nastavte `BootstrapAdmin:Enabled`, `Email`, `Password` a případně `GeneratePasswordWhenMissing`.  
+   - Pokud `OnlyInDevelopment=true`, admin se vytvoří jen v dev prostředí.【F:src/AuthServer/Options/BootstrapAdminOptions.cs†L1-L14】【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L164-L312】
+6. **Klienti, scope a permissions**  
+   - Upravujte v `AuthServerDefinitions` (scopes/clients/permissions). Změny se synchronizují při startu.【F:src/AuthServer/Seeding/AuthServerDefinitions.cs†L7-L56】【F:src/AuthServer/Seeding/AuthBootstrapHostedService.cs†L33-L137】
+
 ## Jak přidat nový projekt (SPA nebo API)
 
 1. **Scope pro API**
