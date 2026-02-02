@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<ApiEndpoint> ApiEndpoints => Set<ApiEndpoint>();
     public DbSet<EndpointPermission> EndpointPermissions => Set<EndpointPermission>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ClientState> ClientStates => Set<ClientState>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -78,6 +79,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasIndex(auditLog => auditLog.TimestampUtc);
             entity.Property(auditLog => auditLog.Action).HasMaxLength(200);
             entity.Property(auditLog => auditLog.TargetType).HasMaxLength(200);
+        });
+
+        builder.Entity<ClientState>(entity =>
+        {
+            entity.HasKey(clientState => clientState.ApplicationId);
+            entity.Property(clientState => clientState.ApplicationId).HasMaxLength(200);
+            entity.Property(clientState => clientState.UpdatedUtc);
         });
     }
 }

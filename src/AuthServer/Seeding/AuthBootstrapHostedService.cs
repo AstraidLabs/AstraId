@@ -46,6 +46,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
 
         await SyncScopesAsync(scopeManager, cancellationToken);
         await SyncApplicationsAsync(applicationManager, cancellationToken);
+        await SyncClientStatesAsync(applicationManager, dbContext, cancellationToken);
 
         await SeedAdminAsync(scope.ServiceProvider, dbContext, cancellationToken);
     }
@@ -227,6 +228,53 @@ public sealed class AuthBootstrapHostedService : IHostedService
         }
 
         return Array.Empty<string>();
+    }
+
+    private static async Task SyncClientStatesAsync(
+        IOpenIddictApplicationManager applicationManager,
+        ApplicationDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var knownApplicationIds = new HashSet<string>(StringComparer.Ordinal);
+
+        await foreach (var application in applicationManager.ListAsync(count: null, offset: null, cancellationToken))
+        {
+            var applicationId = await applicationManager.GetIdAsync(application, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(applicationId))
+            {
+                knownApplicationIds.Add(applicationId);
+            }
+        }
+
+        if (knownApplicationIds.Count == 0)
+        {
+            return;
+        }
+
+        var existingStates = await dbContext.ClientStates
+            .Where(state => knownApplicationIds.Contains(state.ApplicationId))
+            .Select(state => state.ApplicationId)
+            .ToListAsync(cancellationToken);
+
+        var existingSet = existingStates.ToHashSet(StringComparer.Ordinal);
+        var now = DateTime.UtcNow;
+
+        foreach (var applicationId in knownApplicationIds)
+        {
+            if (existingSet.Contains(applicationId))
+            {
+                continue;
+            }
+
+            dbContext.ClientStates.Add(new ClientState
+            {
+                ApplicationId = applicationId,
+                Enabled = true,
+                UpdatedUtc = now
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SeedAdminAsync(
