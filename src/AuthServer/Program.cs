@@ -49,7 +49,9 @@ builder.Services.AddScoped<IAdminRoleService, AdminRoleService>();
 builder.Services.AddScoped<IAdminPermissionAdminService, AdminPermissionAdminService>();
 builder.Services.AddScoped<IAdminApiResourceService, AdminApiResourceService>();
 builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
+builder.Services.AddScoped<IAdminClientService, AdminClientService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
+builder.Services.AddSingleton<AdminUiManifestService>();
 
 builder.Services.AddAuthorization(options =>
 {
