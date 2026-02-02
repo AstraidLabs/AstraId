@@ -28,17 +28,20 @@ public class AuthorizationController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IPermissionService _permissionService;
     private readonly UiUrlBuilder _uiUrlBuilder;
+    private readonly IClientStateService _clientStateService;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IPermissionService permissionService,
-        UiUrlBuilder uiUrlBuilder)
+        UiUrlBuilder uiUrlBuilder,
+        IClientStateService clientStateService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _permissionService = permissionService;
         _uiUrlBuilder = uiUrlBuilder;
+        _clientStateService = clientStateService;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -48,6 +51,11 @@ public class AuthorizationController : ControllerBase
         if (request is null)
         {
             return BadRequest();
+        }
+
+        if (!await _clientStateService.IsClientEnabledAsync(request.ClientId, HttpContext.RequestAborted))
+        {
+            return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         if (!User.Identity?.IsAuthenticated ?? true)
@@ -84,6 +92,12 @@ public class AuthorizationController : ControllerBase
         if (!authenticateResult.Succeeded || authenticateResult.Principal is null)
         {
             return Forbid();
+        }
+
+        var clientId = request.ClientId ?? authenticateResult.Principal.GetClaim(OpenIddictConstants.Claims.ClientId);
+        if (!await _clientStateService.IsClientEnabledAsync(clientId, HttpContext.RequestAborted))
+        {
+            return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var user = await _userManager.GetUserAsync(authenticateResult.Principal);
@@ -168,5 +182,14 @@ public class AuthorizationController : ControllerBase
             _ =>
                 [OpenIddictConstants.Destinations.AccessToken]
         };
+    }
+
+    private static AuthenticationProperties CreateClientDisabledProperties()
+    {
+        return new AuthenticationProperties(new Dictionary<string, string?>
+        {
+            [OpenIddictConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidClient,
+            [OpenIddictConstants.Properties.ErrorDescription] = "The client application is disabled."
+        });
     }
 }
