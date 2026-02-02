@@ -63,7 +63,7 @@ public class AuthController : ControllerBase
             return BadRequest(new AuthResponse(false, null, "Účet není aktivní. Zkontrolujte potvrzovací e-mail."));
         }
 
-        var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, false);
+        var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, true);
         if (!result.Succeeded)
         {
             return BadRequest(new AuthResponse(false, null, "Neplatné přihlašovací údaje."));
