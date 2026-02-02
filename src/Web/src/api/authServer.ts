@@ -81,6 +81,29 @@ export const register = (payload: {
     body: JSON.stringify(payload)
   });
 
+export const forgotPassword = (payload: { email: string }) =>
+  authFetch<AuthResponse>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const resetPassword = (payload: {
+  email: string;
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}) =>
+  authFetch<AuthResponse>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const activateAccount = (payload: { email: string; token: string }) =>
+  authFetch<AuthResponse>("/auth/activate", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
 export const logout = () =>
   authFetch<void>("/auth/logout", {
     method: "POST"

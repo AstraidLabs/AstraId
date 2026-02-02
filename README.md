@@ -101,6 +101,13 @@ Nebo použijte připravené skripty:
 - Api: `https://localhost:7002`
 - Web: `http://localhost:5173`
 
+## UI rozdělení (anti-chaos)
+
+- `http://localhost:5173` = **public UI** pro běžné uživatele (login/registrace, obnovy hesla, aktivace, standalone home).
+- `https://localhost:7001/admin` = **admin UI** hostované AuthServerem (vyžaduje permission `system.admin`).
+- Přihlášení jako admin (dev): výchozí bootstrap účet je `admin@local.test` / `Password123!` (viz `BootstrapAdmin` v `appsettings.Development.json`).
+- Ověření adminu: `GET https://localhost:7001/admin/ping` (nutné být přihlášen jako admin).
+
 ## AuthServer – funkce
 
 - **OAuth2/OIDC server** postavený na OpenIddict (authorization code + PKCE, refresh tokeny, userinfo, logout).【F:src/AuthServer/Program.cs†L97-L143】【F:src/AuthServer/Controllers/AuthorizationController.cs†L35-L177】

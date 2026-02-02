@@ -1,41 +1,39 @@
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import Alert from "../components/Alert";
+import { useMemo, useState } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import Card from "../components/Card";
-import { register, resolveReturnUrl } from "../api/authServer";
+import Alert from "../components/Alert";
+import { resetPassword } from "../api/authServer";
 
-const Register = () => {
-  const navigate = useNavigate();
+const ResetPassword = () => {
   const [params] = useSearchParams();
-  const returnUrl = params.get("returnUrl");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
+  const initialToken = useMemo(() => params.get("token") ?? "", [params]);
+
+  const [email, setEmail] = useState(initialEmail);
+  const [token, setToken] = useState(initialToken);
+  const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+    setSuccess("");
     setIsSubmitting(true);
 
     try {
-      await register({
+      await resetPassword({
         email,
-        password,
-        confirmPassword,
-        returnUrl
+        token,
+        newPassword,
+        confirmPassword
       });
-
-      const resolvedReturnUrl = resolveReturnUrl(returnUrl);
-      if (resolvedReturnUrl) {
-        window.location.href = resolvedReturnUrl;
-      } else {
-        navigate("/", { replace: true });
-      }
+      setSuccess("Heslo bylo úspěšně změněno. Přihlaste se znovu.");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Nepodařilo se zaregistrovat."
+        err instanceof Error ? err.message : "Nepodařilo se obnovit heslo."
       );
     } finally {
       setIsSubmitting(false);
@@ -44,9 +42,10 @@ const Register = () => {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Registrace" description="Vytvořte nový účet.">
+      <Card title="Nastavení nového hesla">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           {error ? <Alert variant="error">{error}</Alert> : null}
+          {success ? <Alert variant="success">{success}</Alert> : null}
           <label className="text-sm text-slate-200">
             E-mail
             <input
@@ -59,18 +58,28 @@ const Register = () => {
             />
           </label>
           <label className="text-sm text-slate-200">
-            Heslo
+            Token
+            <input
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+              type="text"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              required
+            />
+          </label>
+          <label className="text-sm text-slate-200">
+            Nové heslo
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
               autoComplete="new-password"
               required
             />
           </label>
           <label className="text-sm text-slate-200">
-            Potvrzení hesla
+            Potvrzení nového hesla
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -85,18 +94,19 @@ const Register = () => {
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Registrujeme..." : "Zaregistrovat"}
+            {isSubmitting ? "Ukládáme..." : "Změnit heslo"}
           </button>
-          <div className="text-xs text-slate-400">
-            Už máte účet?{" "}
-            <Link className="hover:text-slate-200" to="/login">
-              Přihlásit se
-            </Link>
-          </div>
+          {success ? (
+            <div className="text-xs text-slate-400">
+              <Link className="hover:text-slate-200" to="/login">
+                Přejít na přihlášení
+              </Link>
+            </div>
+          ) : null}
         </form>
       </Card>
     </div>
   );
 };
 
-export default Register;
+export default ResetPassword;
