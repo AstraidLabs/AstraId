@@ -236,6 +236,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
         CancellationToken cancellationToken)
     {
         var knownApplicationIds = new HashSet<string>(StringComparer.Ordinal);
+        var legacyEnabledByApplicationId = new Dictionary<string, bool>(StringComparer.Ordinal);
 
         await foreach (var application in applicationManager.ListAsync(count: null, offset: null, cancellationToken))
         {
@@ -243,6 +244,10 @@ public sealed class AuthBootstrapHostedService : IHostedService
             if (!string.IsNullOrWhiteSpace(applicationId))
             {
                 knownApplicationIds.Add(applicationId);
+                legacyEnabledByApplicationId[applicationId] = await ResolveLegacyEnabledAsync(
+                    applicationManager,
+                    application,
+                    cancellationToken);
             }
         }
 
@@ -269,12 +274,78 @@ public sealed class AuthBootstrapHostedService : IHostedService
             dbContext.ClientStates.Add(new ClientState
             {
                 ApplicationId = applicationId,
-                Enabled = true,
+                Enabled = legacyEnabledByApplicationId.GetValueOrDefault(applicationId, true),
                 UpdatedUtc = now
             });
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<bool> ResolveLegacyEnabledAsync(
+        IOpenIddictApplicationManager applicationManager,
+        object application,
+        CancellationToken cancellationToken)
+    {
+        var properties = await applicationManager.GetPropertiesAsync(application, cancellationToken);
+        if (TryGetLegacyStatusValue(properties, out var statusValue))
+        {
+            return !IsLegacyDisabled(statusValue);
+        }
+
+        var settings = await applicationManager.GetSettingsAsync(application, cancellationToken);
+        if (TryGetLegacyStatusValue(settings, out statusValue))
+        {
+            return !IsLegacyDisabled(statusValue);
+        }
+
+        return true;
+    }
+
+    private static bool TryGetLegacyStatusValue<T>(
+        IReadOnlyDictionary<string, T> source,
+        out string? statusValue)
+    {
+        if (TryGetValue(source, "status", out statusValue)
+            || TryGetValue(source, "Status", out statusValue))
+        {
+            return !string.IsNullOrWhiteSpace(statusValue);
+        }
+
+        statusValue = null;
+        return false;
+    }
+
+    private static bool TryGetValue<T>(
+        IReadOnlyDictionary<string, T> source,
+        string key,
+        out string? value)
+    {
+        if (source.TryGetValue(key, out var rawValue))
+        {
+            value = ConvertToString(rawValue);
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static string? ConvertToString<T>(T rawValue)
+    {
+        if (rawValue is JsonElement element)
+        {
+            return element.ValueKind == JsonValueKind.String ? element.GetString() : element.ToString();
+        }
+
+        object? boxed = rawValue;
+        return boxed?.ToString();
+    }
+
+    private static bool IsLegacyDisabled(string statusValue)
+    {
+        return string.Equals(statusValue, OpenIddictConstants.Statuses.Inactive, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(statusValue, "disabled", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SeedAdminAsync(
