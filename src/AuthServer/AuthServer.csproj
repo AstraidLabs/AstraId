@@ -25,4 +25,32 @@
   <ItemGroup>
     <ProjectReference Include="../Company.Auth.Contracts/Company.Auth.Contracts.csproj" />
   </ItemGroup>
+
+  <Target Name="BuildAdminUi">
+    <PropertyGroup>
+      <AdminUiRoot>$(MSBuildProjectDirectory)/../AdminWeb</AdminUiRoot>
+      <AdminUiDist>$(AdminUiRoot)/dist</AdminUiDist>
+      <AdminUiOutput>$(MSBuildProjectDirectory)/wwwroot/admin-ui</AdminUiOutput>
+    </PropertyGroup>
+
+    <Exec
+      Condition="!Exists('$(AdminUiRoot)/node_modules')"
+      WorkingDirectory="$(AdminUiRoot)"
+      Command="npm ci" />
+    <Exec
+      WorkingDirectory="$(AdminUiRoot)"
+      Command="npm run build" />
+
+    <RemoveDir Directories="$(AdminUiOutput)" />
+    <MakeDir Directories="$(AdminUiOutput)" />
+
+    <ItemGroup>
+      <AdminUiDistFiles Include="$(AdminUiDist)/**" />
+    </ItemGroup>
+
+    <Copy
+      SourceFiles="@(AdminUiDistFiles)"
+      DestinationFiles="@(AdminUiDistFiles->'$(AdminUiOutput)/%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
 </Project>
