@@ -123,12 +123,18 @@ public class AuthController : ControllerBase
         {
             if (!existing.EmailConfirmed)
             {
-                var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(existing);
-                var encodedToken = EncodeToken(confirmationToken);
-                var activationLink = _uiUrlBuilder.BuildActivationUrl(existing.Email!, encodedToken);
-                var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+                var existingConfirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(existing);
+                var existingEncodedToken = EncodeToken(existingConfirmationToken);
+                var existingActivationLink = _uiUrlBuilder.BuildActivationUrl(existing.Email!, existingEncodedToken);
+                var (existingSubject, existingHtmlBody, existingTextBody) =
+                    EmailTemplates.BuildActivationEmail(existingActivationLink);
                 await _emailSender.SendAsync(
-                    new EmailMessage(existing.Email!, existing.UserName, subject, htmlBody, textBody),
+                    new EmailMessage(
+                        existing.Email!,
+                        existing.UserName,
+                        existingSubject,
+                        existingHtmlBody,
+                        existingTextBody),
                     HttpContext.RequestAborted);
             }
 
