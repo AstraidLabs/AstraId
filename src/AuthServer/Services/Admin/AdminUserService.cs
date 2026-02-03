@@ -157,10 +157,12 @@ public sealed class AdminUserService : IAdminUserService
 
         if (user.EmailConfirmed != request.EmailConfirmed)
         {
-            var confirmResult = await _userManager.SetEmailConfirmedAsync(user, request.EmailConfirmed);
-            if (!confirmResult.Succeeded)
+            user.EmailConfirmed = request.EmailConfirmed;
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
             {
-                errors.AddRange(confirmResult.Errors);
+                errors.AddRange(updateResult.Errors);
             }
         }
 
