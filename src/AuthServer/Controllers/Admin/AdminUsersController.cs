@@ -36,7 +36,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "User not found." });
         }
 
         var roles = await _userService.GetUserRolesAsync(user);
@@ -44,10 +44,123 @@ public sealed class AdminUsersController : ControllerBase
             user.Id,
             user.Email,
             user.UserName,
+            user.PhoneNumber,
             user.EmailConfirmed,
             user.TwoFactorEnabled,
             user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow,
+            user.IsActive,
             roles));
+    }
+
+    [HttpGet("{id:guid}/roles")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetUserRoles(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _userService.GetUserAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+
+        var roles = await _userService.GetUserRolesAsync(user);
+        return Ok(roles);
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<AdminUserDetail>> CreateUser(
+        [FromBody] AdminUserCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Invalid user data.",
+                Detail = "Email is required."
+            });
+        }
+
+        try
+        {
+            var user = await _userService.CreateUserAsync(request, cancellationToken);
+            var roles = await _userService.GetUserRolesAsync(user);
+            return CreatedAtAction(
+                nameof(GetUser),
+                new { id = user.Id },
+                new AdminUserDetail(
+                    user.Id,
+                    user.Email,
+                    user.UserName,
+                    user.PhoneNumber,
+                    user.EmailConfirmed,
+                    user.TwoFactorEnabled,
+                    user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow,
+                    user.IsActive,
+                    roles));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "User creation failed.",
+                Detail = ex.Message
+            });
+        }
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateUser(
+        Guid id,
+        [FromBody] AdminUserUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Invalid user data.",
+                Detail = "Email is required."
+            });
+        }
+
+        var user = await _userService.GetUserAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+
+        var result = await _userService.UpdateUserAsync(user, request, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Failed to update user.",
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
+            });
+        }
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeactivateUser(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _userService.GetUserAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+
+        var result = await _userService.DeactivateUserAsync(user, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Failed to deactivate user.",
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
+            });
+        }
+
+        return NoContent();
     }
 
     [HttpPut("{id:guid}/roles")]
@@ -59,7 +172,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "User not found." });
         }
 
         var result = await _userService.SetUserRolesAsync(user, request.Roles);
@@ -84,10 +197,10 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "User not found." });
         }
 
-        await _userService.SetLockoutAsync(user, request.IsLockedOut, cancellationToken);
+        await _userService.SetLockoutAsync(user, request.Locked, cancellationToken);
         return NoContent();
     }
 
@@ -100,7 +213,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "User not found." });
         }
 
         if (string.IsNullOrWhiteSpace(request.NewPassword))
@@ -118,6 +231,28 @@ public sealed class AdminUsersController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails
             {
                 Title = "Failed to reset password.",
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
+            });
+        }
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/resend-activation")]
+    public async Task<IActionResult> ResendActivation(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _userService.GetUserAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(new ProblemDetails { Title = "User not found." });
+        }
+
+        var result = await _userService.ResendActivationAsync(user, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Activation email could not be sent.",
                 Detail = string.Join("; ", result.Errors.Select(error => error.Description))
             });
         }

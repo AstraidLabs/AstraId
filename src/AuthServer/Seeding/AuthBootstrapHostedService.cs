@@ -362,7 +362,8 @@ public sealed class AuthBootstrapHostedService : IHostedService
             {
                 UserName = adminEmail,
                 Email = adminEmail,
-                EmailConfirmed = options.RequireConfirmedEmail
+                EmailConfirmed = options.RequireConfirmedEmail,
+                IsActive = true
             };
 
             var createdUser = await userManager.CreateAsync(adminUser, adminPassword);

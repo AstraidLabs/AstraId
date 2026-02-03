@@ -77,6 +77,11 @@ public class AuthController : ControllerBase
             return BadRequest(new AuthResponse(false, null, "Neplatné přihlašovací údaje."));
         }
 
+        if (!user.IsActive)
+        {
+            return BadRequest(new AuthResponse(false, null, "Účet je deaktivovaný."));
+        }
+
         var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, true);
         if (!result.Succeeded)
         {
@@ -145,7 +150,8 @@ public class AuthController : ControllerBase
         {
             UserName = email,
             Email = email,
-            EmailConfirmed = false
+            EmailConfirmed = false,
+            IsActive = true
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);

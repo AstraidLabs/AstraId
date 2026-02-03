@@ -48,6 +48,23 @@ public sealed class AdminRoleService : IAdminRoleService
         return result;
     }
 
+    public async Task<IdentityResult> UpdateRoleAsync(IdentityRole<Guid> role, string roleName)
+    {
+        if (string.Equals(role.Name, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return IdentityResult.Failed(new IdentityError { Description = "System role cannot be renamed." });
+        }
+
+        role.Name = roleName;
+        var result = await _roleManager.UpdateAsync(role);
+        if (result.Succeeded)
+        {
+            await LogAuditAsync("role.updated", "Role", role.Id.ToString(), new { roleName });
+        }
+
+        return result;
+    }
+
     public async Task<IdentityResult> DeleteRoleAsync(IdentityRole<Guid> role)
     {
         if (string.Equals(role.Name, "Admin", StringComparison.OrdinalIgnoreCase))

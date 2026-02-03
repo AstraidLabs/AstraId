@@ -60,15 +60,19 @@ export type AdminUserListItem = {
   userName?: string | null;
   emailConfirmed: boolean;
   isLockedOut: boolean;
+  isActive: boolean;
+  roles: string[];
 };
 
 export type AdminUserDetail = {
   id: string;
   email?: string | null;
   userName?: string | null;
+  phoneNumber?: string | null;
   emailConfirmed: boolean;
   twoFactorEnabled: boolean;
   isLockedOut: boolean;
+  isActive: boolean;
   roles: string[];
 };
 

@@ -11,6 +11,9 @@ export default function RolesList() {
   const [newRoleName, setNewRoleName] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<AdminRoleListItem | null>(null);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
 
   const fetchRoles = async () => {
     const data = await apiRequest<AdminRoleListItem[]>("/admin/api/roles");
@@ -56,6 +59,38 @@ export default function RolesList() {
     pushToast({ message: "Role deleted.", tone: "success" });
     setRoles((current) => current.filter((role) => role.id !== deleteTarget.id));
     setDeleteTarget(null);
+  };
+
+  const startEditing = (role: AdminRoleListItem) => {
+    setEditingRoleId(role.id);
+    setEditingName(role.name);
+  };
+
+  const cancelEditing = () => {
+    setEditingRoleId(null);
+    setEditingName("");
+  };
+
+  const saveEditing = async () => {
+    if (!editingRoleId || !editingName.trim()) {
+      return;
+    }
+    setSavingRoleId(editingRoleId);
+    try {
+      await apiRequest(`/admin/api/roles/${editingRoleId}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: editingName.trim() }),
+      });
+      pushToast({ message: "Role updated.", tone: "success" });
+      setRoles((current) =>
+        current.map((role) =>
+          role.id === editingRoleId ? { ...role, name: editingName.trim() } : role
+        )
+      );
+      cancelEditing();
+    } finally {
+      setSavingRoleId(null);
+    }
   };
 
   return (
@@ -109,7 +144,17 @@ export default function RolesList() {
             )}
             {roles.map((role) => (
               <tr key={role.id} className="text-slate-100">
-                <td className="px-4 py-3 font-medium">{role.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  {editingRoleId === role.id ? (
+                    <input
+                      className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                      value={editingName}
+                      onChange={(event) => setEditingName(event.target.value)}
+                    />
+                  ) : (
+                    role.name
+                  )}
+                </td>
                 <td className="px-4 py-3 text-slate-300">{role.isSystem ? "Yes" : "No"}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
@@ -119,6 +164,35 @@ export default function RolesList() {
                     >
                       Edit permissions
                     </Link>
+                    {!role.isSystem && editingRoleId !== role.id && (
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-slate-300 hover:text-slate-200"
+                        onClick={() => startEditing(role)}
+                      >
+                        Rename
+                      </button>
+                    )}
+                    {!role.isSystem && editingRoleId === role.id && (
+                      <>
+                        <button
+                          type="button"
+                          className="text-sm font-semibold text-emerald-300 hover:text-emerald-200"
+                          onClick={saveEditing}
+                          disabled={savingRoleId === role.id}
+                        >
+                          {savingRoleId === role.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-sm font-semibold text-slate-300 hover:text-slate-200"
+                          onClick={cancelEditing}
+                          disabled={savingRoleId === role.id}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
                     {!role.isSystem && (
                       <button
                         type="button"

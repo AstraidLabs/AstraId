@@ -5,4 +5,6 @@ public sealed record AdminUserListItem(
     string? Email,
     string? UserName,
     bool EmailConfirmed,
-    bool IsLockedOut);
+    bool IsLockedOut,
+    bool IsActive,
+    IReadOnlyList<string> Roles);
