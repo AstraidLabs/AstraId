@@ -28,13 +28,13 @@
 
   <Target Name="BuildAdminUi">
     <PropertyGroup>
-      <AdminUiRoot>$(MSBuildProjectDirectory)/../AdminWeb</AdminUiRoot>
-      <AdminUiDist>$(AdminUiRoot)/dist</AdminUiDist>
+      <AdminUiRoot>$(MSBuildProjectDirectory)/../Web</AdminUiRoot>
+      <AdminUiDist>$(AdminUiRoot)/dist-admin</AdminUiDist>
       <AdminUiOutput>$(MSBuildProjectDirectory)/wwwroot/admin-ui</AdminUiOutput>
     </PropertyGroup>
 
     <Exec Condition="!Exists('$(AdminUiRoot)/node_modules')" WorkingDirectory="$(AdminUiRoot)" Command="npm ci" />
-    <Exec WorkingDirectory="$(AdminUiRoot)" Command="npm run build" />
+    <Exec WorkingDirectory="$(AdminUiRoot)" Command="npm run build:admin" />
 
     <RemoveDir Directories="$(AdminUiOutput)" />
     <MakeDir Directories="$(AdminUiOutput)" />
