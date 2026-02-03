@@ -172,6 +172,14 @@ public sealed class AdminUserService : IAdminUserService
             {
                 errors.AddRange(updateResult.Errors);
             }
+            else if (!request.IsActive)
+            {
+                var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+                if (!stampResult.Succeeded)
+                {
+                    errors.AddRange(stampResult.Errors);
+                }
+            }
         }
 
         if (errors.Count > 0)
@@ -195,12 +203,20 @@ public sealed class AdminUserService : IAdminUserService
     {
         user.IsActive = false;
         var result = await _userManager.UpdateAsync(user);
-        if (result.Succeeded)
+        if (!result.Succeeded)
         {
-            await LogAuditAsync("user.deactivated", "User", user.Id.ToString(), new { user.Email });
+            return result;
         }
 
-        return result;
+        var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+        if (!stampResult.Succeeded)
+        {
+            return stampResult;
+        }
+
+        await LogAuditAsync("user.deactivated", "User", user.Id.ToString(), new { user.Email });
+
+        return IdentityResult.Success;
     }
 
     public async Task<IdentityResult> ResendActivationAsync(ApplicationUser user, CancellationToken cancellationToken)
