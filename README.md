@@ -51,6 +51,12 @@ npm install
 npm run dev
 ```
 
+Build admin UI (při prvním spuštění nebo po změnách):
+
+```
+dotnet build src/AuthServer
+```
+
 Nebo použijte připravené skripty:
 
 ```
@@ -100,6 +106,7 @@ Nebo použijte připravené skripty:
 - AuthServer: `https://localhost:7001`
 - Api: `https://localhost:7002`
 - Web: `http://localhost:5173`
+- Admin UI: `https://localhost:7001/admin`
 
 ## UI rozdělení (anti-chaos)
 
@@ -107,6 +114,7 @@ Nebo použijte připravené skripty:
 - `https://localhost:7001/admin` = **admin UI** hostované AuthServerem (vyžaduje permission `system.admin`).
 - Přihlášení jako admin (dev): výchozí bootstrap účet je `admin@local.test` / `Password123!` (viz `BootstrapAdmin` v `appsettings.Development.json`).
 - Ověření adminu: `GET https://localhost:7001/admin/ping` (nutné být přihlášen jako admin).
+- Build admin UI: `dotnet build src/AuthServer` (spustí `npm ci` + `npm run build` v `src/AdminWeb` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`).
 
 ## AuthServer – funkce
 
