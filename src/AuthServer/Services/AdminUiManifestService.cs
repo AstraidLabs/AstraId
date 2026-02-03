@@ -24,7 +24,7 @@ public sealed class AdminUiManifestService
 
     public string GetAssetPath(string asset)
     {
-        return $"/admin-ui/{asset.TrimStart('/')}";
+        return $"/admin/{asset.TrimStart('/')}";
     }
 
     private void EnsureManifestLoaded()

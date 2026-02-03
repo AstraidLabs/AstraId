@@ -32,6 +32,20 @@ npm run dev
 
 ## Build
 
+Public build (base "/"):
+
+```bash
+npm run build:public
+```
+
+Admin build (base "/admin"):
+
+```bash
+npm run build:admin
+```
+
+Default build (dist):
+
 ```bash
 npm run build
 ```
