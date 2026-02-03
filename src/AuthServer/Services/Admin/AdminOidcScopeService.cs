@@ -12,6 +12,7 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
 {
     private static readonly Regex ScopeNameRegex = new("^[a-z0-9:_\\.-]+$", RegexOptions.Compiled);
     private const string DescriptionProperty = "description";
+    private const string ClaimsProperty = "claims";
 
     private readonly IOpenIddictScopeManager _scopeManager;
     private readonly IOpenIddictApplicationManager _applicationManager;
@@ -50,7 +51,7 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
 
             var displayName = await _scopeManager.GetDisplayNameAsync(scope, cancellationToken);
             var resources = await _scopeManager.GetResourcesAsync(scope, cancellationToken);
-            var claims = await _scopeManager.GetClaimsAsync(scope, cancellationToken);
+            var claims = await GetClaimsFromPropertiesAsync(scope, cancellationToken);
             var description = await GetDescriptionAsync(scope, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(search)
@@ -121,10 +122,7 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
             descriptor.Resources.Add(resource);
         }
 
-        foreach (var claim in claims)
-        {
-            descriptor.Claims.Add(claim);
-        }
+        SetClaims(descriptor, claims);
 
         await _scopeManager.CreateAsync(descriptor, cancellationToken);
 
@@ -183,11 +181,7 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
             descriptor.Resources.Add(resource);
         }
 
-        descriptor.Claims.Clear();
-        foreach (var claim in claims)
-        {
-            descriptor.Claims.Add(claim);
-        }
+        SetClaims(descriptor, claims);
 
         SetDescription(descriptor, request.Description);
 
@@ -241,7 +235,7 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
         var name = await _scopeManager.GetNameAsync(scope, cancellationToken) ?? string.Empty;
         var displayName = await _scopeManager.GetDisplayNameAsync(scope, cancellationToken);
         var resources = await _scopeManager.GetResourcesAsync(scope, cancellationToken);
-        var claims = await _scopeManager.GetClaimsAsync(scope, cancellationToken);
+        var claims = await GetClaimsFromPropertiesAsync(scope, cancellationToken);
         var description = await GetDescriptionAsync(scope, cancellationToken);
 
         return new AdminOidcScopeDetail(
@@ -350,6 +344,42 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
         if (!string.IsNullOrWhiteSpace(normalized))
         {
             descriptor.Properties[DescriptionProperty] = JsonSerializer.SerializeToElement(normalized);
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> GetClaimsFromPropertiesAsync(object scope, CancellationToken cancellationToken)
+    {
+        var properties = await _scopeManager.GetPropertiesAsync(scope, cancellationToken);
+        if (!properties.TryGetValue(ClaimsProperty, out var element)
+            || element.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        var claims = new List<string>();
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var value = item.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                claims.Add(value);
+            }
+        }
+
+        return NormalizeList(claims);
+    }
+
+    private static void SetClaims(OpenIddictScopeDescriptor descriptor, IReadOnlyList<string> claims)
+    {
+        descriptor.Properties.Remove(ClaimsProperty);
+        if (claims.Count > 0)
+        {
+            descriptor.Properties[ClaimsProperty] = JsonSerializer.SerializeToElement(claims);
         }
     }
 
