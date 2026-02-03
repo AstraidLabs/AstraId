@@ -35,3 +35,30 @@ export type AdminClientSecretResponse = {
   client: AdminClientDetail;
   clientSecret?: string | null;
 };
+
+export type AdminUserListItem = {
+  id: string;
+  email?: string | null;
+  userName?: string | null;
+  emailConfirmed: boolean;
+  isLockedOut: boolean;
+};
+
+export type AdminAuditListItem = {
+  id: string;
+  timestampUtc: string;
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  actorUserId?: string | null;
+  actorEmail?: string | null;
+  dataJson?: string | null;
+};
+
+export type AdminSessionInfo = {
+  userId: string;
+  email?: string | null;
+  userName?: string | null;
+  roles: string[];
+  permissions: string[];
+};
