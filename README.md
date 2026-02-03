@@ -2,7 +2,7 @@
 
 Tento repozitář obsahuje kompletní demo řešení autentizace a autorizace:
 
-- **AuthServer**: OpenIddict autorizační server + ASP.NET Identity (Razor Pages UI).
+- **AuthServer**: OpenIddict autorizační server + ASP.NET Identity (Razor shell pro admin UI).
 - **Api**: chráněné ASP.NET Core API validující JWT access tokeny.
 - **Web**: React SPA (Vite + Tailwind), která používá Authorization Code + PKCE.
 - **Company.Auth.Contracts**: sdílené konstanty a definice klientů/scopů/permissions.
@@ -120,7 +120,7 @@ Nebo použijte připravené skripty:
 - `https://localhost:7001/admin` = **admin UI** hostované AuthServerem (vyžaduje permission `system.admin`).
 - Přihlášení jako admin (dev): výchozí bootstrap účet je `admin@local.test` / `Password123!` (viz `BootstrapAdmin` v `appsettings.Development.json`).
 - Ověření adminu: `GET https://localhost:7001/admin/ping` (nutné být přihlášen jako admin).
-- Build admin UI: `dotnet build src/AuthServer` (spustí `npm ci` + `npm run build` v `src/AdminWeb` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`).
+- Build admin UI: `dotnet build src/AuthServer` (spustí `npm ci` + `npm run build:admin` v `src/Web` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`).
 
 ## AuthServer – funkce
 

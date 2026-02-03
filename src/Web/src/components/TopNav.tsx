@@ -13,6 +13,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 const TopNav = () => {
   const navigate = useNavigate();
   const { session, refresh } = useAuthSession();
+  const isAdmin = session?.permissions?.includes("system.admin") ?? false;
 
   const handleLogout = async () => {
     await logout();
@@ -43,6 +44,14 @@ const TopNav = () => {
             <NavLink to="/forgot-password" className={linkClass}>
               Forgot password
             </NavLink>
+            {isAdmin ? (
+              <a
+                href="https://localhost:7001/admin"
+                className="rounded-full px-3 py-1 text-sm text-amber-200 transition hover:text-amber-50"
+              >
+                Admin
+              </a>
+            ) : null}
           </nav>
           <div className="flex flex-wrap items-center gap-3">
             {session && session.isAuthenticated ? (

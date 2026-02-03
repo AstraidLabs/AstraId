@@ -176,6 +176,16 @@ else
 {
     app.UseStaticFiles();
 }
+
+var adminUiRoot = Path.Combine(app.Environment.WebRootPath ?? string.Empty, "admin-ui");
+if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(adminUiRoot))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(adminUiRoot),
+        RequestPath = "/admin"
+    });
+}
 app.UseRouting();
 
 app.UseCors("Web");
