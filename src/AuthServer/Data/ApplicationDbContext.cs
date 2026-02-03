@@ -18,6 +18,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<EndpointPermission> EndpointPermissions => Set<EndpointPermission>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ClientState> ClientStates => Set<ClientState>();
+    public DbSet<OidcResource> OidcResources => Set<OidcResource>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -86,6 +87,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(clientState => clientState.ApplicationId);
             entity.Property(clientState => clientState.ApplicationId).HasMaxLength(200);
             entity.Property(clientState => clientState.UpdatedUtc);
+        });
+
+        builder.Entity<OidcResource>(entity =>
+        {
+            entity.HasKey(resource => resource.Id);
+            entity.HasIndex(resource => resource.Name).IsUnique();
+            entity.Property(resource => resource.Name).HasMaxLength(200);
+            entity.Property(resource => resource.DisplayName).HasMaxLength(200);
+            entity.Property(resource => resource.Description).HasMaxLength(500);
+            entity.Property(resource => resource.IsActive);
+            entity.Property(resource => resource.CreatedUtc);
+            entity.Property(resource => resource.UpdatedUtc);
         });
     }
 }

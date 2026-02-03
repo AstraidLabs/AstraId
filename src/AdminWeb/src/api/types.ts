@@ -26,10 +26,28 @@ export type AdminClientDetail = {
   postLogoutRedirectUris: string[];
 };
 
-export type AdminClientScopeItem = {
+export type AdminOidcScopeListItem = {
+  id: string;
   name: string;
   displayName?: string | null;
+  description?: string | null;
+  resources: string[];
+  claims: string[];
 };
+
+export type AdminOidcScopeDetail = AdminOidcScopeListItem;
+
+export type AdminOidcResourceListItem = {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type AdminOidcResourceDetail = AdminOidcResourceListItem;
 
 export type AdminClientSecretResponse = {
   client: AdminClientDetail;
@@ -42,6 +60,60 @@ export type AdminUserListItem = {
   userName?: string | null;
   emailConfirmed: boolean;
   isLockedOut: boolean;
+};
+
+export type AdminUserDetail = {
+  id: string;
+  email?: string | null;
+  userName?: string | null;
+  emailConfirmed: boolean;
+  twoFactorEnabled: boolean;
+  isLockedOut: boolean;
+  roles: string[];
+};
+
+export type AdminRoleListItem = {
+  id: string;
+  name: string;
+  isSystem: boolean;
+};
+
+export type AdminRoleDetail = {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  permissionIds: string[];
+};
+
+export type AdminPermissionItem = {
+  id: string;
+  key: string;
+  description: string;
+  group: string;
+  isSystem: boolean;
+};
+
+export type AdminApiResourceListItem = {
+  id: string;
+  name: string;
+  displayName: string;
+  baseUrl?: string | null;
+  isActive: boolean;
+};
+
+export type AdminApiResourceDetail = AdminApiResourceListItem & {
+  apiKey?: string | null;
+};
+
+export type AdminApiEndpointListItem = {
+  id: string;
+  method: string;
+  path: string;
+  displayName?: string | null;
+  isDeprecated: boolean;
+  isActive: boolean;
+  permissionIds: string[];
+  permissionKeys: string[];
 };
 
 export type AdminAuditListItem = {

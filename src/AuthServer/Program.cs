@@ -50,6 +50,8 @@ builder.Services.AddScoped<IAdminPermissionAdminService, AdminPermissionAdminSer
 builder.Services.AddScoped<IAdminApiResourceService, AdminApiResourceService>();
 builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
 builder.Services.AddScoped<IAdminClientService, AdminClientService>();
+builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
+builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<AdminUiManifestService>();

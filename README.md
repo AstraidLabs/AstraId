@@ -57,6 +57,12 @@ Build admin UI (při prvním spuštění nebo po změnách):
 dotnet build src/AuthServer
 ```
 
+Admin UI (AuthServer):
+
+1. Ujistěte se, že je admin UI build hotový (`dotnet build src/AuthServer`).
+2. Spusťte AuthServer (`dotnet run --project src/AuthServer --launch-profile AuthServer`).
+3. Otevřete `https://localhost:7001/admin`.
+
 Nebo použijte připravené skripty:
 
 ```

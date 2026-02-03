@@ -61,8 +61,11 @@ export default function Dashboard() {
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
           <h2 className="text-lg font-semibold text-white">Quick links</h2>
           <div className="mt-3 flex flex-col gap-2 text-sm">
-            <Link className="text-indigo-300 hover:text-indigo-200" to="/clients">
+            <Link className="text-indigo-300 hover:text-indigo-200" to="/oidc/clients">
               Manage clients
+            </Link>
+            <Link className="text-indigo-300 hover:text-indigo-200" to="/oidc/scopes">
+              Manage scopes
             </Link>
             <Link className="text-indigo-300 hover:text-indigo-200" to="/users">
               Review users
