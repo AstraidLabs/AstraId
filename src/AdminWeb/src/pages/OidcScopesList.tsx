@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "../api/http";
-import type { AdminClientDetail, AdminClientListItem, PagedResult } from "../api/types";
+import type { AdminOidcScopeListItem, PagedResult } from "../api/types";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { pushToast } from "../components/toast";
 
-export default function ClientsList() {
+export default function OidcScopesList() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [result, setResult] = useState<PagedResult<AdminClientListItem> | null>(null);
+  const [result, setResult] = useState<PagedResult<AdminOidcScopeListItem> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AdminOidcScopeListItem | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchClients = async () => {
+    const fetchScopes = async () => {
       setLoading(true);
       const params = new URLSearchParams();
       if (search.trim()) {
@@ -21,8 +24,8 @@ export default function ClientsList() {
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
       try {
-        const data = await apiRequest<PagedResult<AdminClientListItem>>(
-          `/admin/api/clients?${params.toString()}`
+        const data = await apiRequest<PagedResult<AdminOidcScopeListItem>>(
+          `/admin/api/oidc/scopes?${params.toString()}`
         );
         if (isMounted) {
           setResult(data);
@@ -34,7 +37,7 @@ export default function ClientsList() {
       }
     };
 
-    fetchClients();
+    fetchScopes();
     return () => {
       isMounted = false;
     };
@@ -42,20 +45,21 @@ export default function ClientsList() {
 
   const totalPages = result ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
 
-  const handleToggle = async (client: AdminClientListItem) => {
-    const response = await apiRequest<AdminClientDetail>(`/admin/api/clients/${client.id}/toggle`, {
-      method: "POST",
-      body: JSON.stringify({ enabled: !client.enabled }),
-    });
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    await apiRequest(`/admin/api/oidc/scopes/${deleteTarget.id}`, { method: "DELETE" });
+    pushToast({ message: "Scope deleted.", tone: "success" });
+    setDeleteTarget(null);
     setResult((current) => {
       if (!current) {
         return current;
       }
       return {
         ...current,
-        items: current.items.map((item) =>
-          item.id === client.id ? { ...item, enabled: response.enabled } : item
-        ),
+        items: current.items.filter((item) => item.id !== deleteTarget.id),
+        totalCount: Math.max(0, current.totalCount - 1),
       };
     });
   };
@@ -64,21 +68,23 @@ export default function ClientsList() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Clients</h1>
-          <p className="text-sm text-slate-300">Manage OpenIddict client applications.</p>
+          <h1 className="text-2xl font-semibold text-white">OIDC Scopes</h1>
+          <p className="text-sm text-slate-300">
+            Manage OpenIddict scopes and their bound resources.
+          </p>
         </div>
         <Link
-          to="/oidc/clients/new"
+          to="/oidc/scopes/new"
           className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400"
         >
-          New client
+          New scope
         </Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
         <input
           className="w-full max-w-sm rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Search by client ID or display name..."
+          placeholder="Search scope name..."
           value={search}
           onChange={(event) => {
             setSearch(event.target.value);
@@ -105,57 +111,62 @@ export default function ClientsList() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900 text-slate-300">
             <tr>
-              <th className="px-4 py-3 font-medium">Client ID</th>
+              <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Display name</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+              <th className="px-4 py-3 font-medium">Resources</th>
+              <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/40">
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  Loading clients...
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                  Loading scopes...
                 </td>
               </tr>
             )}
             {!loading && result?.items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No clients found.
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                  No scopes found.
                 </td>
               </tr>
             )}
-            {result?.items.map((client) => (
-              <tr key={client.id} className="text-slate-100">
-                <td className="px-4 py-3 font-medium">{client.clientId}</td>
-                <td className="px-4 py-3 text-slate-300">{client.displayName ?? "-"}</td>
-                <td className="px-4 py-3 capitalize text-slate-300">{client.clientType}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      client.enabled ? "bg-emerald-500/20 text-emerald-200" : "bg-rose-500/20 text-rose-200"
-                    }`}
-                  >
-                    {client.enabled ? "Enabled" : "Disabled"}
-                  </span>
+            {result?.items.map((scope) => (
+              <tr key={scope.id} className="text-slate-100">
+                <td className="px-4 py-3 font-medium">{scope.name}</td>
+                <td className="px-4 py-3 text-slate-300">{scope.displayName ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-300">
+                  {scope.resources.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {scope.resources.map((resource) => (
+                        <span
+                          key={resource}
+                          className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-200"
+                        >
+                          {resource}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "-"
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      className="text-sm font-semibold text-slate-300 hover:text-slate-100"
-                      onClick={() => handleToggle(client)}
-                    >
-                      {client.enabled ? "Disable" : "Enable"}
-                    </button>
                     <Link
-                      to={`/oidc/clients/${client.id}`}
+                      to={`/oidc/scopes/${scope.id}`}
                       className="text-sm font-semibold text-indigo-300 hover:text-indigo-200"
                     >
                       Edit
                     </Link>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-rose-300 hover:text-rose-200"
+                      onClick={() => setDeleteTarget(scope)}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -167,7 +178,7 @@ export default function ClientsList() {
       {result && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300">
           <span>
-            Page {result.page} of {totalPages} · {result.totalCount} clients
+            Page {result.page} of {totalPages} · {result.totalCount} scopes
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -187,6 +198,15 @@ export default function ClientsList() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        title="Delete scope?"
+        description="This will permanently remove the scope from OpenIddict."
+        confirmLabel="Delete"
+        isOpen={Boolean(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </section>
   );
 }

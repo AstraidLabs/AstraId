@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { apiRequest } from "../api/http";
 import type {
   AdminClientDetail,
-  AdminClientScopeItem,
   AdminClientSecretResponse,
+  AdminOidcScopeListItem,
+  PagedResult,
 } from "../api/types";
 import { pushToast } from "../components/toast";
 
@@ -43,7 +44,7 @@ export default function ClientForm({ mode, clientId }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState<FormState>(defaultState);
-  const [scopes, setScopes] = useState<AdminClientScopeItem[]>([]);
+  const [scopes, setScopes] = useState<AdminOidcScopeListItem[]>([]);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [secret, setSecret] = useState<string | null>(() => {
@@ -65,8 +66,11 @@ export default function ClientForm({ mode, clientId }: Props) {
 
   useEffect(() => {
     const fetchScopes = async () => {
-      const data = await apiRequest<AdminClientScopeItem[]>("/admin/api/scopes");
-      setScopes(data);
+      const params = new URLSearchParams({ page: "1", pageSize: "200" });
+      const data = await apiRequest<PagedResult<AdminOidcScopeListItem>>(
+        `/admin/api/oidc/scopes?${params.toString()}`
+      );
+      setScopes(data.items);
     };
     fetchScopes();
   }, []);
@@ -134,7 +138,7 @@ export default function ClientForm({ mode, clientId }: Props) {
           setShowSecret(true);
         }
         pushToast({ message: "Client created.", tone: "success" });
-        navigate(`/clients/${response.client.id}`, { state: { secret: response.clientSecret } });
+        navigate(`/oidc/clients/${response.client.id}`, { state: { secret: response.clientSecret } });
         return;
       }
 

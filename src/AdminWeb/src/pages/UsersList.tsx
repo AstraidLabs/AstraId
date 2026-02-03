@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../api/http";
+import { Link } from "react-router-dom";
 import type { AdminUserListItem, PagedResult } from "../api/types";
 
 export default function UsersList() {
@@ -82,19 +83,20 @@ export default function UsersList() {
               <th className="px-4 py-3 font-medium">Username</th>
               <th className="px-4 py-3 font-medium">Confirmed</th>
               <th className="px-4 py-3 font-medium">Locked</th>
+              <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/40">
             {loading && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
                   Loading users...
                 </td>
               </tr>
             )}
             {!loading && result?.items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
                   No users found.
                 </td>
               </tr>
@@ -124,6 +126,14 @@ export default function UsersList() {
                   >
                     {user.isLockedOut ? "Locked" : "Active"}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    to={`/users/${user.id}`}
+                    className="text-sm font-semibold text-indigo-300 hover:text-indigo-200"
+                  >
+                    Manage
+                  </Link>
                 </td>
               </tr>
             ))}

@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "../api/http";
-import type { AdminClientDetail, AdminClientListItem, PagedResult } from "../api/types";
+import type { AdminOidcResourceListItem, PagedResult } from "../api/types";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { pushToast } from "../components/toast";
 
-export default function ClientsList() {
+export default function OidcResourcesList() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [result, setResult] = useState<PagedResult<AdminClientListItem> | null>(null);
+  const [result, setResult] = useState<PagedResult<AdminOidcResourceListItem> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AdminOidcResourceListItem | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchClients = async () => {
+    const fetchResources = async () => {
       setLoading(true);
       const params = new URLSearchParams();
       if (search.trim()) {
@@ -20,9 +23,10 @@ export default function ClientsList() {
       }
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
+      params.set("includeInactive", "true");
       try {
-        const data = await apiRequest<PagedResult<AdminClientListItem>>(
-          `/admin/api/clients?${params.toString()}`
+        const data = await apiRequest<PagedResult<AdminOidcResourceListItem>>(
+          `/admin/api/oidc/resources?${params.toString()}`
         );
         if (isMounted) {
           setResult(data);
@@ -34,7 +38,7 @@ export default function ClientsList() {
       }
     };
 
-    fetchClients();
+    fetchResources();
     return () => {
       isMounted = false;
     };
@@ -42,11 +46,13 @@ export default function ClientsList() {
 
   const totalPages = result ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
 
-  const handleToggle = async (client: AdminClientListItem) => {
-    const response = await apiRequest<AdminClientDetail>(`/admin/api/clients/${client.id}/toggle`, {
-      method: "POST",
-      body: JSON.stringify({ enabled: !client.enabled }),
-    });
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    await apiRequest(`/admin/api/oidc/resources/${deleteTarget.id}`, { method: "DELETE" });
+    pushToast({ message: "Resource deactivated.", tone: "success" });
+    setDeleteTarget(null);
     setResult((current) => {
       if (!current) {
         return current;
@@ -54,7 +60,7 @@ export default function ClientsList() {
       return {
         ...current,
         items: current.items.map((item) =>
-          item.id === client.id ? { ...item, enabled: response.enabled } : item
+          item.id === deleteTarget.id ? { ...item, isActive: false } : item
         ),
       };
     });
@@ -64,21 +70,23 @@ export default function ClientsList() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Clients</h1>
-          <p className="text-sm text-slate-300">Manage OpenIddict client applications.</p>
+          <h1 className="text-2xl font-semibold text-white">OIDC Resources</h1>
+          <p className="text-sm text-slate-300">
+            Manage protected API resources used by OpenIddict scopes.
+          </p>
         </div>
         <Link
-          to="/oidc/clients/new"
+          to="/oidc/resources/new"
           className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400"
         >
-          New client
+          New resource
         </Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
         <input
           className="w-full max-w-sm rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Search by client ID or display name..."
+          placeholder="Search name or description..."
           value={search}
           onChange={(event) => {
             setSearch(event.target.value);
@@ -105,57 +113,63 @@ export default function ClientsList() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900 text-slate-300">
             <tr>
-              <th className="px-4 py-3 font-medium">Client ID</th>
+              <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Display name</th>
-              <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+              <th className="px-4 py-3 font-medium">Updated</th>
+              <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/40">
             {loading && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  Loading clients...
+                  Loading resources...
                 </td>
               </tr>
             )}
             {!loading && result?.items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No clients found.
+                  No resources found.
                 </td>
               </tr>
             )}
-            {result?.items.map((client) => (
-              <tr key={client.id} className="text-slate-100">
-                <td className="px-4 py-3 font-medium">{client.clientId}</td>
-                <td className="px-4 py-3 text-slate-300">{client.displayName ?? "-"}</td>
-                <td className="px-4 py-3 capitalize text-slate-300">{client.clientType}</td>
+            {result?.items.map((resource) => (
+              <tr key={resource.id} className="text-slate-100">
+                <td className="px-4 py-3 font-medium">{resource.name}</td>
+                <td className="px-4 py-3 text-slate-300">{resource.displayName ?? "-"}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      client.enabled ? "bg-emerald-500/20 text-emerald-200" : "bg-rose-500/20 text-rose-200"
+                      resource.isActive
+                        ? "bg-emerald-500/20 text-emerald-200"
+                        : "bg-rose-500/20 text-rose-200"
                     }`}
                   >
-                    {client.enabled ? "Enabled" : "Disabled"}
+                    {resource.isActive ? "Active" : "Inactive"}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-slate-300">
+                  {new Date(resource.updatedUtc).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      className="text-sm font-semibold text-slate-300 hover:text-slate-100"
-                      onClick={() => handleToggle(client)}
-                    >
-                      {client.enabled ? "Disable" : "Enable"}
-                    </button>
                     <Link
-                      to={`/oidc/clients/${client.id}`}
+                      to={`/oidc/resources/${resource.id}`}
                       className="text-sm font-semibold text-indigo-300 hover:text-indigo-200"
                     >
                       Edit
                     </Link>
+                    {resource.isActive && (
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-rose-300 hover:text-rose-200"
+                        onClick={() => setDeleteTarget(resource)}
+                      >
+                        Deactivate
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -167,7 +181,7 @@ export default function ClientsList() {
       {result && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300">
           <span>
-            Page {result.page} of {totalPages} · {result.totalCount} clients
+            Page {result.page} of {totalPages} · {result.totalCount} resources
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -187,6 +201,15 @@ export default function ClientsList() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        title="Deactivate resource?"
+        description="This resource will be hidden from scope selection. Existing scopes will keep the reference."
+        confirmLabel="Deactivate"
+        isOpen={Boolean(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </section>
   );
 }
