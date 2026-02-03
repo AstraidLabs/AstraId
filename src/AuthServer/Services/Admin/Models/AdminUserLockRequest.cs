@@ -1,3 +1,3 @@
 namespace AuthServer.Services.Admin.Models;
 
-public sealed record AdminUserLockRequest(bool IsLockedOut);
+public sealed record AdminUserLockRequest(bool Locked);

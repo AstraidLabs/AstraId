@@ -180,9 +180,10 @@ else
 var adminUiRoot = Path.Combine(app.Environment.WebRootPath ?? string.Empty, "admin-ui");
 if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(adminUiRoot))
 {
+    var adminFileProvider = new PhysicalFileProvider(adminUiRoot);
     app.UseStaticFiles(new StaticFileOptions
     {
-        FileProvider = new PhysicalFileProvider(adminUiRoot),
+        FileProvider = adminFileProvider,
         RequestPath = "/admin"
     });
 }
@@ -195,6 +196,15 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapRazorPages();
+
+if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(adminUiRoot))
+{
+    var adminFileProvider = new PhysicalFileProvider(adminUiRoot);
+    app.MapFallbackToFile("/admin/{*path:nonfile}", "index.html", new StaticFileOptions
+    {
+        FileProvider = adminFileProvider
+    });
+}
 
 if (uiOptions.IsHosted)
 {

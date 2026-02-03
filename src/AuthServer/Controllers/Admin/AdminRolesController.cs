@@ -30,7 +30,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "Role not found." });
         }
 
         var permissionIds = await _roleService.GetRolePermissionIdsAsync(id, cancellationToken);
@@ -67,13 +67,48 @@ public sealed class AdminRolesController : ControllerBase
         return created is null ? Ok() : CreatedAtAction(nameof(GetRole), new { id = created.Id }, created);
     }
 
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateRole(
+        Guid id,
+        [FromBody] AdminRoleUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Invalid role name.",
+                Detail = "Role name is required."
+            });
+        }
+
+        var role = await _roleService.GetRoleAsync(id, cancellationToken);
+        if (role is null)
+        {
+            return NotFound(new ProblemDetails { Title = "Role not found." });
+        }
+
+        var trimmedName = request.Name.Trim();
+        var result = await _roleService.UpdateRoleAsync(role, trimmedName);
+        if (!result.Succeeded)
+        {
+            return ValidationProblem(new ValidationProblemDetails
+            {
+                Title = "Role update failed.",
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
+            });
+        }
+
+        return NoContent();
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteRole(Guid id, CancellationToken cancellationToken)
     {
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "Role not found." });
         }
 
         var result = await _roleService.DeleteRoleAsync(role);
@@ -98,7 +133,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound();
+            return NotFound(new ProblemDetails { Title = "Role not found." });
         }
 
         await _roleService.SetRolePermissionsAsync(id, request.PermissionIds, cancellationToken);
