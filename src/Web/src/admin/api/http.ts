@@ -1,7 +1,16 @@
+import { AUTH_SERVER_BASE_URL } from "../../api/authServer";
 import { pushToast } from "../components/toast";
 
+const ADMIN_API_BASE_URL =
+  import.meta.env.VITE_ADMIN_API_BASE_URL ?? AUTH_SERVER_BASE_URL;
+
+const normalizeUrl = (path: string) =>
+  path.startsWith("http")
+    ? path
+    : `${ADMIN_API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+
 export async function apiRequest<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
+  const response = await fetch(normalizeUrl(url), {
     credentials: "include",
     ...options,
     headers: {
