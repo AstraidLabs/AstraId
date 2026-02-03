@@ -1,4 +1,4 @@
-@page "/admin/{*path?}"
+@page "/admin/{*path}"
 @attribute [Authorize(Policy = "AdminOnly")]
 @model AuthServer.Areas.Admin.Pages.IndexModel
 @inject AuthServer.Services.AdminUiManifestService AdminUiManifest
