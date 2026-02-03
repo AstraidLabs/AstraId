@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AuthServer.Data;
 using AuthServer.Services;
 using AuthServer.Services.Admin.Models;
 using Microsoft.AspNetCore.Authorization;
