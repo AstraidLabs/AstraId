@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Services;
 using Company.Auth.Contracts;
@@ -15,33 +16,29 @@ namespace AuthServer.Controllers;
 [ApiController]
 public class AuthorizationController : ControllerBase
 {
-    private static readonly HashSet<string> AllowedScopes =
-    [
-        AuthConstants.Scopes.OpenId,
-        AuthConstants.Scopes.Profile,
-        AuthConstants.Scopes.Email,
-        AuthConstants.Scopes.OfflineAccess,
-        "api"
-    ];
+    private static readonly IReadOnlySet<string> AllowedScopes = AuthServerScopeRegistry.AllowedScopes;
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IPermissionService _permissionService;
     private readonly UiUrlBuilder _uiUrlBuilder;
     private readonly IClientStateService _clientStateService;
+    private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IPermissionService permissionService,
         UiUrlBuilder uiUrlBuilder,
-        IClientStateService clientStateService)
+        IClientStateService clientStateService,
+        ILogger<AuthorizationController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _permissionService = permissionService;
         _uiUrlBuilder = uiUrlBuilder;
         _clientStateService = clientStateService;
+        _logger = logger;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -50,11 +47,13 @@ public class AuthorizationController : ControllerBase
         var request = HttpContext.GetOpenIddictServerRequest();
         if (request is null)
         {
-            return BadRequest();
+            _logger.LogWarning("Authorization request missing OpenIddict request data.");
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "The authorization request is invalid."));
         }
 
         if (!await _clientStateService.IsClientEnabledAsync(request.ClientId, HttpContext.RequestAborted))
         {
+            _logger.LogInformation("Authorization request rejected because client {ClientId} is disabled.", request.ClientId);
             return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
@@ -65,9 +64,10 @@ public class AuthorizationController : ControllerBase
         }
 
         var user = await _userManager.GetUserAsync(User);
-        if (user is null)
+        if (user is null || !user.IsActive)
         {
-            return Forbid();
+            _logger.LogWarning("Authorization request rejected because user is missing or inactive.");
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var principal = await CreatePrincipalAsync(user, request.GetScopes());
@@ -80,30 +80,37 @@ public class AuthorizationController : ControllerBase
         var request = HttpContext.GetOpenIddictServerRequest();
         if (request is null)
         {
-            return BadRequest();
+            _logger.LogWarning("Token request missing OpenIddict request data.");
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "The token request is invalid."));
         }
 
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType())
         {
-            return BadRequest();
+            _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
+            return BadRequest(CreateErrorResponse(
+                OpenIddictConstants.Errors.UnsupportedGrantType,
+                "Only authorization_code and refresh_token grants are supported."));
         }
 
         var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         if (!authenticateResult.Succeeded || authenticateResult.Principal is null)
         {
+            _logger.LogWarning("Token request authentication failed for client {ClientId}.", request.ClientId);
             return Forbid();
         }
 
         var clientId = request.ClientId ?? authenticateResult.Principal.GetClaim(OpenIddictConstants.Claims.ClientId);
         if (!await _clientStateService.IsClientEnabledAsync(clientId, HttpContext.RequestAborted))
         {
+            _logger.LogInformation("Token request rejected because client {ClientId} is disabled.", clientId);
             return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var user = await _userManager.GetUserAsync(authenticateResult.Principal);
-        if (user is null)
+        if (user is null || !user.IsActive)
         {
-            return Forbid();
+            _logger.LogWarning("Token request rejected because user is missing or inactive.");
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var principal = await CreatePrincipalAsync(user, authenticateResult.Principal.GetScopes());
@@ -157,31 +164,14 @@ public class AuthorizationController : ControllerBase
 
         var scopes = requestedScopes.Intersect(AllowedScopes);
         principal.SetScopes(scopes);
-        principal.SetResources("api");
+        principal.SetResources(AuthServerScopeRegistry.ApiResources);
 
         foreach (var claim in principal.Claims)
         {
-            claim.SetDestinations(GetDestinations(claim, principal));
+            claim.SetDestinations(ClaimDestinations.GetDestinations(claim, principal));
         }
 
         return await Task.FromResult(principal);
-    }
-
-    private static IEnumerable<string> GetDestinations(Claim claim, ClaimsPrincipal principal)
-    {
-        return claim.Type switch
-        {
-            OpenIddictConstants.Claims.Name when principal.HasScope(AuthConstants.Scopes.Profile) =>
-                [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            OpenIddictConstants.Claims.Email when principal.HasScope(AuthConstants.Scopes.Email) =>
-                [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            OpenIddictConstants.Claims.Subject =>
-                [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            AuthConstants.ClaimTypes.Permission =>
-                [OpenIddictConstants.Destinations.AccessToken],
-            _ =>
-                [OpenIddictConstants.Destinations.AccessToken]
-        };
     }
 
     private static AuthenticationProperties CreateClientDisabledProperties()
@@ -191,5 +181,23 @@ public class AuthorizationController : ControllerBase
             [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.InvalidClient,
             [OpenIddictConstants.Parameters.ErrorDescription] = "The client application is disabled."
         });
+    }
+
+    private static AuthenticationProperties CreateUserDisabledProperties()
+    {
+        return new AuthenticationProperties(new Dictionary<string, string?>
+        {
+            [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.AccessDenied,
+            [OpenIddictConstants.Parameters.ErrorDescription] = "The user account is disabled."
+        });
+    }
+
+    private static OpenIddictResponse CreateErrorResponse(string error, string description)
+    {
+        return new OpenIddictResponse
+        {
+            Error = error,
+            ErrorDescription = description
+        };
     }
 }

@@ -282,6 +282,34 @@ public sealed class AdminClientService : IAdminClientService
         return detail;
     }
 
+    public async Task<bool> DeleteClientAsync(string id, CancellationToken cancellationToken)
+    {
+        var application = await _applicationManager.FindByIdAsync(id, cancellationToken);
+        if (application is null)
+        {
+            return false;
+        }
+
+        var detail = await BuildDetailAsync(application, cancellationToken);
+        await _applicationManager.DeleteAsync(application, cancellationToken);
+
+        var existingState = await _dbContext.ClientStates
+            .FirstOrDefaultAsync(state => state.ApplicationId == id, cancellationToken);
+        if (existingState is not null)
+        {
+            _dbContext.ClientStates.Remove(existingState);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await LogAuditAsync("client.deleted", "OpenIddictApplication", detail.Id, new
+        {
+            detail.ClientId,
+            detail.DisplayName
+        });
+
+        return true;
+    }
+
     public async Task<IReadOnlyList<AdminClientScopeItem>> GetScopesAsync(CancellationToken cancellationToken)
     {
         var scopes = new List<AdminClientScopeItem>();
@@ -391,17 +419,20 @@ public sealed class AdminClientService : IAdminClientService
             errors.Add("At least one grant type is required.");
         }
 
+        var normalizedPkceRequired = pkceRequired
+            || (isPublic && normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode));
+
         if (isPublic && normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.ClientCredentials))
         {
             errors.Add("Public clients cannot use client_credentials.");
         }
 
-        if (!isPublic && pkceRequired)
+        if (!isPublic && normalizedPkceRequired)
         {
             errors.Add("PKCE can only be required for public clients.");
         }
 
-        if (pkceRequired && !normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode))
+        if (normalizedPkceRequired && !normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode))
         {
             errors.Add("PKCE requires authorization_code grant type.");
         }
@@ -441,7 +472,7 @@ public sealed class AdminClientService : IAdminClientService
             normalizedClientType,
             enabled,
             normalizedGrantTypes.ToList(),
-            pkceRequired,
+            normalizedPkceRequired,
             normalizedScopes,
             normalizedRedirectUris,
             normalizedPostLogoutUris);
@@ -511,12 +542,34 @@ public sealed class AdminClientService : IAdminClientService
                 continue;
             }
 
+            if (!string.IsNullOrWhiteSpace(uri.Fragment))
+            {
+                errors.Add($"{label} must not include a URI fragment: {raw}.");
+                continue;
+            }
+
+            if (!IsSecureRedirectUri(uri))
+            {
+                errors.Add($"{label} must use HTTPS unless it is a loopback address: {raw}.");
+                continue;
+            }
+
             normalized.Add(uri);
         }
 
         return normalized
             .DistinctBy(uri => uri.ToString(), StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static bool IsSecureRedirectUri(Uri uri)
+    {
+        if (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return uri.IsLoopback && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<string> BuildPermissions(AdminClientConfiguration config)
@@ -534,6 +587,12 @@ public sealed class AdminClientService : IAdminClientService
         if (config.PostLogoutRedirectUris.Count > 0)
         {
             permissions.Add(OpenIddictConstants.Permissions.Endpoints.EndSession);
+        }
+
+        if (config.GrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode)
+            || config.GrantTypes.Contains(OpenIddictConstants.GrantTypes.RefreshToken))
+        {
+            permissions.Add(OpenIddictConstants.Permissions.Endpoints.Revocation);
         }
 
         if (config.GrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode))

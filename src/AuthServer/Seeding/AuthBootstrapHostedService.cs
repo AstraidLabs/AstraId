@@ -212,6 +212,12 @@ public sealed class AuthBootstrapHostedService : IHostedService
             }
         }
 
+        if (client.AllowedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode)
+            || client.AllowedGrantTypes.Contains(OpenIddictConstants.GrantTypes.RefreshToken))
+        {
+            permissions.Add(OpenIddictConstants.Permissions.Endpoints.Revocation);
+        }
+
         foreach (var scope in client.Scopes)
         {
             permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scope);
