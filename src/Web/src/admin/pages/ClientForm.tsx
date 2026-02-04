@@ -1,14 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type {
   AdminClientDetail,
   AdminClientSecretResponse,
   AdminOidcScopeListItem,
   PagedResult,
 } from "../api/types";
+import { Field } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
+import {
+  getRedirectErrorMessage,
+  parseRedirectUris,
+  type RedirectUriError,
+  validateClientId,
+  validateGrantTypes,
+  validatePkceRules,
+  validateRedirectUris,
+} from "../validation/oidcValidation";
 
 type Mode = "create" | "edit";
 
@@ -27,6 +37,15 @@ type FormState = {
   scopes: string[];
   redirectUrisText: string;
   postLogoutRedirectUrisText: string;
+};
+
+type FormErrors = {
+  clientId?: string;
+  grantTypes?: string;
+  pkceRequired?: string;
+  redirectUris?: string;
+  postLogoutRedirectUris?: string;
+  scopes?: string;
 };
 
 const defaultState: FormState = {
@@ -48,6 +67,9 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [scopes, setScopes] = useState<AdminOidcScopeListItem[]>([]);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [redirectErrors, setRedirectErrors] = useState<RedirectUriError[]>([]);
+  const [postLogoutErrors, setPostLogoutErrors] = useState<RedirectUriError[]>([]);
   const [secret, setSecret] = useState<string | null>(() => {
     const state = location.state as { secret?: string } | null;
     return state?.secret ?? null;
@@ -113,8 +135,52 @@ export default function ClientForm({ mode, clientId }: Props) {
     };
   }, [clientId, mode]);
 
+  const runValidation = (nextForm: FormState) => {
+    const nextErrors: FormErrors = {};
+    const clientIdResult = validateClientId(nextForm.clientId);
+    if (clientIdResult.error) {
+      nextErrors.clientId = clientIdResult.error;
+    }
+
+    const grantError = validateGrantTypes(nextForm.grantTypes);
+    if (grantError) {
+      nextErrors.grantTypes = grantError;
+    }
+
+    const pkceError = validatePkceRules(
+      nextForm.clientType,
+      nextForm.grantTypes,
+      nextForm.pkceRequired
+    );
+    if (pkceError) {
+      nextErrors.pkceRequired = pkceError;
+    }
+
+    const redirectResult = validateRedirectUris(
+      nextForm.redirectUrisText,
+      nextForm.grantTypes.includes("authorization_code")
+    );
+    setRedirectErrors(redirectResult.errors);
+    if (redirectResult.errors.length > 0) {
+      nextErrors.redirectUris = getRedirectErrorMessage(redirectResult.errors) ?? undefined;
+    }
+
+    const postLogoutResult = validateRedirectUris(nextForm.postLogoutRedirectUrisText, false);
+    setPostLogoutErrors(postLogoutResult.errors);
+    if (postLogoutResult.errors.length > 0) {
+      nextErrors.postLogoutRedirectUris = getRedirectErrorMessage(postLogoutResult.errors) ?? undefined;
+    }
+
+    setErrors(nextErrors);
+    return nextErrors;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    const validationErrors = runValidation(form);
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -125,14 +191,15 @@ export default function ClientForm({ mode, clientId }: Props) {
         grantTypes: form.grantTypes,
         pkceRequired: form.clientType === "public" ? form.pkceRequired : false,
         scopes: form.scopes,
-        redirectUris: splitLines(form.redirectUrisText),
-        postLogoutRedirectUris: splitLines(form.postLogoutRedirectUrisText),
+        redirectUris: parseRedirectUris(form.redirectUrisText),
+        postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
       };
 
       if (mode === "create") {
         const response = await apiRequest<AdminClientSecretResponse>("/admin/api/clients", {
           method: "POST",
           body: JSON.stringify(payload),
+          suppressToast: true,
         });
         if (response.clientSecret) {
           setSecret(response.clientSecret);
@@ -152,8 +219,28 @@ export default function ClientForm({ mode, clientId }: Props) {
       await apiRequest<AdminClientDetail>(`/admin/api/clients/${clientId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
+        suppressToast: true,
       });
       pushToast({ message: "Client updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.fieldErrors) {
+          setErrors((current) => ({
+            ...current,
+            clientId: error.fieldErrors.clientId?.[0] ?? current.clientId,
+            grantTypes: error.fieldErrors.grantTypes?.[0] ?? current.grantTypes,
+            pkceRequired: error.fieldErrors.pkceRequired?.[0] ?? current.pkceRequired,
+            redirectUris: error.fieldErrors.redirectUris?.[0] ?? current.redirectUris,
+            postLogoutRedirectUris:
+              error.fieldErrors.postLogoutRedirectUris?.[0] ?? current.postLogoutRedirectUris,
+            scopes: error.fieldErrors.scopes?.[0] ?? current.scopes,
+          }));
+          return;
+        }
+        pushToast({ message: error.message, tone: "error" });
+        return;
+      }
+      pushToast({ message: "Unable to save client.", tone: "error" });
     } finally {
       setSaving(false);
     }
@@ -214,135 +301,228 @@ export default function ClientForm({ mode, clientId }: Props) {
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <div className="grid gap-5 md:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm text-slate-200">
-            Client ID
+          <Field
+            label="Client ID"
+            tooltip="Identifikátor klienta v OIDC. Používej 3–100 znaků bez mezer. Příklad: web-spa, cms-admin."
+            hint="Používej písmena, čísla, _, . nebo -. Lowercase doporučeno."
+            error={errors.clientId}
+          >
             <input
-              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+                errors.clientId ? "border-rose-400" : "border-slate-700"
+              }`}
               value={form.clientId}
-              onChange={(event) => setForm((prev) => ({ ...prev, clientId: event.target.value }))}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, clientId: event.target.value }))
+              }
+              onBlur={() => {
+                const result = validateClientId(form.clientId);
+                setErrors((current) => ({ ...current, clientId: result.error ?? undefined }));
+              }}
+              placeholder="web-spa"
               required
             />
-          </label>
+          </Field>
 
-          <label className="flex flex-col gap-2 text-sm text-slate-200">
-            Display name
+          <Field
+            label="Display name"
+            tooltip="Lidský název klienta pro admin přehledy. Neovlivňuje protokolové hodnoty."
+            hint="Volitelné, doporučeno pro lepší orientaci."
+          >
             <input
               className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
               value={form.displayName}
-              onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, displayName: event.target.value }))
+              }
+              placeholder="CMS Admin SPA"
             />
-          </label>
+          </Field>
 
-          <label className="flex flex-col gap-2 text-sm text-slate-200">
-            Client type
+          <Field
+            label="Client type"
+            tooltip="Public klient je SPA/mobile bez bezpečného úložiště tajemství. Confidential klient je server-to-server s uloženým secret."
+            hint="Public = SPA/mobile. Confidential = backend."
+          >
             <select
               className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
               value={form.clientType}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  clientType: event.target.value as FormState["clientType"],
-                }))
-              }
+              onChange={(event) => {
+                const nextType = event.target.value as FormState["clientType"];
+                setForm((prev) => ({ ...prev, clientType: nextType }));
+                setErrors((current) => ({
+                  ...current,
+                  pkceRequired: undefined,
+                  grantTypes: undefined,
+                }));
+              }}
             >
               <option value="public">Public</option>
               <option value="confidential">Confidential</option>
             </select>
-          </label>
+          </Field>
 
-          <label className="flex items-center gap-3 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
-              checked={form.enabled}
-              onChange={(event) => setForm((prev) => ({ ...prev, enabled: event.target.checked }))}
-            />
-            Enabled
-          </label>
+          <Field
+            label="Status"
+            tooltip="Zakázaní klienta zastaví autorizace i tokeny."
+            hint="Vypni, pokud nechceš klienta dočasně používat."
+          >
+            <label className="flex items-center gap-3 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                checked={form.enabled}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, enabled: event.target.checked }))
+                }
+              />
+              Enabled
+            </label>
+          </Field>
         </div>
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-        <h2 className="text-lg font-semibold text-white">Grant types</h2>
-        <div className="mt-4 flex flex-wrap gap-4">
-          {grantTypeOptions.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-sm text-slate-200">
+        <Field
+          label="Grant types"
+          tooltip="Grant types definují, jak klient získá token. Pro SPA typicky authorization_code + refresh_token."
+          hint="Vyber alespoň jeden grant type."
+          error={errors.grantTypes}
+        >
+          <div className="flex flex-wrap gap-4">
+            {grantTypeOptions.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                  checked={form.grantTypes.includes(option.value)}
+                  onChange={(event) => {
+                    const nextGrantTypes = event.target.checked
+                      ? [...form.grantTypes, option.value]
+                      : form.grantTypes.filter((item) => item !== option.value);
+                    setForm((prev) => ({
+                      ...prev,
+                      grantTypes: nextGrantTypes,
+                    }));
+                    setErrors((current) => ({
+                      ...current,
+                      grantTypes: validateGrantTypes(nextGrantTypes) ?? undefined,
+                    }));
+                  }}
+                  disabled={form.clientType === "public" && option.value === "client_credentials"}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </Field>
+        {form.clientType === "public" && (
+          <Field
+            label="PKCE"
+            tooltip="PKCE zvyšuje bezpečnost Authorization Code flow u public klientů. Pokud je zapnuto, musí být povolen authorization_code."
+            hint="Doporučeno pro SPA/mobile klienty."
+            error={errors.pkceRequired}
+          >
+            <label className="flex items-center gap-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
-                checked={form.grantTypes.includes(option.value)}
+                checked={form.pkceRequired}
                 onChange={(event) => {
-                  setForm((prev) => ({
-                    ...prev,
-                    grantTypes: event.target.checked
-                      ? [...prev.grantTypes, option.value]
-                      : prev.grantTypes.filter((item) => item !== option.value),
+                  setForm((prev) => ({ ...prev, pkceRequired: event.target.checked }));
+                  setErrors((current) => ({
+                    ...current,
+                    pkceRequired:
+                      validatePkceRules(
+                        form.clientType,
+                        form.grantTypes,
+                        event.target.checked
+                      ) ?? undefined,
                   }));
                 }}
-                disabled={form.clientType === "public" && option.value === "client_credentials"}
               />
-              {option.label}
+              Require PKCE
             </label>
-          ))}
-        </div>
-        {form.clientType === "public" && (
-          <label className="mt-4 flex items-center gap-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
-              checked={form.pkceRequired}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, pkceRequired: event.target.checked }))
-              }
-            />
-            Require PKCE
-          </label>
+          </Field>
         )}
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-        <h2 className="text-lg font-semibold text-white">Scopes</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {scopes.map((scope) => (
-            <label key={scope.name} className="flex items-center gap-2 text-sm text-slate-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
-                checked={form.scopes.includes(scope.name)}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    scopes: event.target.checked
-                      ? [...prev.scopes, scope.name]
-                      : prev.scopes.filter((item) => item !== scope.name),
-                  }))
-                }
-              />
-              <span className="font-medium">{scope.name}</span>
-              {scope.displayName && <span className="text-xs text-slate-400">{scope.displayName}</span>}
-            </label>
-          ))}
-          {scopes.length === 0 && <p className="text-sm text-slate-400">No scopes available.</p>}
-        </div>
+        <Field
+          label="Scopes"
+          tooltip="Vyber scope, které může klient požadovat. Scopes jsou navázané na API resources."
+          hint="Nejprve vytvoř scopes v OIDC Scopes."
+          error={errors.scopes}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {scopes.map((scope) => (
+              <label key={scope.name} className="flex items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                  checked={form.scopes.includes(scope.name)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      scopes: event.target.checked
+                        ? [...prev.scopes, scope.name]
+                        : prev.scopes.filter((item) => item !== scope.name),
+                    }))
+                  }
+                />
+                <span className="font-medium">{scope.name}</span>
+                {scope.displayName && (
+                  <span className="text-xs text-slate-400">{scope.displayName}</span>
+                )}
+              </label>
+            ))}
+            {scopes.length === 0 && (
+              <p className="text-sm text-slate-400">No scopes yet — create one.</p>
+            )}
+          </div>
+        </Field>
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <div className="grid gap-5 md:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm text-slate-200">
-            Redirect URIs (one per line)
+          <Field
+            label="Redirect URIs"
+            tooltip="URL, kam se vrací uživatel po přihlášení. Musí být absolutní, HTTPS (v dev povol http://localhost)."
+            hint="1 URI per line. Povinné pro authorization_code."
+            error={errors.redirectUris}
+          >
             <textarea
-              className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+                errors.redirectUris ? "border-rose-400" : "border-slate-700"
+              }`}
               value={form.redirectUrisText}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, redirectUrisText: event.target.value }))
               }
+              onBlur={() => runValidation(form)}
+              placeholder="http://localhost:5173/auth/callback"
             />
-          </label>
+            {redirectErrors.length > 0 && (
+              <div className="mt-2 space-y-1 text-xs text-rose-300">
+                {redirectErrors.map((error, index) => (
+                  <div key={`${error.line}-${index}`}>
+                    {error.line > 0 ? `Line ${error.line}: ` : ""}{error.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
 
-          <label className="flex flex-col gap-2 text-sm text-slate-200">
-            Post logout redirect URIs (one per line)
+          <Field
+            label="Post logout redirect URIs"
+            tooltip="URL, kam se vrací uživatel po odhlášení. Musí být absolutní a bez fragmentu."
+            hint="1 URI per line. Volitelné."
+            error={errors.postLogoutRedirectUris}
+          >
             <textarea
-              className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+                errors.postLogoutRedirectUris ? "border-rose-400" : "border-slate-700"
+              }`}
               value={form.postLogoutRedirectUrisText}
               onChange={(event) =>
                 setForm((prev) => ({
@@ -350,8 +530,19 @@ export default function ClientForm({ mode, clientId }: Props) {
                   postLogoutRedirectUrisText: event.target.value,
                 }))
               }
+              onBlur={() => runValidation(form)}
+              placeholder="https://app.example.com/logout/callback"
             />
-          </label>
+            {postLogoutErrors.length > 0 && (
+              <div className="mt-2 space-y-1 text-xs text-rose-300">
+                {postLogoutErrors.map((error, index) => (
+                  <div key={`${error.line}-${index}`}>
+                    {error.line > 0 ? `Line ${error.line}: ` : ""}{error.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
         </div>
       </section>
 
@@ -379,11 +570,4 @@ export default function ClientForm({ mode, clientId }: Props) {
       )}
     </form>
   );
-}
-
-function splitLines(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
 }

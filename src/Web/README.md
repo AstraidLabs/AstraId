@@ -55,3 +55,14 @@ npm run build
 - `Login` přesměruje na AuthServer UI (`/connect/authorize`).
 - Po přihlášení se SPA vrací na `/auth/callback` a uloží tokeny.
 - `Logout` volá end-session endpoint (`/connect/logout`).
+
+## Naming rules (Admin)
+
+Platí pro administraci OIDC klientů, scopes a resources:
+
+- **Client ID**: 3–100 znaků, `[a-zA-Z0-9][a-zA-Z0-9_.-]*`, bez mezer.  
+  Příklad: `web-spa`, `cms-admin`.
+- **Scope name**: 3–100 znaků, lowercase, `[a-z0-9][a-z0-9:_.-]*`, bez mezer.  
+  Příklad: `api`, `api.read`, `cms:write`.
+- **Resource name**: 3–100 znaků, lowercase, `[a-z0-9][a-z0-9:_.-]*`, bez mezer.  
+  Příklad: `api`, `cms`.

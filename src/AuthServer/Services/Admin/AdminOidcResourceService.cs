@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Services.Admin.Validation;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
@@ -72,17 +73,32 @@ public sealed class AdminOidcResourceService : IAdminOidcResourceService
         return resource is null ? null : MapDetail(resource);
     }
 
+    public async Task<AdminOidcResourceUsage?> GetResourceUsageAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var resource = await _dbContext.OidcResources.AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (resource is null)
+        {
+            return null;
+        }
+
+        var scopeCount = await CountScopesForResourceAsync(resource.Name, cancellationToken);
+        return new AdminOidcResourceUsage(scopeCount);
+    }
+
     public async Task<AdminOidcResourceDetail> CreateResourceAsync(AdminOidcResourceRequest request, CancellationToken cancellationToken)
     {
-        var name = NormalizeName(request.Name ?? string.Empty);
-        if (string.IsNullOrWhiteSpace(name))
+        var errors = new AdminValidationErrors();
+        var name = OidcValidationSpec.NormalizeResourceName(request.Name, errors, "name");
+        if (errors.HasErrors)
         {
-            throw new AdminOidcValidationException("Invalid resource configuration.", "Resource name is required.");
+            throw new AdminValidationException("Invalid resource configuration.", errors.ToDictionary());
         }
 
         if (await _dbContext.OidcResources.AnyAsync(item => item.Name == name, cancellationToken))
         {
-            throw new AdminOidcValidationException("Invalid resource configuration.", "Resource name already exists.");
+            errors.Add("name", "Resource name already exists.");
+            throw new AdminValidationException("Invalid resource configuration.", errors.ToDictionary());
         }
 
         var now = DateTime.UtcNow;
@@ -111,25 +127,26 @@ public sealed class AdminOidcResourceService : IAdminOidcResourceService
             return null;
         }
 
-        var name = NormalizeName(request.Name ?? string.Empty);
-        if (string.IsNullOrWhiteSpace(name))
+        var errors = new AdminValidationErrors();
+        var name = OidcValidationSpec.NormalizeResourceName(request.Name, errors, "name");
+        if (errors.HasErrors)
         {
-            throw new AdminOidcValidationException("Invalid resource configuration.", "Resource name is required.");
+            throw new AdminValidationException("Invalid resource configuration.", errors.ToDictionary());
         }
 
         if (!string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase))
         {
             if (await _dbContext.OidcResources.AnyAsync(item => item.Name == name && item.Id != id, cancellationToken))
             {
-                throw new AdminOidcValidationException("Invalid resource configuration.", "Resource name already exists.");
+                errors.Add("name", "Resource name already exists.");
+                throw new AdminValidationException("Invalid resource configuration.", errors.ToDictionary());
             }
 
             var inUse = await IsResourceInUseAsync(resource.Name, cancellationToken);
             if (inUse)
             {
-                throw new AdminOidcValidationException(
-                    "Invalid resource configuration.",
-                    "Resource name cannot be changed while it is assigned to scopes.");
+                errors.Add("name", "Resource name cannot be changed while it is assigned to scopes.");
+                throw new AdminValidationException("Invalid resource configuration.", errors.ToDictionary());
             }
         }
 
@@ -155,9 +172,9 @@ public sealed class AdminOidcResourceService : IAdminOidcResourceService
         var inUse = await IsResourceInUseAsync(resource.Name, cancellationToken);
         if (inUse)
         {
-            throw new AdminOidcValidationException(
-                "Resource is in use.",
-                "Resource is assigned to one or more scopes. Remove it from scopes before deleting.");
+            var errors = new AdminValidationErrors();
+            errors.Add("resource", "Resource is assigned to one or more scopes. Remove it from scopes before deleting.");
+            throw new AdminValidationException("Resource is in use.", errors.ToDictionary());
         }
 
         resource.IsActive = false;
@@ -181,9 +198,19 @@ public sealed class AdminOidcResourceService : IAdminOidcResourceService
         return false;
     }
 
-    private static string NormalizeName(string name)
+    private async Task<int> CountScopesForResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
-        return name.Trim().ToLowerInvariant();
+        var count = 0;
+        await foreach (var scope in _scopeManager.ListAsync(count: null, offset: null, cancellationToken))
+        {
+            var resources = await _scopeManager.GetResourcesAsync(scope, cancellationToken);
+            if (resources.Contains(resourceName, StringComparer.OrdinalIgnoreCase))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static string? NormalizeOptional(string? value)

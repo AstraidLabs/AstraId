@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "../api/http";
-import type { AdminOidcScopeListItem, PagedResult } from "../api/types";
+import type { AdminOidcScopeListItem, AdminOidcScopeUsage, PagedResult } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
@@ -13,6 +13,8 @@ export default function OidcScopesList() {
   const [result, setResult] = useState<PagedResult<AdminOidcScopeListItem> | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminOidcScopeListItem | null>(null);
+  const [deleteUsage, setDeleteUsage] = useState<AdminOidcScopeUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -43,6 +45,33 @@ export default function OidcScopesList() {
       isMounted = false;
     };
   }, [page, pageSize, search]);
+
+  useEffect(() => {
+    if (!deleteTarget) {
+      setDeleteUsage(null);
+      return;
+    }
+    let isMounted = true;
+    const fetchUsage = async () => {
+      setUsageLoading(true);
+      try {
+        const usage = await apiRequest<AdminOidcScopeUsage>(
+          `/admin/api/oidc/scopes/${deleteTarget.id}/usage`
+        );
+        if (isMounted) {
+          setDeleteUsage(usage);
+        }
+      } finally {
+        if (isMounted) {
+          setUsageLoading(false);
+        }
+      }
+    };
+    fetchUsage();
+    return () => {
+      isMounted = false;
+    };
+  }, [deleteTarget]);
 
   const totalPages = result ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
 
@@ -85,7 +114,7 @@ export default function OidcScopesList() {
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
         <input
           className="w-full max-w-sm rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Search scope name..."
+          placeholder="Search by scope name or display name..."
           value={search}
           onChange={(event) => {
             setSearch(event.target.value);
@@ -129,7 +158,7 @@ export default function OidcScopesList() {
             {!loading && result?.items.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                  No scopes found.
+                  No scopes yet — create one.
                 </td>
               </tr>
             )}
@@ -204,10 +233,28 @@ export default function OidcScopesList() {
         title="Delete scope?"
         description="This will permanently remove the scope from OpenIddict."
         confirmLabel="Delete"
+        confirmDisabled={(deleteUsage?.clientCount ?? 0) > 0 || usageLoading}
         isOpen={Boolean(deleteTarget)}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
-      />
+      >
+        {deleteTarget && (
+          <div className="space-y-2 text-sm text-slate-300">
+            <p>
+              Used by{" "}
+              <span className="font-semibold text-slate-100">
+                {usageLoading ? "..." : deleteUsage?.clientCount ?? 0}
+              </span>{" "}
+              clients.
+            </p>
+            {(deleteUsage?.clientCount ?? 0) > 0 && (
+              <p className="text-rose-300">
+                Remove the scope from clients before deleting.
+              </p>
+            )}
+          </div>
+        )}
+      </ConfirmDialog>
     </section>
   );
 }

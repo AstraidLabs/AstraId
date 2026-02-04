@@ -46,9 +46,9 @@ public sealed class AdminOidcResourcesController : ControllerBase
             var resource = await _resourceService.CreateResourceAsync(request, cancellationToken);
             return CreatedAtAction(nameof(GetResource), new { id = resource.Id }, resource);
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("resource"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
     }
 
@@ -63,10 +63,17 @@ public sealed class AdminOidcResourcesController : ControllerBase
             var resource = await _resourceService.UpdateResourceAsync(id, request, cancellationToken);
             return resource is null ? NotFound() : Ok(resource);
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("resource"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
+    }
+
+    [HttpGet("{id:guid}/usage")]
+    public async Task<ActionResult<AdminOidcResourceUsage>> GetResourceUsage(Guid id, CancellationToken cancellationToken)
+    {
+        var usage = await _resourceService.GetResourceUsageAsync(id, cancellationToken);
+        return usage is null ? NotFound() : Ok(usage);
     }
 
     [HttpDelete("{id:guid}")]
@@ -77,9 +84,9 @@ public sealed class AdminOidcResourcesController : ControllerBase
             var deleted = await _resourceService.DeleteResourceAsync(id, cancellationToken);
             return deleted ? NoContent() : NotFound();
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("resource"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
     }
 }

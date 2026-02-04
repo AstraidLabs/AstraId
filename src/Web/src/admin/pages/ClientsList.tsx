@@ -124,7 +124,7 @@ export default function ClientsList() {
             {!loading && result?.items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No clients found.
+                  No clients yet — create one.
                 </td>
               </tr>
             )}

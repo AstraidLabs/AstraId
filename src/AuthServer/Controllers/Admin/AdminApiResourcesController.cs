@@ -67,9 +67,22 @@ public sealed class AdminApiResourcesController : ControllerBase
         var name = request.Name?.Trim() ?? string.Empty;
         var displayName = request.DisplayName?.Trim() ?? string.Empty;
         var baseUrl = request.BaseUrl?.Trim();
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(displayName))
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(name))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            errors["name"] = ["API resource name is required."];
+        }
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            errors["displayName"] = ["API resource display name is required."];
+        }
+        if (!string.IsNullOrWhiteSpace(baseUrl) && !Uri.TryCreate(baseUrl, UriKind.Absolute, out _))
+        {
+            errors["baseUrl"] = ["Base URL must be an absolute URL."];
+        }
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid API resource.",
                 Detail = "Name and display name are required."
@@ -78,7 +91,10 @@ public sealed class AdminApiResourcesController : ControllerBase
 
         if (await _dbContext.ApiResources.AnyAsync(resource => resource.Name == name, cancellationToken))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["name"] = [$"API resource '{name}' already exists."]
+            })
             {
                 Title = "API resource already exists.",
                 Detail = $"API resource '{name}' already exists."
@@ -120,9 +136,22 @@ public sealed class AdminApiResourcesController : ControllerBase
         var name = request.Name?.Trim() ?? string.Empty;
         var displayName = request.DisplayName?.Trim() ?? string.Empty;
         var baseUrl = request.BaseUrl?.Trim();
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(displayName))
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(name))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            errors["name"] = ["API resource name is required."];
+        }
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            errors["displayName"] = ["API resource display name is required."];
+        }
+        if (!string.IsNullOrWhiteSpace(baseUrl) && !Uri.TryCreate(baseUrl, UriKind.Absolute, out _))
+        {
+            errors["baseUrl"] = ["Base URL must be an absolute URL."];
+        }
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid API resource.",
                 Detail = "Name and display name are required."
@@ -132,7 +161,10 @@ public sealed class AdminApiResourcesController : ControllerBase
         if (!string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase)
             && await _dbContext.ApiResources.AnyAsync(item => item.Name == name && item.Id != id, cancellationToken))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["name"] = [$"API resource '{name}' already exists."]
+            })
             {
                 Title = "API resource already exists.",
                 Detail = $"API resource '{name}' already exists."
@@ -215,6 +247,27 @@ public sealed class AdminApiResourcesController : ControllerBase
         if (endpoint is null || endpoint.ApiResourceId != id)
         {
             return NotFound();
+        }
+
+        var permissionIds = request.PermissionIds?.Distinct().ToList() ?? new List<Guid>();
+        if (permissionIds.Count > 0)
+        {
+            var existingIds = await _dbContext.Permissions
+                .Where(permission => permissionIds.Contains(permission.Id))
+                .Select(permission => permission.Id)
+                .ToListAsync(cancellationToken);
+            var invalid = permissionIds.Except(existingIds).ToList();
+            if (invalid.Count > 0)
+            {
+                return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+                {
+                    ["permissionIds"] = [$"Unknown permissions: {string.Join(", ", invalid)}."]
+                })
+                {
+                    Title = "Invalid endpoint permissions.",
+                    Detail = "One or more permissions are invalid."
+                });
+            }
         }
 
         await _endpointService.SetEndpointPermissionsAsync(endpointId, request.PermissionIds, cancellationToken);

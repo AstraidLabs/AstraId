@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiRequest } from "../api/http";
 import type { AdminApiEndpointListItem, AdminPermissionItem } from "../api/types";
+import { HelpIcon } from "../components/Field";
 import { pushToast } from "../components/toast";
 
 type EditorState = {
@@ -122,7 +123,10 @@ export default function ApiResourceEndpoints() {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold text-white">API Endpoint Permissions</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-white">API Endpoint Permissions</h1>
+          <HelpIcon tooltip="Vyber permissiony, které musí uživatel mít pro přístup na konkrétní endpoint. Nevybrané endpointy zůstanou veřejné." />
+        </div>
         <p className="text-sm text-slate-300">Assign permissions to API endpoints.</p>
       </div>
 
@@ -205,6 +209,9 @@ export default function ApiResourceEndpoints() {
               </button>
             </div>
             <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              <p className="mb-3 text-xs text-slate-400">
+                Choose permissions required for this endpoint. You can leave it empty for public access.
+              </p>
               {groupedPermissions.map(([group, items]) => (
                 <div key={group} className="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">

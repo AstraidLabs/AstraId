@@ -46,7 +46,7 @@ public sealed class AdminClientsController : ControllerBase
             var response = new AdminClientSecretResponse(result.Client, result.ClientSecret);
             return CreatedAtAction(nameof(GetClient), new { id = result.Client.Id }, response);
         }
-        catch (AdminClientValidationException exception)
+        catch (AdminValidationException exception)
         {
             return ValidationProblem(exception.ToProblemDetails());
         }
@@ -63,7 +63,7 @@ public sealed class AdminClientsController : ControllerBase
             var result = await _clientService.UpdateClientAsync(id, request, cancellationToken);
             return result is null ? NotFound() : Ok(result);
         }
-        catch (AdminClientValidationException exception)
+        catch (AdminValidationException exception)
         {
             return ValidationProblem(exception.ToProblemDetails());
         }
@@ -81,7 +81,7 @@ public sealed class AdminClientsController : ControllerBase
                 ? NotFound()
                 : Ok(new AdminClientSecretResponse(result.Client, result.ClientSecret));
         }
-        catch (AdminClientValidationException exception)
+        catch (AdminValidationException exception)
         {
             return ValidationProblem(exception.ToProblemDetails());
         }

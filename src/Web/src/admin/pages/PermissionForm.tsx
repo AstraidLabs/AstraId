@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type { AdminPermissionItem } from "../api/types";
+import { Field } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
 
@@ -89,6 +90,7 @@ export default function PermissionForm({ mode, permissionId }: Props) {
         await apiRequest<AdminPermissionItem>("/admin/api/permissions", {
           method: "POST",
           body: JSON.stringify(payload),
+          suppressToast: true,
         });
         pushToast({ message: "Permission created.", tone: "success" });
         navigate(toAdminRoute("/config/permissions"));
@@ -101,8 +103,23 @@ export default function PermissionForm({ mode, permissionId }: Props) {
       await apiRequest<AdminPermissionItem>(`/admin/api/permissions/${permissionId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
+        suppressToast: true,
       });
       pushToast({ message: "Permission updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.fieldErrors) {
+          setErrors((current) => ({
+            ...current,
+            key: error.fieldErrors.key?.[0] ?? current.key,
+            description: error.fieldErrors.description?.[0] ?? current.description,
+          }));
+          return;
+        }
+        pushToast({ message: error.message, tone: "error" });
+        return;
+      }
+      pushToast({ message: "Unable to save permission.", tone: "error" });
     } finally {
       setSaving(false);
     }
@@ -126,46 +143,86 @@ export default function PermissionForm({ mode, permissionId }: Props) {
       </div>
 
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="text-slate-200">Key</span>
+        <Field
+          label="Key"
+          tooltip="Jednoznačný identifikátor permission. Používej tečky pro hierarchii."
+          hint="Příklad: system.admin, oidc.clients.read."
+          error={errors.key}
+        >
           <input
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+            className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+              errors.key ? "border-rose-400" : "border-slate-700"
+            }`}
             value={form.key}
             onChange={(event) => setForm((prev) => ({ ...prev, key: event.target.value }))}
+            onBlur={() =>
+              setErrors((current) => ({
+                ...current,
+                key: form.key.trim() ? undefined : "Key is required.",
+              }))
+            }
             placeholder="system.admin"
           />
-          {errors.key && <span className="text-xs text-rose-300">{errors.key}</span>}
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="text-slate-200">Group</span>
+        <Field
+          label="Group"
+          tooltip="Skupina pro vizuální seskupení permission."
+          hint="Volitelné, např. System nebo OIDC."
+        >
           <input
             className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
             value={form.group}
             onChange={(event) => setForm((prev) => ({ ...prev, group: event.target.value }))}
             placeholder="System"
           />
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-2 text-sm md:col-span-2">
-          <span className="text-slate-200">Description</span>
-          <textarea
-            className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-            value={form.description}
-            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-          />
-          {errors.description && <span className="text-xs text-rose-300">{errors.description}</span>}
-        </label>
+        <div className="md:col-span-2">
+          <Field
+            label="Description"
+            tooltip="Krátký popis pro administrátory."
+            hint="Povinné."
+            error={errors.description}
+          >
+            <textarea
+              className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+                errors.description ? "border-rose-400" : "border-slate-700"
+              }`}
+              value={form.description}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, description: event.target.value }))
+              }
+              onBlur={() =>
+                setErrors((current) => ({
+                  ...current,
+                  description: form.description.trim() ? undefined : "Description is required.",
+                }))
+              }
+              placeholder="Allows managing OIDC clients."
+            />
+          </Field>
+        </div>
 
-        <label className="flex items-center gap-3 text-sm text-slate-200 md:col-span-2">
-          <input
-            type="checkbox"
-            checked={form.isSystem}
-            onChange={(event) => setForm((prev) => ({ ...prev, isSystem: event.target.checked }))}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-400"
-          />
-          System permission (protected from deletion)
-        </label>
+        <div className="md:col-span-2">
+          <Field
+            label="System permission"
+            tooltip="System permissiony jsou chráněné proti smazání."
+            hint="Zapni pouze pro core oprávnění."
+          >
+            <label className="flex items-center gap-3 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.isSystem}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, isSystem: event.target.checked }))
+                }
+                className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-400"
+              />
+              Protected from deletion
+            </label>
+          </Field>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

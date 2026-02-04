@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Services.Admin.Validation;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
@@ -10,7 +10,6 @@ namespace AuthServer.Services.Admin;
 
 public sealed class AdminOidcScopeService : IAdminOidcScopeService
 {
-    private static readonly Regex ScopeNameRegex = new("^[a-z0-9:_\\.-]+$", RegexOptions.Compiled);
     private const string DescriptionProperty = "description";
     private const string ClaimsProperty = "claims";
 
@@ -95,15 +94,40 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
         return await BuildDetailAsync(scope, cancellationToken);
     }
 
+    public async Task<AdminOidcScopeUsage?> GetScopeUsageAsync(string nameOrId, CancellationToken cancellationToken)
+    {
+        var scope = await _scopeManager.FindByIdAsync(nameOrId, cancellationToken)
+            ?? await _scopeManager.FindByNameAsync(nameOrId, cancellationToken);
+
+        if (scope is null)
+        {
+            return null;
+        }
+
+        var name = await _scopeManager.GetNameAsync(scope, cancellationToken);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return new AdminOidcScopeUsage(0);
+        }
+
+        var clientCount = await CountClientsForScopeAsync(name, cancellationToken);
+        return new AdminOidcScopeUsage(clientCount);
+    }
+
     public async Task<AdminOidcScopeDetail> CreateScopeAsync(AdminOidcScopeRequest request, CancellationToken cancellationToken)
     {
-        var name = NormalizeName(request.Name ?? string.Empty);
-        ValidateName(name);
+        var errors = new AdminValidationErrors();
+        var name = OidcValidationSpec.NormalizeScopeName(request.Name, errors, "name");
+        if (errors.HasErrors)
+        {
+            throw new AdminValidationException("Invalid scope configuration.", errors.ToDictionary());
+        }
 
         var existing = await _scopeManager.FindByNameAsync(name, cancellationToken);
         if (existing is not null)
         {
-            throw new AdminOidcValidationException("Invalid scope configuration.", "Scope name already exists.");
+            errors.Add("name", "Scope name already exists.");
+            throw new AdminValidationException("Invalid scope configuration.", errors.ToDictionary());
         }
 
         var resources = await NormalizeResourcesAsync(request.Resources ?? Array.Empty<string>(), cancellationToken);
@@ -152,8 +176,12 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
             return null;
         }
 
-        var name = NormalizeName(request.Name ?? string.Empty);
-        ValidateName(name);
+        var errors = new AdminValidationErrors();
+        var name = OidcValidationSpec.NormalizeScopeName(request.Name, errors, "name");
+        if (errors.HasErrors)
+        {
+            throw new AdminValidationException("Invalid scope configuration.", errors.ToDictionary());
+        }
 
         var existing = await _scopeManager.FindByNameAsync(name, cancellationToken);
         if (existing is not null)
@@ -162,7 +190,8 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
             var scopeId = await _scopeManager.GetIdAsync(scope, cancellationToken);
             if (!string.Equals(existingId, scopeId, StringComparison.Ordinal))
             {
-                throw new AdminOidcValidationException("Invalid scope configuration.", "Scope name already exists.");
+                errors.Add("name", "Scope name already exists.");
+                throw new AdminValidationException("Invalid scope configuration.", errors.ToDictionary());
             }
         }
 
@@ -218,9 +247,9 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
 
         if (await IsScopeAssignedToClientAsync(name, cancellationToken))
         {
-            throw new AdminOidcValidationException(
-                "Scope is in use.",
-                "Scope is assigned to one or more clients. Remove it from clients before deleting.");
+            var errors = new AdminValidationErrors();
+            errors.Add("scope", "Scope is assigned to one or more clients. Remove it from clients before deleting.");
+            throw new AdminValidationException("Scope is in use.", errors.ToDictionary());
         }
 
         var id = await _scopeManager.GetIdAsync(scope, cancellationToken) ?? string.Empty;
@@ -267,9 +296,9 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
         var invalid = normalized.Where(resource => !activeSet.Contains(resource)).ToList();
         if (invalid.Count > 0)
         {
-            throw new AdminOidcValidationException(
-                "Invalid scope configuration.",
-                $"Unknown resources: {string.Join(", ", invalid)}.");
+            var errors = new AdminValidationErrors();
+            errors.Add("resources", $"Unknown resources: {string.Join(", ", invalid)}.");
+            throw new AdminValidationException("Invalid scope configuration.", errors.ToDictionary());
         }
 
         return normalized;
@@ -285,30 +314,10 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
             .ToList();
     }
 
-    private static string NormalizeName(string name)
-    {
-        return name.Trim().ToLowerInvariant();
-    }
-
     private static string? NormalizeOptional(string? value)
     {
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
-
-    private static void ValidateName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new AdminOidcValidationException("Invalid scope configuration.", "Scope name is required.");
-        }
-
-        if (!ScopeNameRegex.IsMatch(name))
-        {
-            throw new AdminOidcValidationException(
-                "Invalid scope configuration.",
-                "Scope name must match [a-z0-9:_\\.-]+.");
-        }
     }
 
     private async Task<bool> IsScopeAssignedToClientAsync(string scopeName, CancellationToken cancellationToken)
@@ -323,6 +332,21 @@ public sealed class AdminOidcScopeService : IAdminOidcScopeService
         }
 
         return false;
+    }
+
+    private async Task<int> CountClientsForScopeAsync(string scopeName, CancellationToken cancellationToken)
+    {
+        var count = 0;
+        await foreach (var application in _applicationManager.ListAsync(count: null, offset: null, cancellationToken))
+        {
+            var permissions = await _applicationManager.GetPermissionsAsync(application, cancellationToken);
+            if (permissions.Contains($"{OpenIddictConstants.Permissions.Prefixes.Scope}{scopeName}", StringComparer.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private async Task<string?> GetDescriptionAsync(object scope, CancellationToken cancellationToken)
