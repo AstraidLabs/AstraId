@@ -147,7 +147,7 @@ public sealed class ExceptionHandlingMiddleware
     private static string BuildHtmlErrorPage(Guid errorId, string traceId, int statusCode)
     {
         var detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? "An unexpected error occurred.";
-        return $"""
+        return $$"""
                <!DOCTYPE html>
                <html lang="en">
                <head>
@@ -163,8 +163,8 @@ public sealed class ExceptionHandlingMiddleware
                <body>
                  <div class="card">
                    <h1>We hit a snag</h1>
-                   <p>{detail}</p>
-                   <p class="meta">Error ID: {errorId}<br/>Trace ID: {traceId}</p>
+                   <p>{{detail}}</p>
+                   <p class="meta">Error ID: {{errorId}}<br/>Trace ID: {{traceId}}</p>
                  </div>
                </body>
                </html>
