@@ -7,6 +7,7 @@ public sealed record AdminUserDetail(
     string? PhoneNumber,
     bool EmailConfirmed,
     bool TwoFactorEnabled,
+    int RecoveryCodesLeft,
     bool IsLockedOut,
     bool IsActive,
     IReadOnlyList<string> Roles);

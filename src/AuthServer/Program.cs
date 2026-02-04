@@ -58,6 +58,7 @@ builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
 builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
+builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddSingleton<AdminUiManifestService>();
 builder.Services.AddScoped<ICorsPolicyProvider, ClientCorsPolicyProvider>();
 

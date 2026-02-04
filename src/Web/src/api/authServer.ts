@@ -12,6 +12,11 @@ export type AuthResponse = {
   error?: string | null;
 };
 
+export type LoginResponse = AuthResponse & {
+  requiresTwoFactor?: boolean;
+  mfaToken?: string | null;
+};
+
 export type AuthSession = {
   isAuthenticated: boolean;
   userId?: string | null;
@@ -65,9 +70,25 @@ export const login = (payload: {
   password: string;
   returnUrl?: string | null;
 }) =>
-  authFetch<AuthResponse>("/auth/login", {
+  authFetch<LoginResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload)
+  });
+
+export const loginMfa = (payload: {
+  mfaToken: string;
+  code: string;
+  rememberMachine?: boolean;
+  useRecoveryCode?: boolean;
+}) =>
+  authFetch<AuthResponse>("/auth/login/mfa", {
+    method: "POST",
+    body: JSON.stringify({
+      mfaToken: payload.mfaToken,
+      code: payload.code,
+      rememberMachine: payload.rememberMachine ?? false,
+      useRecoveryCode: payload.useRecoveryCode ?? false
+    })
   });
 
 export const register = (payload: {
@@ -110,6 +131,47 @@ export const logout = () =>
   });
 
 export const getSession = () => authFetch<AuthSession>("/auth/session");
+
+export type MfaStatus = {
+  enabled: boolean;
+  hasAuthenticatorKey: boolean;
+  recoveryCodesLeft: number;
+};
+
+export type MfaSetupResponse = {
+  sharedKey: string;
+  otpAuthUri: string;
+  qrCodeSvg: string;
+};
+
+export type MfaRecoveryCodesResponse = {
+  recoveryCodes: string[];
+};
+
+export const getMfaStatus = () =>
+  authFetch<MfaStatus>("/auth/mfa/status");
+
+export const startMfaSetup = () =>
+  authFetch<MfaSetupResponse>("/auth/mfa/setup/start", {
+    method: "POST"
+  });
+
+export const confirmMfaSetup = (payload: { code: string }) =>
+  authFetch<MfaRecoveryCodesResponse>("/auth/mfa/setup/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const regenerateRecoveryCodes = () =>
+  authFetch<MfaRecoveryCodesResponse>("/auth/mfa/recovery-codes/regenerate", {
+    method: "POST"
+  });
+
+export const disableMfa = (payload: { code: string }) =>
+  authFetch<AuthResponse>("/auth/mfa/disable", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 
 export const resolveReturnUrl = (returnUrl: string | null) => {
   if (!returnUrl) {

@@ -53,6 +53,7 @@ public sealed class AdminUsersController : ControllerBase
         }
 
         var roles = await _userService.GetUserRolesAsync(user);
+        var recoveryCodesLeft = await _userManager.CountRecoveryCodesAsync(user);
         return Ok(new AdminUserDetail(
             user.Id,
             user.Email,
@@ -60,6 +61,7 @@ public sealed class AdminUsersController : ControllerBase
             user.PhoneNumber,
             user.EmailConfirmed,
             user.TwoFactorEnabled,
+            recoveryCodesLeft,
             user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow,
             user.IsActive,
             roles));
@@ -113,6 +115,7 @@ public sealed class AdminUsersController : ControllerBase
         {
             var user = await _userService.CreateUserAsync(request, cancellationToken);
             var roles = await _userService.GetUserRolesAsync(user);
+            var recoveryCodesLeft = await _userManager.CountRecoveryCodesAsync(user);
             return CreatedAtAction(
                 nameof(GetUser),
                 new { id = user.Id },
@@ -123,6 +126,7 @@ public sealed class AdminUsersController : ControllerBase
                     user.PhoneNumber,
                     user.EmailConfirmed,
                     user.TwoFactorEnabled,
+                    recoveryCodesLeft,
                     user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow,
                     user.IsActive,
                     roles));

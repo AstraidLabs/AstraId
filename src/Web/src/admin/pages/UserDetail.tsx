@@ -335,6 +335,12 @@ export default function UserDetail() {
             {user.twoFactorEnabled ? "Yes" : "No"}
           </div>
         </div>
+        <div className="flex flex-col gap-2 text-sm text-slate-200">
+          <span className="text-xs uppercase tracking-wide text-slate-500">Recovery codes left</span>
+          <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            {user.recoveryCodesLeft}
+          </div>
+        </div>
         <label className="flex items-center gap-3 text-sm text-slate-200">
           <input
             type="checkbox"
