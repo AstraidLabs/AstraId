@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Claims;
+using System.Text.Json;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
@@ -5,10 +8,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
-using System.Security.Claims;
-using System.Text.Json;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace AuthServer.Services.Diagnostics;
 
@@ -148,28 +147,28 @@ public sealed class ExceptionHandlingMiddleware
     private static string BuildHtmlErrorPage(Guid errorId, string traceId, int statusCode)
     {
         var detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? "An unexpected error occurred.";
-        return $"""
-           <!DOCTYPE html>
-           <html lang="en">
-           <head>
-             <meta charset="utf-8" />
-             <meta name="viewport" content="width=device-width, initial-scale=1" />
-             <title>Something went wrong</title>
-             <style>
-               body {{font - family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
-               .card {{max - width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
-               .meta {{margin - top: 16px; font-size: 0.9rem; color: #475569; }}
-             </style>
-           </head>
-           <body>
-             <div class="card">
-               <h1>We hit a snag</h1>
-               <p>{detail}</p>
-               <p class="meta">Error ID: {errorId}<br/>Trace ID: {traceId}</p>
-             </div>
-           </body>
-           </html>
-           """;
+        return $$"""
+               <!DOCTYPE html>
+               <html lang="en">
+               <head>
+                 <meta charset="utf-8" />
+                 <meta name="viewport" content="width=device-width, initial-scale=1" />
+                 <title>Something went wrong</title>
+                 <style>
+                   body {{ font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
+                   .card {{ max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
+                   .meta {{ margin-top: 16px; font-size: 0.9rem; color: #475569; }}
+                 </style>
+               </head>
+               <body>
+                 <div class="card">
+                   <h1>We hit a snag</h1>
+                   <p>{{detail}}</p>
+                   <p class="meta">Error ID: {{errorId}}<br/>Trace ID: {{traceId}}</p>
+                 </div>
+               </body>
+               </html>
+               """;
     }
 
     private static object BuildDebugPayload(Exception exception, HttpContext context)
