@@ -3,6 +3,7 @@ using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Controllers.Admin;
 
@@ -12,10 +13,12 @@ namespace AuthServer.Controllers.Admin;
 public sealed class AdminPermissionsController : ControllerBase
 {
     private readonly IAdminPermissionAdminService _permissionService;
+    private readonly ApplicationDbContext _dbContext;
 
-    public AdminPermissionsController(IAdminPermissionAdminService permissionService)
+    public AdminPermissionsController(IAdminPermissionAdminService permissionService, ApplicationDbContext dbContext)
     {
         _permissionService = permissionService;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -50,6 +53,25 @@ public sealed class AdminPermissionsController : ControllerBase
             permission.IsSystem));
     }
 
+    [HttpGet("{id:guid}/usage")]
+    public async Task<ActionResult<AdminPermissionUsage>> GetPermissionUsage(Guid id, CancellationToken cancellationToken)
+    {
+        var permission = await _permissionService.GetPermissionAsync(id, cancellationToken);
+        if (permission is null)
+        {
+            return NotFound();
+        }
+
+        var roleCount = await _dbContext.RolePermissions.CountAsync(
+            item => item.PermissionId == id,
+            cancellationToken);
+        var endpointCount = await _dbContext.EndpointPermissions.CountAsync(
+            item => item.PermissionId == id,
+            cancellationToken);
+
+        return Ok(new AdminPermissionUsage(roleCount, endpointCount));
+    }
+
     [HttpPost]
     public async Task<ActionResult<AdminPermissionItem>> CreatePermission(
         [FromBody] AdminPermissionRequest request,
@@ -58,9 +80,18 @@ public sealed class AdminPermissionsController : ControllerBase
         var key = request.Key?.Trim() ?? string.Empty;
         var description = request.Description?.Trim() ?? string.Empty;
         var group = request.Group?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(description))
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(key))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            errors["key"] = ["Permission key is required."];
+        }
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            errors["description"] = ["Permission description is required."];
+        }
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid permission.",
                 Detail = "Permission key and description are required."
@@ -69,7 +100,10 @@ public sealed class AdminPermissionsController : ControllerBase
         var existing = await _permissionService.GetPermissionsAsync(cancellationToken);
         if (existing.Any(permission => string.Equals(permission.Key, key, StringComparison.OrdinalIgnoreCase)))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["key"] = [$"Permission key '{key}' is already in use."]
+            })
             {
                 Title = "Permission already exists.",
                 Detail = $"Permission key '{key}' is already in use."
@@ -109,9 +143,18 @@ public sealed class AdminPermissionsController : ControllerBase
         var key = request.Key?.Trim() ?? string.Empty;
         var description = request.Description?.Trim() ?? string.Empty;
         var group = request.Group?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(description))
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(key))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            errors["key"] = ["Permission key is required."];
+        }
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            errors["description"] = ["Permission description is required."];
+        }
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid permission.",
                 Detail = "Permission key and description are required."
@@ -120,7 +163,10 @@ public sealed class AdminPermissionsController : ControllerBase
         var existing = await _permissionService.GetPermissionsAsync(cancellationToken);
         if (existing.Any(item => item.Id != id && string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)))
         {
-            return ValidationProblem(new ValidationProblemDetails
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["key"] = [$"Permission key '{key}' is already in use."]
+            })
             {
                 Title = "Permission already exists.",
                 Detail = $"Permission key '{key}' is already in use."
@@ -144,6 +190,34 @@ public sealed class AdminPermissionsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeletePermission(Guid id, CancellationToken cancellationToken)
     {
+        var permission = await _permissionService.GetPermissionAsync(id, cancellationToken);
+        if (permission is null)
+        {
+            return NotFound();
+        }
+
+        var roleCount = await _dbContext.RolePermissions.CountAsync(
+            item => item.PermissionId == id,
+            cancellationToken);
+        var endpointCount = await _dbContext.EndpointPermissions.CountAsync(
+            item => item.PermissionId == id,
+            cancellationToken);
+
+        if (roleCount > 0 || endpointCount > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["permission"] =
+                [
+                    "Permission is assigned to roles or endpoints. Remove assignments before deleting."
+                ]
+            })
+            {
+                Title = "Permission is in use.",
+                Detail = "Permission is assigned to roles or endpoints. Remove assignments before deleting."
+            });
+        }
+
         await _permissionService.DeletePermissionAsync(id, cancellationToken);
         return NoContent();
     }

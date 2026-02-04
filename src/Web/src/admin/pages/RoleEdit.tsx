@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../api/http";
 import type { AdminPermissionItem, AdminRoleDetail } from "../api/types";
+import { HelpIcon } from "../components/Field";
 import { pushToast } from "../components/toast";
 
 type PermissionGroup = {
@@ -117,7 +118,10 @@ export default function RoleEdit() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Role: {role.name}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-white">Role: {role.name}</h1>
+          <HelpIcon tooltip="Vyber permissiony, které role uděluje. Změny se projeví uživatelům s touto rolí." />
+        </div>
         <p className="text-sm text-slate-300">Assign permissions to control access.</p>
       </div>
 

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Services.Admin.Validation;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
@@ -10,13 +11,6 @@ namespace AuthServer.Services.Admin;
 
 public sealed class AdminClientService : IAdminClientService
 {
-    private static readonly IReadOnlyDictionary<string, string> GrantTypeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["authorization_code"] = OpenIddictConstants.GrantTypes.AuthorizationCode,
-        ["refresh_token"] = OpenIddictConstants.GrantTypes.RefreshToken,
-        ["client_credentials"] = OpenIddictConstants.GrantTypes.ClientCredentials
-    };
-
     private static readonly IReadOnlyDictionary<string, string> GrantTypeReverseMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [OpenIddictConstants.GrantTypes.AuthorizationCode] = "authorization_code",
@@ -97,7 +91,9 @@ public sealed class AdminClientService : IAdminClientService
         var existing = await _applicationManager.FindByClientIdAsync(config.ClientId, cancellationToken);
         if (existing is not null)
         {
-            throw new AdminClientValidationException("Client ID already exists.");
+            var errors = new AdminValidationErrors();
+            errors.Add("clientId", "Client ID already exists.");
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
         var descriptor = new OpenIddictApplicationDescriptor
@@ -171,7 +167,9 @@ public sealed class AdminClientService : IAdminClientService
             var existingId = await _applicationManager.GetIdAsync(existing, cancellationToken);
             if (!string.Equals(existingId, id, StringComparison.Ordinal))
             {
-                throw new AdminClientValidationException("Client ID already exists.");
+                var errors = new AdminValidationErrors();
+                errors.Add("clientId", "Client ID already exists.");
+                throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
             }
         }
 
@@ -241,7 +239,9 @@ public sealed class AdminClientService : IAdminClientService
         var clientType = await _applicationManager.GetClientTypeAsync(application, cancellationToken);
         if (!string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal))
         {
-            throw new AdminClientValidationException("Client secret rotation is only supported for confidential clients.");
+            var errors = new AdminValidationErrors();
+            errors.Add("clientType", "Client secret rotation is only supported for confidential clients.");
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
         var descriptor = new OpenIddictApplicationDescriptor();
@@ -402,49 +402,34 @@ public sealed class AdminClientService : IAdminClientService
         IReadOnlyList<string> postLogoutRedirectUris,
         CancellationToken cancellationToken)
     {
-        var errors = new List<string>();
+        var errors = new AdminValidationErrors();
 
-        var normalizedClientId = clientId?.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedClientId))
-        {
-            errors.Add("Client ID is required.");
-        }
-
-        var normalizedClientType = NormalizeClientType(clientType, errors);
+        var normalizedClientId = OidcValidationSpec.NormalizeClientId(clientId, errors, "clientId");
+        var normalizedClientType = OidcValidationSpec.NormalizeClientType(clientType, errors, "clientType");
         var isPublic = string.Equals(normalizedClientType, OpenIddictConstants.ClientTypes.Public, StringComparison.Ordinal);
 
-        var normalizedGrantTypes = NormalizeGrantTypes(grantTypes, errors);
-        if (normalizedGrantTypes.Count == 0)
-        {
-            errors.Add("At least one grant type is required.");
-        }
-
+        var normalizedGrantTypes = OidcValidationSpec.NormalizeGrantTypes(grantTypes, errors, "grantTypes");
         var normalizedPkceRequired = pkceRequired
             || (isPublic && normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode));
 
-        if (isPublic && normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.ClientCredentials))
-        {
-            errors.Add("Public clients cannot use client_credentials.");
-        }
+        OidcValidationSpec.ValidatePkceRules(isPublic, normalizedGrantTypes, normalizedPkceRequired, errors);
 
-        if (!isPublic && normalizedPkceRequired)
-        {
-            errors.Add("PKCE can only be required for public clients.");
-        }
-
-        if (normalizedPkceRequired && !normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode))
-        {
-            errors.Add("PKCE requires authorization_code grant type.");
-        }
-
-        var normalizedRedirectUris = NormalizeUris(redirectUris, "Redirect URI", errors);
+        var normalizedRedirectUris = OidcValidationSpec.NormalizeRedirectUris(
+            redirectUris,
+            errors,
+            "redirectUris",
+            "Redirect URI");
         if (normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode)
             && normalizedRedirectUris.Count == 0)
         {
-            errors.Add("Redirect URIs are required for authorization_code.");
+            errors.Add("redirectUris", "Redirect URIs are required for authorization_code.");
         }
 
-        var normalizedPostLogoutUris = NormalizeUris(postLogoutRedirectUris, "Post logout redirect URI", errors);
+        var normalizedPostLogoutUris = OidcValidationSpec.NormalizeRedirectUris(
+            postLogoutRedirectUris,
+            errors,
+            "postLogoutRedirectUris",
+            "Post logout redirect URI");
 
         var normalizedScopes = scopes
             .Where(scope => !string.IsNullOrWhiteSpace(scope))
@@ -457,13 +442,13 @@ public sealed class AdminClientService : IAdminClientService
             var scopeEntity = await _scopeManager.FindByNameAsync(scope, cancellationToken);
             if (scopeEntity is null)
             {
-                errors.Add($"Unknown scope: {scope}.");
+                errors.Add("scopes", $"Unknown scope: {scope}.");
             }
         }
 
-        if (errors.Count > 0)
+        if (errors.HasErrors)
         {
-            throw new AdminClientValidationException(errors.ToArray());
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
         return new AdminClientConfiguration(
@@ -478,99 +463,6 @@ public sealed class AdminClientService : IAdminClientService
             normalizedPostLogoutUris);
     }
 
-    private static string NormalizeClientType(string? clientType, List<string> errors)
-    {
-        if (string.IsNullOrWhiteSpace(clientType))
-        {
-            errors.Add("Client type is required.");
-            return OpenIddictConstants.ClientTypes.Public;
-        }
-
-        if (string.Equals(clientType, "public", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(clientType, OpenIddictConstants.ClientTypes.Public, StringComparison.OrdinalIgnoreCase))
-        {
-            return OpenIddictConstants.ClientTypes.Public;
-        }
-
-        if (string.Equals(clientType, "confidential", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase))
-        {
-            return OpenIddictConstants.ClientTypes.Confidential;
-        }
-
-        errors.Add("Client type must be Public or Confidential.");
-        return OpenIddictConstants.ClientTypes.Public;
-    }
-
-    private static HashSet<string> NormalizeGrantTypes(IReadOnlyList<string> grantTypes, List<string> errors)
-    {
-        var normalized = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var grantType in grantTypes ?? Array.Empty<string>())
-        {
-            if (string.IsNullOrWhiteSpace(grantType))
-            {
-                continue;
-            }
-
-            if (!GrantTypeMap.TryGetValue(grantType.Trim(), out var mapped))
-            {
-                errors.Add($"Unsupported grant type: {grantType}.");
-                continue;
-            }
-
-            normalized.Add(mapped);
-        }
-
-        return normalized;
-    }
-
-    private static IReadOnlyList<Uri> NormalizeUris(IReadOnlyList<string> uris, string label, List<string> errors)
-    {
-        var normalized = new List<Uri>();
-
-        foreach (var raw in uris ?? Array.Empty<string>())
-        {
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
-            if (!Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri))
-            {
-                errors.Add($"{label} is invalid: {raw}.");
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(uri.Fragment))
-            {
-                errors.Add($"{label} must not include a URI fragment: {raw}.");
-                continue;
-            }
-
-            if (!IsSecureRedirectUri(uri))
-            {
-                errors.Add($"{label} must use HTTPS unless it is a loopback address: {raw}.");
-                continue;
-            }
-
-            normalized.Add(uri);
-        }
-
-        return normalized
-            .DistinctBy(uri => uri.ToString(), StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    private static bool IsSecureRedirectUri(Uri uri)
-    {
-        if (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return uri.IsLoopback && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
-    }
 
     private static IEnumerable<string> BuildPermissions(AdminClientConfiguration config)
     {

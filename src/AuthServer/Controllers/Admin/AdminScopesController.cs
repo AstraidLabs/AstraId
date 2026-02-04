@@ -35,6 +35,13 @@ public sealed class AdminScopesController : ControllerBase
         return scope is null ? NotFound() : Ok(scope);
     }
 
+    [HttpGet("{nameOrId}/usage")]
+    public async Task<ActionResult<AdminOidcScopeUsage>> GetScopeUsage(string nameOrId, CancellationToken cancellationToken)
+    {
+        var usage = await _scopeService.GetScopeUsageAsync(nameOrId, cancellationToken);
+        return usage is null ? NotFound() : Ok(usage);
+    }
+
     [HttpPost]
     public async Task<ActionResult<AdminOidcScopeDetail>> CreateScope(
         [FromBody] AdminOidcScopeRequest request,
@@ -45,9 +52,9 @@ public sealed class AdminScopesController : ControllerBase
             var scope = await _scopeService.CreateScopeAsync(request, cancellationToken);
             return CreatedAtAction(nameof(GetScope), new { nameOrId = scope.Id }, scope);
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("scope"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
     }
 
@@ -62,9 +69,9 @@ public sealed class AdminScopesController : ControllerBase
             var scope = await _scopeService.UpdateScopeAsync(nameOrId, request, cancellationToken);
             return scope is null ? NotFound() : Ok(scope);
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("scope"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
     }
 
@@ -76,9 +83,9 @@ public sealed class AdminScopesController : ControllerBase
             var deleted = await _scopeService.DeleteScopeAsync(nameOrId, cancellationToken);
             return deleted ? NoContent() : NotFound();
         }
-        catch (AdminOidcValidationException exception)
+        catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails("scope"));
+            return ValidationProblem(exception.ToProblemDetails());
         }
     }
 }

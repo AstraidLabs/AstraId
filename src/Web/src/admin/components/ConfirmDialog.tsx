@@ -6,6 +6,7 @@ type Props = {
   confirmLabel?: string;
   cancelLabel?: string;
   isOpen: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   children?: ReactNode;
@@ -17,6 +18,7 @@ export default function ConfirmDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   isOpen,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -42,7 +44,8 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-md bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-400"
+            disabled={confirmDisabled}
+            className="rounded-md bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {confirmLabel}
           </button>

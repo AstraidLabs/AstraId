@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "../api/http";
-import type { AdminPermissionItem } from "../api/types";
+import type { AdminPermissionItem, AdminPermissionUsage } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
@@ -10,6 +10,8 @@ export default function PermissionsList() {
   const [permissions, setPermissions] = useState<AdminPermissionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<AdminPermissionItem | null>(null);
+  const [deleteUsage, setDeleteUsage] = useState<AdminPermissionUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -30,6 +32,33 @@ export default function PermissionsList() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!deleteTarget) {
+      setDeleteUsage(null);
+      return;
+    }
+    let isMounted = true;
+    const fetchUsage = async () => {
+      setUsageLoading(true);
+      try {
+        const usage = await apiRequest<AdminPermissionUsage>(
+          `/admin/api/permissions/${deleteTarget.id}/usage`
+        );
+        if (isMounted) {
+          setDeleteUsage(usage);
+        }
+      } finally {
+        if (isMounted) {
+          setUsageLoading(false);
+        }
+      }
+    };
+    fetchUsage();
+    return () => {
+      isMounted = false;
+    };
+  }, [deleteTarget]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) {
@@ -78,7 +107,7 @@ export default function PermissionsList() {
             {!loading && permissions.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  No permissions defined.
+                  No permissions yet — create one.
                 </td>
               </tr>
             )}
@@ -119,10 +148,30 @@ export default function PermissionsList() {
         title="Delete permission?"
         description="This will remove the permission and related mappings."
         confirmLabel="Delete"
+        confirmDisabled={(deleteUsage?.roleCount ?? 0) > 0 || (deleteUsage?.endpointCount ?? 0) > 0 || usageLoading}
         isOpen={Boolean(deleteTarget)}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
-      />
+      >
+        {deleteTarget && (
+          <div className="space-y-2 text-sm text-slate-300">
+            <p>
+              Used by{" "}
+              <span className="font-semibold text-slate-100">
+                {usageLoading ? "..." : deleteUsage?.roleCount ?? 0}
+              </span>{" "}
+              roles and{" "}
+              <span className="font-semibold text-slate-100">
+                {usageLoading ? "..." : deleteUsage?.endpointCount ?? 0}
+              </span>{" "}
+              endpoints.
+            </p>
+            {((deleteUsage?.roleCount ?? 0) > 0 || (deleteUsage?.endpointCount ?? 0) > 0) && (
+              <p className="text-rose-300">Remove assignments before deleting.</p>
+            )}
+          </div>
+        )}
+      </ConfirmDialog>
     </section>
   );
 }

@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type {
   AdminOidcResourceListItem,
   AdminOidcScopeDetail,
   PagedResult,
 } from "../api/types";
+import { Field } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
+import { validateScopeName } from "../validation/oidcValidation";
 
 type Mode = "create" | "edit";
 
@@ -32,13 +34,11 @@ const defaultState: FormState = {
   claimsText: "",
 };
 
-const scopeNameRegex = /^[a-z0-9:_.-]+$/;
-
 export default function OidcScopeForm({ mode, scopeId }: Props) {
   const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(defaultState);
   const [resources, setResources] = useState<AdminOidcResourceListItem[]>([]);
-  const [errors, setErrors] = useState<{ name?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; resources?: string }>({});
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -92,20 +92,16 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmedName = form.name.trim().toLowerCase();
-    if (!trimmedName) {
-      setErrors({ name: "Scope name is required." });
-      return;
-    }
-    if (!scopeNameRegex.test(trimmedName)) {
-      setErrors({ name: "Scope name must match [a-z0-9:_.-]+." });
+    const validation = validateScopeName(form.name);
+    if (validation.error) {
+      setErrors({ name: validation.error });
       return;
     }
     setErrors({});
     setSaving(true);
     try {
       const payload = {
-        name: trimmedName,
+        name: validation.value,
         displayName: form.displayName.trim() || null,
         description: form.description.trim() || null,
         resources: form.resources,
@@ -116,6 +112,7 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
         const created = await apiRequest<AdminOidcScopeDetail>("/admin/api/oidc/scopes", {
           method: "POST",
           body: JSON.stringify(payload),
+          suppressToast: true,
         });
         pushToast({ message: "Scope created.", tone: "success" });
         navigate(toAdminRoute(`/oidc/scopes/${created.id}`));
@@ -129,8 +126,23 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
       await apiRequest<AdminOidcScopeDetail>(`/admin/api/oidc/scopes/${scopeId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
+        suppressToast: true,
       });
       pushToast({ message: "Scope updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.fieldErrors) {
+          setErrors((current) => ({
+            ...current,
+            name: error.fieldErrors.name?.[0] ?? current.name,
+            resources: error.fieldErrors.resources?.[0] ?? current.resources,
+          }));
+          return;
+        }
+        pushToast({ message: error.message, tone: "error" });
+        return;
+      }
+      pushToast({ message: "Unable to save scope.", tone: "error" });
     } finally {
       setSaving(false);
     }
@@ -154,79 +166,112 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
       </div>
 
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="text-slate-200">Name</span>
+        <Field
+          label="Name"
+          tooltip="OIDC scope identifikátor. Používej lowercase, bez mezer. Příklad: api, api.read, cms:write."
+          hint="3–100 znaků, povoleno: a-z, 0-9, :, ., _, -."
+          error={errors.name}
+        >
           <input
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+            className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+              errors.name ? "border-rose-400" : "border-slate-700"
+            }`}
             value={form.name}
             onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            onBlur={() => {
+              const validation = validateScopeName(form.name);
+              setErrors((current) => ({ ...current, name: validation.error ?? undefined }));
+            }}
             placeholder="api.read"
           />
-          {errors.name && <span className="text-xs text-rose-300">{errors.name}</span>}
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="text-slate-200">Display name</span>
+        <Field
+          label="Display name"
+          tooltip="Přátelský název scope pro admin přehledy. Neovlivňuje protokol."
+          hint="Volitelné."
+        >
           <input
             className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
             value={form.displayName}
             onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
             placeholder="API Read"
           />
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-2 text-sm md:col-span-2">
-          <span className="text-slate-200">Description</span>
-          <textarea
-            className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-            value={form.description}
-            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-            placeholder="Optional description for admins."
-          />
-        </label>
-
-        <div className="flex flex-col gap-3 text-sm md:col-span-2">
-          <span className="text-slate-200">Resources</span>
-          <div className="grid gap-2 md:grid-cols-2">
-            {resources.length === 0 && (
-              <div className="rounded-md border border-dashed border-slate-700 bg-slate-950/40 p-4 text-sm text-slate-400">
-                No active resources found.
-              </div>
-            )}
-            {resources.map((resource) => (
-              <label key={resource.id} className="flex items-center gap-3 rounded-md border border-slate-800 bg-slate-950/40 p-3">
-                <input
-                  type="checkbox"
-                  checked={form.resources.includes(resource.name)}
-                  onChange={(event) => {
-                    const next = new Set(form.resources);
-                    if (event.target.checked) {
-                      next.add(resource.name);
-                    } else {
-                      next.delete(resource.name);
-                    }
-                    setForm((prev) => ({ ...prev, resources: Array.from(next) }));
-                  }}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-400"
-                />
-                <div>
-                  <div className="text-sm font-semibold text-slate-100">{resource.name}</div>
-                  <div className="text-xs text-slate-400">{resource.displayName ?? "No display name"}</div>
-                </div>
-              </label>
-            ))}
-          </div>
+        <div className="md:col-span-2">
+          <Field
+            label="Description"
+            tooltip="Interní popis scope pro administrátory."
+            hint="Volitelné."
+          >
+            <textarea
+              className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              value={form.description}
+              onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+              placeholder="Optional description for admins."
+            />
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-2 text-sm md:col-span-2">
-          <span className="text-slate-200">Claims (optional, one per line)</span>
-          <textarea
-            className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-            value={form.claimsText}
-            onChange={(event) => setForm((prev) => ({ ...prev, claimsText: event.target.value }))}
-            placeholder="custom_claim"
-          />
-        </label>
+        <div className="md:col-span-2">
+          <Field
+            label="Resources"
+            tooltip="Resources reprezentují API/audienci. Scope může mapovat na více resources."
+            hint="Vyber resources, které tento scope chrání."
+            error={errors.resources}
+          >
+            <div className="grid gap-2 md:grid-cols-2">
+              {resources.length === 0 && (
+                <div className="rounded-md border border-dashed border-slate-700 bg-slate-950/40 p-4 text-sm text-slate-400">
+                  No active resources yet — create one.
+                </div>
+              )}
+              {resources.map((resource) => (
+                <label
+                  key={resource.id}
+                  className="flex items-center gap-3 rounded-md border border-slate-800 bg-slate-950/40 p-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.resources.includes(resource.name)}
+                    onChange={(event) => {
+                      const next = new Set(form.resources);
+                      if (event.target.checked) {
+                        next.add(resource.name);
+                      } else {
+                        next.delete(resource.name);
+                      }
+                      setForm((prev) => ({ ...prev, resources: Array.from(next) }));
+                    }}
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-400"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-100">{resource.name}</div>
+                    <div className="text-xs text-slate-400">
+                      {resource.displayName ?? "No display name"}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </Field>
+        </div>
+
+        <div className="md:col-span-2">
+          <Field
+            label="Claims"
+            tooltip="Volitelné claimy přidávané do tokenu, jeden claim na řádek."
+            hint="1 claim per line, např. preferred_username."
+          >
+            <textarea
+              className="min-h-[120px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              value={form.claimsText}
+              onChange={(event) => setForm((prev) => ({ ...prev, claimsText: event.target.value }))}
+              placeholder="custom_claim"
+            />
+          </Field>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

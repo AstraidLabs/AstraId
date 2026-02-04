@@ -37,6 +37,10 @@ export type AdminOidcScopeListItem = {
 
 export type AdminOidcScopeDetail = AdminOidcScopeListItem;
 
+export type AdminOidcScopeUsage = {
+  clientCount: number;
+};
+
 export type AdminOidcResourceListItem = {
   id: string;
   name: string;
@@ -48,6 +52,10 @@ export type AdminOidcResourceListItem = {
 };
 
 export type AdminOidcResourceDetail = AdminOidcResourceListItem;
+
+export type AdminOidcResourceUsage = {
+  scopeCount: number;
+};
 
 export type AdminClientSecretResponse = {
   client: AdminClientDetail;
@@ -89,12 +97,21 @@ export type AdminRoleDetail = {
   permissionIds: string[];
 };
 
+export type AdminRoleUsage = {
+  userCount: number;
+};
+
 export type AdminPermissionItem = {
   id: string;
   key: string;
   description: string;
   group: string;
   isSystem: boolean;
+};
+
+export type AdminPermissionUsage = {
+  roleCount: number;
+  endpointCount: number;
 };
 
 export type AdminApiResourceListItem = {

@@ -11,6 +11,7 @@ public interface IAdminOidcScopeService
         CancellationToken cancellationToken);
 
     Task<AdminOidcScopeDetail?> GetScopeAsync(string nameOrId, CancellationToken cancellationToken);
+    Task<AdminOidcScopeUsage?> GetScopeUsageAsync(string nameOrId, CancellationToken cancellationToken);
 
     Task<AdminOidcScopeDetail> CreateScopeAsync(AdminOidcScopeRequest request, CancellationToken cancellationToken);
 

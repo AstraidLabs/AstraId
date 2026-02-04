@@ -12,6 +12,7 @@ public interface IAdminOidcResourceService
         CancellationToken cancellationToken);
 
     Task<AdminOidcResourceDetail?> GetResourceAsync(Guid id, CancellationToken cancellationToken);
+    Task<AdminOidcResourceUsage?> GetResourceUsageAsync(Guid id, CancellationToken cancellationToken);
 
     Task<AdminOidcResourceDetail> CreateResourceAsync(AdminOidcResourceRequest request, CancellationToken cancellationToken);
 
