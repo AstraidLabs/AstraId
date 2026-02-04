@@ -155,9 +155,9 @@ public sealed class ExceptionHandlingMiddleware
                  <meta name="viewport" content="width=device-width, initial-scale=1" />
                  <title>Something went wrong</title>
                  <style>
-                   body {{ font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
-                   .card {{ max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
-                   .meta {{ margin-top: 16px; font-size: 0.9rem; color: #475569; }}
+                  body { font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }
+                  .card { max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }
+                  .meta { margin-top: 16px; font-size: 0.9rem; color: #475569; }
                  </style>
                </head>
                <body>
