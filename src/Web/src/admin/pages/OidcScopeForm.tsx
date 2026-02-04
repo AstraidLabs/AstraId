@@ -6,10 +6,11 @@ import type {
   AdminOidcScopeDetail,
   PagedResult,
 } from "../api/types";
-import { Field } from "../components/Field";
+import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
 import { validateScopeName } from "../validation/oidcValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type Mode = "create" | "edit";
 
@@ -39,6 +40,7 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
   const [form, setForm] = useState<FormState>(defaultState);
   const [resources, setResources] = useState<AdminOidcResourceListItem[]>([]);
   const [errors, setErrors] = useState<{ name?: string; resources?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -98,6 +100,7 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
       return;
     }
     setErrors({});
+    setFormError(null);
     setSaving(true);
     try {
       const payload = {
@@ -131,18 +134,15 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
       pushToast({ message: "Scope updated.", tone: "success" });
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors) {
-          setErrors((current) => ({
-            ...current,
-            name: error.fieldErrors.name?.[0] ?? current.name,
-            resources: error.fieldErrors.resources?.[0] ?? current.resources,
-          }));
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setErrors({
+          name: parsed.fieldErrors.name?.[0],
+          resources: parsed.fieldErrors.resources?.[0],
+        });
+        setFormError(parsed.generalError ?? "Unable to save scope.");
         return;
       }
-      pushToast({ message: "Unable to save scope.", tone: "error" });
+      setFormError("Unable to save scope.");
     } finally {
       setSaving(false);
     }
@@ -165,12 +165,15 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
         <p className="text-sm text-slate-300">Define OpenIddict scopes and their resources.</p>
       </div>
 
+      <FormError message={formError} />
+
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field
           label="Name"
           tooltip="OIDC scope identifikátor. Používej lowercase, bez mezer. Příklad: api, api.read, cms:write."
           hint="3–100 znaků, povoleno: a-z, 0-9, :, ., _, -."
           error={errors.name}
+          required
         >
           <input
             className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${

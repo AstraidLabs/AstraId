@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, apiRequest } from "../api/http";
 import type { AdminOidcResourceDetail } from "../api/types";
-import { Field } from "../components/Field";
+import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
 import { validateResourceName } from "../validation/oidcValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type Mode = "create" | "edit";
 
@@ -32,6 +33,7 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
   const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(defaultState);
   const [errors, setErrors] = useState<{ name?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -76,6 +78,7 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
       return;
     }
     setErrors({});
+    setFormError(null);
     setSaving(true);
     try {
       const payload = {
@@ -108,17 +111,14 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
       pushToast({ message: "Resource updated.", tone: "success" });
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors) {
-          setErrors((current) => ({
-            ...current,
-            name: error.fieldErrors.name?.[0] ?? current.name,
-          }));
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setErrors({
+          name: parsed.fieldErrors.name?.[0],
+        });
+        setFormError(parsed.generalError ?? "Unable to save resource.");
         return;
       }
-      pushToast({ message: "Unable to save resource.", tone: "error" });
+      setFormError("Unable to save resource.");
     } finally {
       setSaving(false);
     }
@@ -141,12 +141,15 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
         <p className="text-sm text-slate-300">Resources are used as scope targets in OpenIddict.</p>
       </div>
 
+      <FormError message={formError} />
+
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field
           label="Name"
           tooltip="Resource reprezentuje API/audienci. Příklad: api, cms. Scopes na něj budou ukazovat."
           hint="3–100 znaků, lowercase bez mezer."
           error={errors.name}
+          required
         >
           <input
             className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${

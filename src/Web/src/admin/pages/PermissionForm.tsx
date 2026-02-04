@@ -2,9 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, apiRequest } from "../api/http";
 import type { AdminPermissionItem } from "../api/types";
-import { Field } from "../components/Field";
+import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
+import {
+  validatePermissionDescription,
+  validatePermissionGroup,
+  validatePermissionKey,
+} from "../validation/adminValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type Mode = "create" | "edit";
 
@@ -30,7 +36,8 @@ const defaultState: FormState = {
 export default function PermissionForm({ mode, permissionId }: Props) {
   const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(defaultState);
-  const [errors, setErrors] = useState<{ key?: string; description?: string }>({});
+  const [errors, setErrors] = useState<{ key?: string; description?: string; group?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -65,24 +72,26 @@ export default function PermissionForm({ mode, permissionId }: Props) {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const nextErrors: { key?: string; description?: string } = {};
-    if (!form.key.trim()) {
-      nextErrors.key = "Key is required.";
-    }
-    if (!form.description.trim()) {
-      nextErrors.description = "Description is required.";
-    }
+    const keyValidation = validatePermissionKey(form.key);
+    const descriptionValidation = validatePermissionDescription(form.description);
+    const groupValidation = validatePermissionGroup(form.group);
+    const nextErrors: { key?: string; description?: string; group?: string } = {
+      key: keyValidation.error ?? undefined,
+      description: descriptionValidation.error ?? undefined,
+      group: groupValidation.error ?? undefined,
+    };
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
+    setFormError(null);
+    if (Object.values(nextErrors).some(Boolean)) {
       return;
     }
 
     setSaving(true);
     try {
       const payload = {
-        key: form.key.trim(),
-        description: form.description.trim(),
-        group: form.group.trim(),
+        key: keyValidation.value,
+        description: descriptionValidation.value,
+        group: groupValidation.value,
         isSystem: form.isSystem,
       };
 
@@ -108,18 +117,16 @@ export default function PermissionForm({ mode, permissionId }: Props) {
       pushToast({ message: "Permission updated.", tone: "success" });
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors) {
-          setErrors((current) => ({
-            ...current,
-            key: error.fieldErrors.key?.[0] ?? current.key,
-            description: error.fieldErrors.description?.[0] ?? current.description,
-          }));
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setErrors({
+          key: parsed.fieldErrors.key?.[0],
+          description: parsed.fieldErrors.description?.[0],
+          group: parsed.fieldErrors.group?.[0],
+        });
+        setFormError(parsed.generalError ?? "Unable to save permission.");
         return;
       }
-      pushToast({ message: "Unable to save permission.", tone: "error" });
+      setFormError("Unable to save permission.");
     } finally {
       setSaving(false);
     }
@@ -142,12 +149,15 @@ export default function PermissionForm({ mode, permissionId }: Props) {
         <p className="text-sm text-slate-300">Configure application permission metadata.</p>
       </div>
 
+      <FormError message={formError} />
+
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field
           label="Key"
-          tooltip="Jednoznačný identifikátor permission. Používej tečky pro hierarchii."
-          hint="Příklad: system.admin, oidc.clients.read."
+          tooltip="Jednoznačný identifikátor permission. Používej tečky pro hierarchii a lowercase."
+          hint="Příklad: system.admin nebo api.read. Používá se v policy a claimu permission."
           error={errors.key}
+          required
         >
           <input
             className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
@@ -158,10 +168,11 @@ export default function PermissionForm({ mode, permissionId }: Props) {
             onBlur={() =>
               setErrors((current) => ({
                 ...current,
-                key: form.key.trim() ? undefined : "Key is required.",
+                key: validatePermissionKey(form.key).error ?? undefined,
               }))
             }
             placeholder="system.admin"
+            disabled={mode === "edit" && form.isSystem}
           />
         </Field>
 
@@ -169,11 +180,20 @@ export default function PermissionForm({ mode, permissionId }: Props) {
           label="Group"
           tooltip="Skupina pro vizuální seskupení permission."
           hint="Volitelné, např. System nebo OIDC."
+          error={errors.group}
         >
           <input
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+            className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
+              errors.group ? "border-rose-400" : "border-slate-700"
+            }`}
             value={form.group}
             onChange={(event) => setForm((prev) => ({ ...prev, group: event.target.value }))}
+            onBlur={() =>
+              setErrors((current) => ({
+                ...current,
+                group: validatePermissionGroup(form.group).error ?? undefined,
+              }))
+            }
             placeholder="System"
           />
         </Field>
@@ -184,6 +204,7 @@ export default function PermissionForm({ mode, permissionId }: Props) {
             tooltip="Krátký popis pro administrátory."
             hint="Povinné."
             error={errors.description}
+            required
           >
             <textarea
               className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
@@ -196,10 +217,10 @@ export default function PermissionForm({ mode, permissionId }: Props) {
               onBlur={() =>
                 setErrors((current) => ({
                   ...current,
-                  description: form.description.trim() ? undefined : "Description is required.",
+                  description: validatePermissionDescription(form.description).error ?? undefined,
                 }))
               }
-              placeholder="Allows managing OIDC clients."
+              placeholder="Allows access to admin features"
             />
           </Field>
         </div>

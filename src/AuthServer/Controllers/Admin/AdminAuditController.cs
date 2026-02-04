@@ -1,5 +1,6 @@
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -24,12 +25,23 @@ public sealed class AdminAuditController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PagedResult<AdminAuditListItem>>> GetAuditLog(
         [FromQuery] string? search,
+        [FromQuery] string? action,
+        [FromQuery] string? targetType,
+        [FromQuery] string? targetId,
+        [FromQuery] DateTimeOffset? fromUtc,
+        [FromQuery] DateTimeOffset? toUtc,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Max(1, pageSize);
+
+        var validation = AdminValidation.ValidateAuditFilters(fromUtc, toUtc);
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(validation.ToProblemDetails("Invalid audit filters."));
+        }
 
         var query = _dbContext.AuditLogs.AsNoTracking();
 
@@ -39,6 +51,31 @@ public sealed class AdminAuditController : ControllerBase
                 entry.Action.Contains(search) ||
                 entry.TargetType.Contains(search) ||
                 (entry.TargetId != null && entry.TargetId.Contains(search)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query = query.Where(entry => entry.Action.Contains(action));
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetType))
+        {
+            query = query.Where(entry => entry.TargetType.Contains(targetType));
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetId))
+        {
+            query = query.Where(entry => entry.TargetId != null && entry.TargetId.Contains(targetId));
+        }
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(entry => entry.TimestampUtc >= fromUtc.Value.UtcDateTime);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(entry => entry.TimestampUtc <= toUtc.Value.UtcDateTime);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

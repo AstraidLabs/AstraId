@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type { AdminPermissionItem, AdminRoleDetail } from "../api/types";
-import { HelpIcon } from "../components/Field";
+import { HelpIcon, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type PermissionGroup = {
   group: string;
@@ -18,6 +19,7 @@ export default function RoleEdit() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -83,13 +85,22 @@ export default function RoleEdit() {
     if (!id) {
       return;
     }
+    setFormError(null);
     setSaving(true);
     try {
       await apiRequest(`/admin/api/roles/${id}/permissions`, {
         method: "PUT",
         body: JSON.stringify({ permissionIds: Array.from(selected) }),
+        suppressToast: true,
       });
       pushToast({ message: "Role permissions updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setFormError(parsed.generalError ?? "Unable to update role permissions.");
+        return;
+      }
+      setFormError("Unable to update role permissions.");
     } finally {
       setSaving(false);
     }
@@ -120,10 +131,12 @@ export default function RoleEdit() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold text-white">Role: {role.name}</h1>
-          <HelpIcon tooltip="Vyber permissiony, které role uděluje. Změny se projeví uživatelům s touto rolí." />
+          <HelpIcon tooltip="Role jsou Identity role. Oprávnění se mapují přes permissiony (claim permission). Změny ovlivní přístup uživatelů." />
         </div>
         <p className="text-sm text-slate-300">Assign permissions to control access.</p>
       </div>
+
+      <FormError message={formError} />
 
       <div className="flex flex-col gap-6">
         {groups.map((group) => (

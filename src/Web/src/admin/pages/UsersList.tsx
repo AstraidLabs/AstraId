@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import { Link } from "react-router-dom";
 import type { AdminUserListItem, PagedResult } from "../api/types";
 import { toAdminRoute } from "../../routing";
 import { pushToast } from "../components/toast";
+import { Field, FormError, HelpIcon } from "../components/Field";
+import { validateEmail } from "../validation/adminValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 export default function UsersList() {
   const [search, setSearch] = useState("");
@@ -13,6 +16,9 @@ export default function UsersList() {
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({
     email: "",
     userName: "",
@@ -52,24 +58,39 @@ export default function UsersList() {
 
   const handleCreateUser = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!newUser.email.trim()) {
+    const emailValidation = validateEmail(newUser.email);
+    if (emailValidation.error) {
+      setCreateError(emailValidation.error);
       return;
     }
+    setCreateError(null);
+    setPasswordError(null);
+    setCreateFormError(null);
     setCreating(true);
     try {
       await apiRequest("/admin/api/users", {
         method: "POST",
         body: JSON.stringify({
-          email: newUser.email.trim(),
+          email: emailValidation.value,
           userName: newUser.userName.trim() || null,
           phoneNumber: newUser.phoneNumber.trim() || null,
           password: newUser.password.trim() || null,
         }),
+        suppressToast: true,
       });
       pushToast({ message: "User created.", tone: "success" });
       setNewUser({ email: "", userName: "", phoneNumber: "", password: "" });
       setPage(1);
       setRefreshKey((current) => current + 1);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setCreateError(parsed.fieldErrors.email?.[0] ?? null);
+        setPasswordError(parsed.fieldErrors.password?.[0] ?? null);
+        setCreateFormError(parsed.generalError ?? "Unable to create user.");
+        return;
+      }
+      setCreateFormError("Unable to create user.");
     } finally {
       setCreating(false);
     }
@@ -84,65 +105,112 @@ export default function UsersList() {
         <p className="text-sm text-slate-300">Browse registered users and lock status.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-        <input
-          className="w-full max-w-sm rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Search email or username..."
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-        />
-        <select
-          className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-          value={pageSize}
-          onChange={(event) => {
-            setPageSize(Number(event.target.value));
-            setPage(1);
-          }}
-        >
-          {[10, 20, 30].map((size) => (
-            <option key={size} value={size}>
-              {size} / page
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+        <div className="w-full max-w-sm">
+          <Field
+            label="Search"
+            tooltip="Hledá v emailu nebo username."
+            hint="Použij přesný fragment (např. jana@)."
+          >
+            <input
+              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+              placeholder="Search email or username"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </Field>
+        </div>
+        <div>
+          <label className="text-xs uppercase tracking-wide text-slate-400">Page size</label>
+          <select
+            className="mt-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setPage(1);
+            }}
+          >
+            {[10, 20, 30].map((size) => (
+              <option key={size} value={size}>
+                {size} / page
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <form
         onSubmit={handleCreateUser}
         className="grid gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4 md:grid-cols-2"
       >
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Email (required)"
-          value={newUser.email}
-          onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
-        />
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Username"
-          value={newUser.userName}
-          onChange={(event) => setNewUser((current) => ({ ...current, userName: event.target.value }))}
-        />
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Phone number"
-          value={newUser.phoneNumber}
-          onChange={(event) =>
-            setNewUser((current) => ({ ...current, phoneNumber: event.target.value }))
-          }
-        />
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          type="password"
-          placeholder="Temporary password (optional)"
-          value={newUser.password}
-          onChange={(event) =>
-            setNewUser((current) => ({ ...current, password: event.target.value }))
-          }
-        />
+        <Field
+          label="Email"
+          tooltip="Primární přihlašovací email. Aktivace se posílá na tuto adresu."
+          hint="Povinné."
+          error={createError}
+          required
+        >
+          <input
+            className={`w-full rounded-md border bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 ${
+              createError ? "border-rose-400" : "border-slate-700"
+            }`}
+            placeholder="name@example.com"
+            value={newUser.email}
+            onChange={(event) =>
+              setNewUser((current) => ({ ...current, email: event.target.value }))
+            }
+            onBlur={() => setCreateError(validateEmail(newUser.email).error ?? null)}
+          />
+        </Field>
+        <Field
+          label="Username"
+          tooltip="Volitelný username pro přihlášení."
+          hint="Když je prázdné, použije se email."
+        >
+          <input
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            placeholder="Username"
+            value={newUser.userName}
+            onChange={(event) =>
+              setNewUser((current) => ({ ...current, userName: event.target.value }))
+            }
+          />
+        </Field>
+        <Field
+          label="Phone number"
+          tooltip="Volitelné telefonní číslo uživatele."
+          hint="Použij E.164 formát."
+        >
+          <input
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            placeholder="+420123456789"
+            value={newUser.phoneNumber}
+            onChange={(event) =>
+              setNewUser((current) => ({ ...current, phoneNumber: event.target.value }))
+            }
+          />
+        </Field>
+        <Field
+          label="Temporary password"
+          tooltip="Pokud necháš prázdné, systém vygeneruje aktivaci."
+          hint="Volitelné. Musí splnit password policy."
+          error={passwordError}
+        >
+          <input
+            className={`w-full rounded-md border bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 ${
+              passwordError ? "border-rose-400" : "border-slate-700"
+            }`}
+            type="password"
+            placeholder="Temporary password"
+            value={newUser.password}
+            onChange={(event) =>
+              setNewUser((current) => ({ ...current, password: event.target.value }))
+            }
+          />
+        </Field>
         <div className="flex items-center gap-3 md:col-span-2">
           <button
             type="submit"
@@ -151,9 +219,13 @@ export default function UsersList() {
           >
             {creating ? "Creating..." : "Create user"}
           </button>
-          <span className="text-xs text-slate-400">
+          <span className="flex items-center gap-2 text-xs text-slate-400">
+            <HelpIcon tooltip="Uživatel dostane aktivační email s potvrzovacím linkem." />
             New users will receive an activation email.
           </span>
+        </div>
+        <div className="md:col-span-2">
+          <FormError message={createFormError} />
         </div>
       </form>
 

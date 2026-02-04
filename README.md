@@ -122,6 +122,17 @@ Nebo použijte připravené skripty:
 - Ověření adminu: `GET https://localhost:7001/admin/ping` (nutné být přihlášen jako admin).
 - Build admin UI: `dotnet build src/AuthServer` (spustí `npm ci` + `npm run build:admin` v `src/Web` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`).
 
+## Admin UX guidelines
+
+- **Permission key format**: `^[a-z0-9]+(\\.[a-z0-9]+)*$` (např. `system.admin`, `api.read`). Klíč se používá v policy i v claimu `permission`.
+- **Role vs permission**: Role jsou Identity role; skutečná oprávnění jsou mapována přes permissiony (claim/policy).
+- **Role name format**: `^[A-Za-z0-9][A-Za-z0-9 _\\.-]*$`, délka 2–64 (např. `Admin`, `Support`, `Editor`).
+- **Endpoint uniqueness**: Kombinace `(method, path)` musí být unikátní v rámci jednoho API resource (case-insensitive, path vždy začíná `/`).
+- **Security guardrails**:
+  - nelze odebrat posledního admina (`system.admin`);
+  - nelze zamknout vlastní účet;
+  - system permissions nelze smazat ani přejmenovat.
+
 ## AuthServer – funkce
 
 - **OAuth2/OIDC server** postavený na OpenIddict (authorization code + PKCE, refresh tokeny, userinfo, logout).【F:src/AuthServer/Program.cs†L97-L143】【F:src/AuthServer/Controllers/AuthorizationController.cs†L35-L177】

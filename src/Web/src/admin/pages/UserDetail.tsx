@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type { AdminRoleListItem, AdminUserDetail } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { Field, FormError, HelpIcon } from "../components/Field";
 import { pushToast } from "../components/toast";
+import { useAuthSession } from "../../auth/useAuthSession";
+import { validateEmail } from "../validation/adminValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { session } = useAuthSession();
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [roles, setRoles] = useState<AdminRoleListItem[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
   const [newPassword, setNewPassword] = useState("");
+  const [profileErrors, setProfileErrors] = useState<{ email?: string }>({});
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+  const [lockError, setLockError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [activationError, setActivationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -77,13 +88,22 @@ export default function UserDetail() {
     if (!id) {
       return;
     }
+    setRolesError(null);
     setSaving(true);
     try {
       await apiRequest(`/admin/api/users/${id}/roles`, {
         method: "PUT",
         body: JSON.stringify({ roles: Array.from(selectedRoles) }),
+        suppressToast: true,
       });
       pushToast({ message: "User roles updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setRolesError(parsed.generalError ?? "Unable to update roles.");
+        return;
+      }
+      setRolesError("Unable to update roles.");
     } finally {
       setSaving(false);
     }
@@ -93,31 +113,43 @@ export default function UserDetail() {
     if (!id || !user) {
       return;
     }
-    if (!formState.email.trim()) {
-      pushToast({ message: "Email is required.", tone: "error" });
+    const emailValidation = validateEmail(formState.email);
+    if (emailValidation.error) {
+      setProfileErrors({ email: emailValidation.error });
       return;
     }
+    setProfileErrors({});
+    setProfileError(null);
     setSavingProfile(true);
     try {
       await apiRequest(`/admin/api/users/${id}`, {
         method: "PUT",
         body: JSON.stringify({
-          email: formState.email.trim(),
+          email: emailValidation.value,
           userName: formState.userName.trim() || null,
           phoneNumber: formState.phoneNumber.trim() || null,
           emailConfirmed: formState.emailConfirmed,
           isActive: formState.isActive,
         }),
+        suppressToast: true,
       });
       setUser({
         ...user,
-        email: formState.email.trim(),
+        email: emailValidation.value,
         userName: formState.userName.trim() || null,
         phoneNumber: formState.phoneNumber.trim() || null,
         emailConfirmed: formState.emailConfirmed,
         isActive: formState.isActive,
       });
       pushToast({ message: "User updated.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setProfileErrors({ email: parsed.fieldErrors.email?.[0] });
+        setProfileError(parsed.generalError ?? "Unable to update user.");
+        return;
+      }
+      setProfileError("Unable to update user.");
     } finally {
       setSavingProfile(false);
     }
@@ -127,28 +159,54 @@ export default function UserDetail() {
     if (!id || !user) {
       return;
     }
+    setLockError(null);
     const nextLocked = !user.isLockedOut;
-    await apiRequest(`/admin/api/users/${id}/lock`, {
-      method: "POST",
-      body: JSON.stringify({ locked: nextLocked }),
-    });
-    setUser({ ...user, isLockedOut: nextLocked });
-    pushToast({
-      message: nextLocked ? "User locked." : "User unlocked.",
-      tone: "success",
-    });
+    try {
+      await apiRequest(`/admin/api/users/${id}/lock`, {
+        method: "POST",
+        body: JSON.stringify({ locked: nextLocked }),
+        suppressToast: true,
+      });
+      setUser({ ...user, isLockedOut: nextLocked });
+      pushToast({
+        message: nextLocked ? "User locked." : "User unlocked.",
+        tone: "success",
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setLockError(parsed.generalError ?? "Unable to update lock status.");
+        return;
+      }
+      setLockError("Unable to update lock status.");
+    }
   };
 
   const handleResetPassword = async () => {
-    if (!id || !newPassword.trim()) {
+    if (!id) {
       return;
     }
-    await apiRequest(`/admin/api/users/${id}/reset-password`, {
-      method: "POST",
-      body: JSON.stringify({ newPassword }),
-    });
-    setNewPassword("");
-    pushToast({ message: "Password reset.", tone: "success" });
+    if (!newPassword.trim()) {
+      setPasswordError("New password is required.");
+      return;
+    }
+    setPasswordError(null);
+    try {
+      await apiRequest(`/admin/api/users/${id}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ newPassword }),
+        suppressToast: true,
+      });
+      setNewPassword("");
+      pushToast({ message: "Password reset.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setPasswordError(parsed.fieldErrors.newPassword?.[0] ?? parsed.generalError);
+        return;
+      }
+      setPasswordError("Unable to reset password.");
+    }
   };
 
   const handleResendActivation = async () => {
@@ -156,9 +214,20 @@ export default function UserDetail() {
       return;
     }
     setResending(true);
+    setActivationError(null);
     try {
-      await apiRequest(`/admin/api/users/${id}/resend-activation`, { method: "POST" });
+      await apiRequest(`/admin/api/users/${id}/resend-activation`, {
+        method: "POST",
+        suppressToast: true,
+      });
       pushToast({ message: "Activation email resent.", tone: "success" });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setActivationError(parsed.generalError ?? "Unable to resend activation email.");
+        return;
+      }
+      setActivationError("Unable to resend activation email.");
     } finally {
       setResending(false);
     }
@@ -211,36 +280,55 @@ export default function UserDetail() {
       </div>
 
       <div className="grid gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm text-slate-200">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Email</span>
+        <Field
+          label="Email"
+          tooltip="Primární přihlašovací email. Změna může vyžadovat novou aktivaci."
+          hint="Povinné."
+          error={profileErrors.email}
+          required
+        >
           <input
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+            className={`rounded-md border bg-slate-950 px-3 py-2 text-sm text-slate-100 ${
+              profileErrors.email ? "border-rose-400" : "border-slate-700"
+            }`}
             value={formState.email}
             onChange={(event) =>
               setFormState((current) => ({ ...current, email: event.target.value }))
             }
+            onBlur={() =>
+              setProfileErrors({ email: validateEmail(formState.email).error ?? undefined })
+            }
+            placeholder="user@example.com"
           />
-        </label>
-        <label className="flex flex-col gap-2 text-sm text-slate-200">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Username</span>
+        </Field>
+        <Field
+          label="Username"
+          tooltip="Volitelný username pro přihlášení."
+          hint="Když je prázdné, použije se email."
+        >
           <input
             className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
             value={formState.userName}
             onChange={(event) =>
               setFormState((current) => ({ ...current, userName: event.target.value }))
             }
+            placeholder="username"
           />
-        </label>
-        <label className="flex flex-col gap-2 text-sm text-slate-200">
-          <span className="text-xs uppercase tracking-wide text-slate-500">Phone</span>
+        </Field>
+        <Field
+          label="Phone"
+          tooltip="Volitelné telefonní číslo."
+          hint="Použij E.164 formát."
+        >
           <input
             className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
             value={formState.phoneNumber}
             onChange={(event) =>
               setFormState((current) => ({ ...current, phoneNumber: event.target.value }))
             }
+            placeholder="+420123456789"
           />
-        </label>
+        </Field>
         <div className="flex flex-col gap-2 text-sm text-slate-200">
           <span className="text-xs uppercase tracking-wide text-slate-500">2FA enabled</span>
           <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
@@ -294,6 +382,11 @@ export default function UserDetail() {
               {resending ? "Sending..." : "Resend activation"}
             </button>
           )}
+          <HelpIcon tooltip="Aktivační email obsahuje token pro potvrzení adresy." />
+        </div>
+        <div className="md:col-span-2">
+          <FormError message={profileError} />
+          <FormError message={activationError} />
         </div>
       </div>
 
@@ -301,7 +394,9 @@ export default function UserDetail() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-white">Roles</h2>
-            <p className="text-sm text-slate-400">Assign identity roles for access.</p>
+            <p className="text-sm text-slate-400">
+              Assign identity roles for access. Roles map to permissions.
+            </p>
           </div>
           <button
             type="button"
@@ -311,6 +406,10 @@ export default function UserDetail() {
           >
             {saving ? "Saving..." : "Save roles"}
           </button>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+          <HelpIcon tooltip="Role != permission. Role mapuje sadu permissionů, které se propisují do claimu permission." />
+          Permissions are derived from role mappings.
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {roles.map((role) => (
@@ -328,27 +427,41 @@ export default function UserDetail() {
             </label>
           ))}
         </div>
+        <div className="mt-4">
+          <FormError message={rolesError} />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Account status</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-white">Account status</h2>
+            <HelpIcon tooltip="Lockout blokuje přihlášení až do odemčení." />
+          </div>
           <p className="text-sm text-slate-400">Lock or unlock this user.</p>
           <button
             type="button"
             onClick={handleLockToggle}
+            disabled={session?.userId === user.id && !user.isLockedOut}
             className={`mt-4 rounded-md px-4 py-2 text-sm font-semibold ${
               user.isLockedOut
                 ? "bg-emerald-500 text-white hover:bg-emerald-400"
                 : "bg-rose-500 text-white hover:bg-rose-400"
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             {user.isLockedOut ? "Unlock user" : "Lock user"}
           </button>
+          {session?.userId === user.id && !user.isLockedOut && (
+            <p className="mt-2 text-xs text-rose-300">You cannot lock your own account.</p>
+          )}
+          <FormError message={lockError} />
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Reset password</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-white">Reset password</h2>
+            <HelpIcon tooltip="Vygeneruje nové heslo. Uživatel by ho měl změnit při dalším přihlášení." />
+          </div>
           <p className="text-sm text-slate-400">Set a new password for this user.</p>
           <div className="mt-4 flex flex-col gap-3">
             <input
@@ -358,6 +471,7 @@ export default function UserDetail() {
               onChange={(event) => setNewPassword(event.target.value)}
               placeholder="New password"
             />
+            {passwordError && <p className="text-xs text-rose-300">{passwordError}</p>}
             <button
               type="button"
               onClick={handleResetPassword}

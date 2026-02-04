@@ -8,13 +8,22 @@ export class ApiError extends Error {
   fieldErrors?: FieldErrors;
   title?: string;
   detail?: string;
+  generalErrors?: string[];
 
-  constructor(message: string, status: number, fieldErrors?: FieldErrors, title?: string, detail?: string) {
+  constructor(
+    message: string,
+    status: number,
+    fieldErrors?: FieldErrors,
+    title?: string,
+    detail?: string,
+    generalErrors?: string[]
+  ) {
     super(message);
     this.status = status;
     this.fieldErrors = fieldErrors;
     this.title = title;
     this.detail = detail;
+    this.generalErrors = generalErrors;
   }
 }
 
@@ -62,19 +71,22 @@ async function readError(response: Response) {
     try {
       const data = await response.json();
       const errors = normalizeFieldErrors(data?.errors);
+      const generalErrors = Array.isArray(data?.generalErrors)
+        ? data.generalErrors.map(String)
+        : undefined;
       if (typeof data?.title === "string") {
-        return new ApiError(data.title, response.status, errors, data.title, data.detail);
+        return new ApiError(data.title, response.status, errors, data.title, data.detail, generalErrors);
       }
       if (typeof data?.detail === "string") {
-        return new ApiError(data.detail, response.status, errors, data.title, data.detail);
+        return new ApiError(data.detail, response.status, errors, data.title, data.detail, generalErrors);
       }
       if (typeof data?.message === "string") {
-        return new ApiError(data.message, response.status, errors, data.title, data.detail);
+        return new ApiError(data.message, response.status, errors, data.title, data.detail, generalErrors);
       }
       if (errors) {
         const flat = Object.values(errors).flat().filter(Boolean).join(" ");
         if (flat) {
-          return new ApiError(flat, response.status, errors, data.title, data.detail);
+          return new ApiError(flat, response.status, errors, data.title, data.detail, generalErrors);
         }
       }
     } catch {

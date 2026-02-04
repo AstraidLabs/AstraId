@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -59,31 +60,38 @@ public sealed class AdminRolesController : ControllerBase
         [FromBody] AdminRoleCreateRequest request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        var validation = AdminValidation.ValidateRoleName(request.Name);
+        if (!validation.IsValid)
         {
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
-            {
-                ["name"] = ["Role name is required."]
-            })
-            {
-                Title = "Invalid role name.",
-                Detail = "Role name is required."
-            });
+            return ValidationProblem(validation.ToProblemDetails("Invalid role name."));
         }
 
-        var trimmedName = request.Name.Trim();
+        var trimmedName = request.Name!.Trim();
+        if (await _dbContext.Roles.AnyAsync(
+                role => role.Name != null && role.Name.ToLower() == trimmedName.ToLower(),
+                cancellationToken))
+        {
+            validation.AddFieldError("name", $"Role name '{trimmedName}' is already in use.");
+            return ValidationProblem(validation.ToProblemDetails("Role already exists."));
+        }
+
         var result = await _roleService.CreateRoleAsync(trimmedName);
         if (!result.Succeeded)
         {
             var messages = result.Errors.Select(error => error.Description).Where(message => !string.IsNullOrWhiteSpace(message)).ToArray();
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            if (messages.Length == 0)
             {
-                ["name"] = messages.Length == 0 ? ["Role creation failed."] : messages
-            })
+                validation.AddGeneralError("Role creation failed.");
+            }
+            else
             {
-                Title = "Role creation failed.",
-                Detail = string.Join("; ", messages)
-            });
+                foreach (var message in messages)
+                {
+                    validation.AddFieldError("name", message);
+                }
+            }
+
+            return ValidationProblem(validation.ToProblemDetails("Role creation failed."));
         }
 
         var roles = await _roleService.GetRolesAsync(cancellationToken);
@@ -97,16 +105,10 @@ public sealed class AdminRolesController : ControllerBase
         [FromBody] AdminRoleUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        var validation = AdminValidation.ValidateRoleName(request.Name);
+        if (!validation.IsValid)
         {
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
-            {
-                ["name"] = ["Role name is required."]
-            })
-            {
-                Title = "Invalid role name.",
-                Detail = "Role name is required."
-            });
+            return ValidationProblem(validation.ToProblemDetails("Invalid role name."));
         }
 
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
@@ -115,19 +117,32 @@ public sealed class AdminRolesController : ControllerBase
             return NotFound(new ProblemDetails { Title = "Role not found." });
         }
 
-        var trimmedName = request.Name.Trim();
+        var trimmedName = request.Name!.Trim();
+        if (await _dbContext.Roles.AnyAsync(
+                item => item.Id != id && item.Name != null && item.Name.ToLower() == trimmedName.ToLower(),
+                cancellationToken))
+        {
+            validation.AddFieldError("name", $"Role name '{trimmedName}' is already in use.");
+            return ValidationProblem(validation.ToProblemDetails("Role already exists."));
+        }
+
         var result = await _roleService.UpdateRoleAsync(role, trimmedName);
         if (!result.Succeeded)
         {
             var messages = result.Errors.Select(error => error.Description).Where(message => !string.IsNullOrWhiteSpace(message)).ToArray();
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            if (messages.Length == 0)
             {
-                ["name"] = messages.Length == 0 ? ["Role update failed."] : messages
-            })
+                validation.AddGeneralError("Role update failed.");
+            }
+            else
             {
-                Title = "Role update failed.",
-                Detail = string.Join("; ", messages)
-            });
+                foreach (var message in messages)
+                {
+                    validation.AddFieldError("name", message);
+                }
+            }
+
+            return ValidationProblem(validation.ToProblemDetails("Role update failed."));
         }
 
         return NoContent();
@@ -180,7 +195,40 @@ public sealed class AdminRolesController : ControllerBase
             return NotFound(new ProblemDetails { Title = "Role not found." });
         }
 
-        await _roleService.SetRolePermissionsAsync(id, request.PermissionIds, cancellationToken);
+        var validation = new AdminValidationResult();
+        var permissionIds = request.PermissionIds?.Distinct().ToList() ?? new List<Guid>();
+        if (permissionIds.Count > 0)
+        {
+            var existingIds = await _dbContext.Permissions
+                .Where(permission => permissionIds.Contains(permission.Id))
+                .Select(permission => permission.Id)
+                .ToListAsync(cancellationToken);
+            var invalid = permissionIds.Except(existingIds).ToList();
+            if (invalid.Count > 0)
+            {
+                validation.AddFieldError("permissionIds", $"Unknown permissions: {string.Join(", ", invalid)}.");
+            }
+        }
+
+        if (string.Equals(role.Name, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var systemAdminId = await _dbContext.Permissions
+                .Where(permission => permission.Key == "system.admin")
+                .Select(permission => permission.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (systemAdminId != Guid.Empty && !permissionIds.Contains(systemAdminId))
+            {
+                validation.AddFieldError("permissionIds", "Admin role must include the system.admin permission.");
+            }
+        }
+
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(validation.ToProblemDetails("Invalid role permissions."));
+        }
+
+        await _roleService.SetRolePermissionsAsync(id, permissionIds, cancellationToken);
         return NoContent();
     }
 }

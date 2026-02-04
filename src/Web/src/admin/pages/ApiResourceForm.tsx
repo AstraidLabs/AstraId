@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, apiRequest } from "../api/http";
 import type { AdminApiResourceDetail } from "../api/types";
-import { Field } from "../components/Field";
+import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type Mode = "create" | "edit";
 
@@ -36,6 +37,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
   const [errors, setErrors] = useState<{ name?: string; displayName?: string; baseUrl?: string }>(
     {}
   );
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !resourceId) {
@@ -85,6 +87,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
       }
     }
     setErrors(nextErrors);
+    setFormError(null);
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
@@ -120,19 +123,16 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
       pushToast({ message: "API resource updated.", tone: "success" });
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors) {
-          setErrors((current) => ({
-            ...current,
-            name: error.fieldErrors.name?.[0] ?? current.name,
-            displayName: error.fieldErrors.displayName?.[0] ?? current.displayName,
-            baseUrl: error.fieldErrors.baseUrl?.[0] ?? current.baseUrl,
-          }));
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setErrors({
+          name: parsed.fieldErrors.name?.[0],
+          displayName: parsed.fieldErrors.displayName?.[0],
+          baseUrl: parsed.fieldErrors.baseUrl?.[0],
+        });
+        setFormError(parsed.generalError ?? "Unable to save API resource.");
         return;
       }
-      pushToast({ message: "Unable to save API resource.", tone: "error" });
+      setFormError("Unable to save API resource.");
     } finally {
       setSaving(false);
     }
@@ -192,12 +192,15 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
         </div>
       )}
 
+      <FormError message={formError} />
+
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field
           label="Name"
           tooltip="Interní identifikátor API resource."
           hint="Povinné, např. identity-api."
           error={errors.name}
+          required
         >
           <input
             className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
@@ -214,6 +217,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
           tooltip="Lidský název API pro administrátory."
           hint="Povinné."
           error={errors.displayName}
+          required
         >
           <input
             className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
