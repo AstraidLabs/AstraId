@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import { Link } from "react-router-dom";
 import type { AdminUserListItem, PagedResult } from "../api/types";
 import { toAdminRoute } from "../../routing";
@@ -19,6 +19,9 @@ export default function UsersList() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [createFormError, setCreateFormError] = useState<string | null>(null);
+  const [createDiagnostics, setCreateDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [newUser, setNewUser] = useState({
     email: "",
     userName: "",
@@ -66,6 +69,7 @@ export default function UsersList() {
     setCreateError(null);
     setPasswordError(null);
     setCreateFormError(null);
+    setCreateDiagnostics(undefined);
     setCreating(true);
     try {
       await apiRequest("/admin/api/users", {
@@ -83,14 +87,16 @@ export default function UsersList() {
       setPage(1);
       setRefreshKey((current) => current + 1);
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setCreateError(parsed.fieldErrors.email?.[0] ?? null);
         setPasswordError(parsed.fieldErrors.password?.[0] ?? null);
         setCreateFormError(parsed.generalError ?? "Unable to create user.");
+        setCreateDiagnostics(parsed.diagnostics);
         return;
       }
       setCreateFormError("Unable to create user.");
+      setCreateDiagnostics(undefined);
     } finally {
       setCreating(false);
     }
@@ -225,7 +231,7 @@ export default function UsersList() {
           </span>
         </div>
         <div className="md:col-span-2">
-          <FormError message={createFormError} />
+        <FormError message={createFormError} diagnostics={createDiagnostics} />
         </div>
       </form>
 

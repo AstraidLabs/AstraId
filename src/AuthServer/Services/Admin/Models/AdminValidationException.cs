@@ -1,3 +1,5 @@
+using AuthServer.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Services.Admin.Models;
@@ -9,7 +11,7 @@ public sealed class AdminValidationException : Exception
     {
         Title = title;
         Errors = errors;
-        Detail = detail ?? BuildDetail(errors);
+        Detail = detail ?? ProblemDetailsDefaults.GetDefaultDetail(StatusCodes.Status422UnprocessableEntity) ?? BuildDetail(errors);
     }
 
     public string Title { get; }
@@ -21,7 +23,8 @@ public sealed class AdminValidationException : Exception
         var details = new ValidationProblemDetails
         {
             Title = Title,
-            Detail = Detail
+            Detail = Detail,
+            Status = StatusCodes.Status422UnprocessableEntity
         };
 
         foreach (var (key, messages) in Errors)

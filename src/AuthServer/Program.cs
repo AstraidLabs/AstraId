@@ -1,16 +1,21 @@
+using System.Diagnostics;
+using System.Security.Claims;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
 using AuthServer.Seeding;
 using AuthServer.Services;
+using AuthServer.Services.Diagnostics;
 using AuthServer.Services.Cors;
 using AuthServer.Services.Cryptography;
 using AuthServer.Services.Admin;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server.AspNetCore;
@@ -42,7 +47,19 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/access-denied";
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problemDetails = new ValidationProblemDetails(context.ModelState)
+            {
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(context.HttpContext);
+
+            return new UnprocessableEntityObjectResult(problemDetails);
+        };
+    });
 builder.Services.AddRazorPages();
 builder.Services.AddMemoryCache();
 
@@ -76,6 +93,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
+builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(DiagnosticsOptions.SectionName));
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -155,18 +173,15 @@ builder.Services.AddOpenIddict()
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
+builder.Services.AddHostedService<ErrorLogCleanupService>();
 
 var app = builder.Build();
 
 var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Value;
 ValidateEmailOptions(emailOptions, app.Environment);
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-
 app.UseHttpsRedirection();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 var uiOptions = app.Services.GetRequiredService<IOptions<AuthServerUiOptions>>().Value;
 if (uiOptions.IsHosted)
@@ -202,6 +217,49 @@ app.UseCors("Web");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var context = statusCodeContext.HttpContext;
+    if (context.Response.HasStarted)
+    {
+        return;
+    }
+
+    var statusCode = context.Response.StatusCode;
+    if (statusCode < 400)
+    {
+        return;
+    }
+
+    if (RequestAccepts.WantsHtml(context.Request))
+    {
+        context.Response.ContentType = "text/html; charset=utf-8";
+        var detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? "An error occurred.";
+        var errorId = statusCode >= 500 ? Guid.NewGuid() : (Guid?)null;
+        if (statusCode >= 500)
+        {
+            await StoreStatusCodeErrorAsync(context, statusCode, errorId.Value);
+        }
+
+        await context.Response.WriteAsync(BuildStatusCodeHtml(statusCode, detail, context.TraceIdentifier, errorId));
+        return;
+    }
+
+    var problemDetails = new ProblemDetails
+    {
+        Status = statusCode
+    }.ApplyDefaults(context);
+
+    if (statusCode >= 500)
+    {
+        var errorId = Guid.NewGuid();
+        problemDetails.Extensions["errorId"] = errorId;
+        await StoreStatusCodeErrorAsync(context, statusCode, errorId);
+    }
+
+    context.Response.ContentType = "application/problem+json";
+    await context.Response.WriteAsJsonAsync(problemDetails);
+});
 
 app.MapControllers();
 app.MapRazorPages();
@@ -223,6 +281,74 @@ if (uiOptions.IsHosted)
 }
 
 app.Run();
+
+static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode, Guid errorId)
+{
+    var options = context.RequestServices.GetRequiredService<IOptions<DiagnosticsOptions>>().Value;
+    if (!options.StoreErrorLogs)
+    {
+        return;
+    }
+
+    try
+    {
+        var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+        var actorUserId = Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            ? userId
+            : (Guid?)null;
+
+        dbContext.ErrorLogs.Add(new ErrorLog
+        {
+            Id = errorId,
+            TimestampUtc = DateTime.UtcNow,
+            TraceId = traceId,
+            ActorUserId = actorUserId,
+            Path = context.Request.Path.HasValue ? context.Request.Path.Value! : string.Empty,
+            Method = context.Request.Method,
+            StatusCode = statusCode,
+            Title = ReasonPhrases.GetReasonPhrase(statusCode),
+            Detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? string.Empty,
+            UserAgent = context.Request.Headers.UserAgent.ToString(),
+            RemoteIp = context.Connection.RemoteIpAddress?.ToString()
+        });
+
+        await dbContext.SaveChangesAsync(context.RequestAborted);
+    }
+    catch (Exception exception)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("StatusCodePages");
+        logger.LogError(exception, "Failed to store error log for status code {StatusCode}.", statusCode);
+    }
+}
+
+static string BuildStatusCodeHtml(int statusCode, string detail, string traceId, Guid? errorId)
+{
+    var errorText = errorId.HasValue ? $"Error ID: {errorId}<br/>Trace ID: {traceId}" : $"Trace ID: {traceId}";
+    return $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>{statusCode} Error</title>
+              <style>
+                body {{ font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
+                .card {{ max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
+                .meta {{ margin-top: 16px; font-size: 0.9rem; color: #475569; }}
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <h1>{ReasonPhrases.GetReasonPhrase(statusCode)}</h1>
+                <p>{detail}</p>
+                <p class="meta">{errorText}</p>
+              </div>
+            </body>
+            </html>
+            """;
+}
 
 static void ConfigureCertificates(
     OpenIddictServerBuilder options,

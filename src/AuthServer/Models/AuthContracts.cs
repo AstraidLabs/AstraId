@@ -11,7 +11,7 @@ public sealed record LoginResponse(
     bool RequiresTwoFactor = false,
     string? MfaToken = null);
 
-public sealed record AuthResponse(bool Success, string? RedirectTo, string? Error);
+public sealed record AuthResponse(bool Success, string? RedirectTo, string? Error, string? Message = null);
 
 public sealed record ForgotPasswordRequest(string Email);
 

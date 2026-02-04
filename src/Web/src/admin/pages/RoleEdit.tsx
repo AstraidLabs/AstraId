@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminPermissionItem, AdminRoleDetail } from "../api/types";
 import { HelpIcon, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
@@ -20,6 +20,9 @@ export default function RoleEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
 
   useEffect(() => {
     if (!id) {
@@ -86,6 +89,7 @@ export default function RoleEdit() {
       return;
     }
     setFormError(null);
+    setFormDiagnostics(undefined);
     setSaving(true);
     try {
       await apiRequest(`/admin/api/roles/${id}/permissions`, {
@@ -95,12 +99,14 @@ export default function RoleEdit() {
       });
       pushToast({ message: "Role permissions updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setFormError(parsed.generalError ?? "Unable to update role permissions.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to update role permissions.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -136,7 +142,7 @@ export default function RoleEdit() {
         <p className="text-sm text-slate-300">Assign permissions to control access.</p>
       </div>
 
-      <FormError message={formError} />
+      <FormError message={formError} diagnostics={formDiagnostics} />
 
       <div className="flex flex-col gap-6">
         {groups.map((group) => (

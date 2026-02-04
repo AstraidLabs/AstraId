@@ -1,8 +1,10 @@
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -81,7 +83,7 @@ public sealed class AdminPermissionsController : ControllerBase
         var validation = AdminValidation.ValidatePermission(request);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid permission."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid permission.").ApplyDefaults(HttpContext));
         }
 
         var key = request.Key!.Trim();
@@ -93,7 +95,7 @@ public sealed class AdminPermissionsController : ControllerBase
                 cancellationToken))
         {
             validation.AddFieldError("key", $"Permission key '{key}' is already in use.");
-            return ValidationProblem(validation.ToProblemDetails("Permission already exists."));
+            return ValidationProblem(validation.ToProblemDetails("Permission already exists.").ApplyDefaults(HttpContext));
         }
 
         var permission = new Permission
@@ -133,7 +135,7 @@ public sealed class AdminPermissionsController : ControllerBase
         }
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid permission."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid permission.").ApplyDefaults(HttpContext));
         }
 
         var key = request.Key!.Trim();
@@ -145,7 +147,7 @@ public sealed class AdminPermissionsController : ControllerBase
                 cancellationToken))
         {
             validation.AddFieldError("key", $"Permission key '{key}' is already in use.");
-            return ValidationProblem(validation.ToProblemDetails("Permission already exists."));
+            return ValidationProblem(validation.ToProblemDetails("Permission already exists.").ApplyDefaults(HttpContext));
         }
 
         permission.Key = key;
@@ -175,7 +177,7 @@ public sealed class AdminPermissionsController : ControllerBase
         {
             var validation = new AdminValidationResult();
             validation.AddGeneralError("System permissions cannot be deleted.");
-            return ValidationProblem(validation.ToProblemDetails("Permission is protected."));
+            return ValidationProblem(validation.ToProblemDetails("Permission is protected.").ApplyDefaults(HttpContext));
         }
 
         var roleCount = await _dbContext.RolePermissions.CountAsync(
@@ -196,8 +198,9 @@ public sealed class AdminPermissionsController : ControllerBase
             })
             {
                 Title = "Permission is in use.",
-                Detail = "Permission is assigned to roles or endpoints. Remove assignments before deleting."
-            });
+                Detail = "Permission is assigned to roles or endpoints. Remove assignments before deleting.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         await _permissionService.DeletePermissionAsync(id, cancellationToken);

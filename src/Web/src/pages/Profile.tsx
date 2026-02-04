@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "react-oidc-context";
 import Card from "../components/Card";
 import Alert from "../components/Alert";
-import { ApiError } from "../api/http";
+import { AppError } from "../api/http";
 import { getMe, type MeResponse } from "../api/endpoints";
 import { usePermissions } from "../auth/usePermissions";
 
@@ -39,10 +39,10 @@ const Profile = () => {
         }
       } catch (err) {
         if (mounted) {
-          if (err instanceof ApiError) {
-            setError(err.message);
+          if (err instanceof AppError) {
+            setError(err.detail ?? err.message);
           } else {
-            setError("Nepodařilo se načíst profil.");
+            setError("Unable to load profile.");
           }
         }
       } finally {
@@ -64,12 +64,12 @@ const Profile = () => {
   return (
     <div className="flex flex-col gap-6">
       <Card
-        title="Profil uživatele"
-        description="Informace z identity tokenu a /api/me."
+        title="User profile"
+        description="Information from the identity token and /api/me."
       >
         {!auth.isAuthenticated ? (
           <Alert variant="warning">
-            Nejste přihlášeni. Přihlaste se pro zobrazení profilu.
+            You are not signed in. Sign in to view your profile.
           </Alert>
         ) : null}
         {error ? <Alert variant="error">{error}</Alert> : null}
@@ -98,7 +98,7 @@ const Profile = () => {
           <div className="mt-3 flex flex-wrap gap-2">
             {permissions.length === 0 ? (
               <span className="text-sm text-slate-500">
-                Žádné oprávnění v tokenu ani v /api/me.
+                No permissions found in the token or /api/me.
               </span>
             ) : (
               permissions.map((permission) => (
@@ -114,7 +114,7 @@ const Profile = () => {
         </div>
 
         <p className="mt-6 text-sm text-slate-400">
-          {loading ? "Načítání dat z API..." : ""}
+          {loading ? "Loading data from the API..." : ""}
         </p>
       </Card>
     </div>

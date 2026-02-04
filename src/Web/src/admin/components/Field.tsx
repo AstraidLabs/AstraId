@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { DiagnosticsInfo } from "../../api/errors";
+import DiagnosticsPanel from "../../components/DiagnosticsPanel";
 
 type FieldProps = {
   label: string;
@@ -69,16 +71,24 @@ export function HintText({ children }: HintTextProps) {
 
 type FormErrorProps = {
   message?: string | null;
+  diagnostics?: DiagnosticsInfo;
 };
 
-export function FormError({ message }: FormErrorProps) {
+export function FormError({ message, diagnostics }: FormErrorProps) {
   if (!message) {
     return null;
   }
 
   return (
-    <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-      {message}
+    <div className="flex flex-col gap-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+      <span>{message}</span>
+      {diagnostics ? (
+        <DiagnosticsPanel
+          traceId={diagnostics.traceId}
+          errorId={diagnostics.errorId}
+          debug={diagnostics.debug}
+        />
+      ) : null}
     </div>
   );
 }

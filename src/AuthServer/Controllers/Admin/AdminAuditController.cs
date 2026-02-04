@@ -1,4 +1,5 @@
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
@@ -40,7 +41,7 @@ public sealed class AdminAuditController : ControllerBase
         var validation = AdminValidation.ValidateAuditFilters(fromUtc, toUtc);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid audit filters."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid audit filters.").ApplyDefaults(HttpContext));
         }
 
         var query = _dbContext.AuditLogs.AsNoTracking();

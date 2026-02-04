@@ -1,3 +1,4 @@
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -54,7 +55,7 @@ public sealed class AdminScopesController : ControllerBase
         }
         catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails());
+            return ValidationProblem(exception.ToProblemDetails().ApplyDefaults(HttpContext));
         }
     }
 
@@ -71,7 +72,7 @@ public sealed class AdminScopesController : ControllerBase
         }
         catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails());
+            return ValidationProblem(exception.ToProblemDetails().ApplyDefaults(HttpContext));
         }
     }
 
@@ -85,7 +86,7 @@ public sealed class AdminScopesController : ControllerBase
         }
         catch (AdminValidationException exception)
         {
-            return ValidationProblem(exception.ToProblemDetails());
+            return ValidationProblem(exception.ToProblemDetails().ApplyDefaults(HttpContext));
         }
     }
 }

@@ -149,6 +149,28 @@ export type AdminAuditListItem = {
   dataJson?: string | null;
 };
 
+export type AdminErrorLogListItem = {
+  id: string;
+  timestampUtc: string;
+  traceId: string;
+  path: string;
+  method: string;
+  statusCode: number;
+  title: string;
+  detail: string;
+  actorUserId?: string | null;
+  actorEmail?: string | null;
+};
+
+export type AdminErrorLogDetail = AdminErrorLogListItem & {
+  exceptionType?: string | null;
+  stackTrace?: string | null;
+  innerException?: string | null;
+  dataJson?: string | null;
+  userAgent?: string | null;
+  remoteIp?: string | null;
+};
+
 export type AdminSessionInfo = {
   userId: string;
   email?: string | null;

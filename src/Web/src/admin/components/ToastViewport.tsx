@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DiagnosticsPanel from "../../components/DiagnosticsPanel";
 import { subscribeToToasts, ToastPayload } from "./toast";
 
 type ToastEntry = ToastPayload & { id: string };
@@ -35,7 +36,17 @@ export default function ToastViewport() {
             toneClasses[toast.tone ?? "info"]
           }`}
         >
-          {toast.message}
+          <div className="flex flex-col gap-2">
+            <span>{toast.message}</span>
+            {toast.diagnostics ? (
+              <DiagnosticsPanel
+                traceId={toast.diagnostics.traceId}
+                errorId={toast.diagnostics.errorId}
+                debug={toast.diagnostics.debug}
+                compact
+              />
+            ) : null}
+          </div>
         </div>
       ))}
     </div>

@@ -1,8 +1,10 @@
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,7 +37,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound(new ProblemDetails { Title = "Role not found." });
+            return NotFound(new ProblemDetails { Title = "Role not found." }.ApplyDefaults(HttpContext));
         }
 
         var permissionIds = await _roleService.GetRolePermissionIdsAsync(id, cancellationToken);
@@ -48,7 +50,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound(new ProblemDetails { Title = "Role not found." });
+            return NotFound(new ProblemDetails { Title = "Role not found." }.ApplyDefaults(HttpContext));
         }
 
         var userCount = await _dbContext.UserRoles.CountAsync(item => item.RoleId == id, cancellationToken);
@@ -63,7 +65,7 @@ public sealed class AdminRolesController : ControllerBase
         var validation = AdminValidation.ValidateRoleName(request.Name);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid role name."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid role name.").ApplyDefaults(HttpContext));
         }
 
         var trimmedName = request.Name!.Trim();
@@ -72,7 +74,7 @@ public sealed class AdminRolesController : ControllerBase
                 cancellationToken))
         {
             validation.AddFieldError("name", $"Role name '{trimmedName}' is already in use.");
-            return ValidationProblem(validation.ToProblemDetails("Role already exists."));
+            return ValidationProblem(validation.ToProblemDetails("Role already exists.").ApplyDefaults(HttpContext));
         }
 
         var result = await _roleService.CreateRoleAsync(trimmedName);
@@ -91,7 +93,7 @@ public sealed class AdminRolesController : ControllerBase
                 }
             }
 
-            return ValidationProblem(validation.ToProblemDetails("Role creation failed."));
+            return ValidationProblem(validation.ToProblemDetails("Role creation failed.").ApplyDefaults(HttpContext));
         }
 
         var roles = await _roleService.GetRolesAsync(cancellationToken);
@@ -108,13 +110,13 @@ public sealed class AdminRolesController : ControllerBase
         var validation = AdminValidation.ValidateRoleName(request.Name);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid role name."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid role name.").ApplyDefaults(HttpContext));
         }
 
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound(new ProblemDetails { Title = "Role not found." });
+            return NotFound(new ProblemDetails { Title = "Role not found." }.ApplyDefaults(HttpContext));
         }
 
         var trimmedName = request.Name!.Trim();
@@ -123,7 +125,7 @@ public sealed class AdminRolesController : ControllerBase
                 cancellationToken))
         {
             validation.AddFieldError("name", $"Role name '{trimmedName}' is already in use.");
-            return ValidationProblem(validation.ToProblemDetails("Role already exists."));
+            return ValidationProblem(validation.ToProblemDetails("Role already exists.").ApplyDefaults(HttpContext));
         }
 
         var result = await _roleService.UpdateRoleAsync(role, trimmedName);
@@ -142,7 +144,7 @@ public sealed class AdminRolesController : ControllerBase
                 }
             }
 
-            return ValidationProblem(validation.ToProblemDetails("Role update failed."));
+            return ValidationProblem(validation.ToProblemDetails("Role update failed.").ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -154,7 +156,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound(new ProblemDetails { Title = "Role not found." });
+            return NotFound(new ProblemDetails { Title = "Role not found." }.ApplyDefaults(HttpContext));
         }
 
         var userCount = await _dbContext.UserRoles.CountAsync(item => item.RoleId == id, cancellationToken);
@@ -166,8 +168,9 @@ public sealed class AdminRolesController : ControllerBase
             })
             {
                 Title = "Role is in use.",
-                Detail = "Role is assigned to one or more users. Remove assignments before deleting."
-            });
+                Detail = "Role is assigned to one or more users. Remove assignments before deleting.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         var result = await _roleService.DeleteRoleAsync(role);
@@ -176,8 +179,9 @@ public sealed class AdminRolesController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails
             {
                 Title = "Role deletion failed.",
-                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
-            });
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description)),
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -192,7 +196,7 @@ public sealed class AdminRolesController : ControllerBase
         var role = await _roleService.GetRoleAsync(id, cancellationToken);
         if (role is null)
         {
-            return NotFound(new ProblemDetails { Title = "Role not found." });
+            return NotFound(new ProblemDetails { Title = "Role not found." }.ApplyDefaults(HttpContext));
         }
 
         var validation = new AdminValidationResult();
@@ -225,7 +229,7 @@ public sealed class AdminRolesController : ControllerBase
 
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid role permissions."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid role permissions.").ApplyDefaults(HttpContext));
         }
 
         await _roleService.SetRolePermissionsAsync(id, permissionIds, cancellationToken);

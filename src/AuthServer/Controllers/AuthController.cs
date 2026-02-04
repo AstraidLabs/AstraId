@@ -71,13 +71,28 @@ public class AuthController : ControllerBase
         var emailOrUsername = request.EmailOrUsername?.Trim();
         if (string.IsNullOrWhiteSpace(emailOrUsername) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return BadRequest(new LoginResponse(false, null, "Zadejte e-mail/uživatelské jméno a heslo."));
+            return BuildValidationProblem(
+                "Invalid sign-in request.",
+                new Dictionary<string, string[]>
+                {
+                    ["emailOrUsername"] = string.IsNullOrWhiteSpace(emailOrUsername)
+                        ? ["Email or username is required."]
+                        : [],
+                    ["password"] = string.IsNullOrWhiteSpace(request.Password)
+                        ? ["Password is required."]
+                        : []
+                });
         }
 
         var returnUrl = request.ReturnUrl?.Trim();
         if (!string.IsNullOrWhiteSpace(returnUrl) && !_returnUrlValidator.IsValidReturnUrl(returnUrl))
         {
-            return BadRequest(new LoginResponse(false, null, "Neplatný returnUrl."));
+            return BuildValidationProblem(
+                "Invalid sign-in request.",
+                new Dictionary<string, string[]>
+                {
+                    ["returnUrl"] = ["The return URL is invalid."]
+                });
         }
 
         var user = await _userManager.FindByEmailAsync(emailOrUsername)
@@ -85,12 +100,18 @@ public class AuthController : ControllerBase
 
         if (user is null)
         {
-            return BadRequest(new LoginResponse(false, null, "Neplatné přihlašovací údaje."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Sign-in failed",
+                "The email/username or password is incorrect.");
         }
 
         if (!user.IsActive)
         {
-            return BadRequest(new LoginResponse(false, null, "Účet je deaktivovaný."));
+            return BuildAuthProblem(
+                StatusCodes.Status403Forbidden,
+                "Sign-in unavailable",
+                "Sign-in is temporarily unavailable. Please try again later.");
         }
 
         var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, true);
@@ -104,9 +125,36 @@ public class AuthController : ControllerBase
             return Ok(new LoginResponse(false, redirectTo, null, true, token));
         }
 
+        if (result.IsLockedOut)
+        {
+            return BuildAuthProblem(
+                StatusCodes.Status423Locked,
+                "Account locked",
+                "Your account is temporarily locked due to too many failed attempts. Please try again later or reset your password.");
+        }
+
+        if (result.IsNotAllowed)
+        {
+            if (!user.EmailConfirmed)
+            {
+                return BuildAuthProblem(
+                    StatusCodes.Status403Forbidden,
+                    "Email not verified",
+                    "Please verify your email address before signing in. If you didn't receive the email, you can request a new verification link.");
+            }
+
+            return BuildAuthProblem(
+                StatusCodes.Status403Forbidden,
+                "Sign-in unavailable",
+                "Sign-in is temporarily unavailable. Please try again later.");
+        }
+
         if (!result.Succeeded)
         {
-            return BadRequest(new LoginResponse(false, null, "Neplatné přihlašovací údaje."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Sign-in failed",
+                "The email/username or password is incorrect.");
         }
 
         return Ok(new LoginResponse(true, redirectTo, null));
@@ -123,18 +171,34 @@ public class AuthController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(request.MfaToken) || string.IsNullOrWhiteSpace(request.Code))
         {
-            return BadRequest(new AuthResponse(false, null, "Zadejte MFA kód."));
+            return BuildValidationProblem(
+                "Invalid authentication request.",
+                new Dictionary<string, string[]>
+                {
+                    ["mfaToken"] = string.IsNullOrWhiteSpace(request.MfaToken)
+                        ? ["MFA token is required."]
+                        : [],
+                    ["code"] = string.IsNullOrWhiteSpace(request.Code)
+                        ? ["MFA code is required."]
+                        : []
+                });
         }
 
         if (!_mfaChallengeStore.TryConsume(request.MfaToken, out var challenge))
         {
-            return BadRequest(new AuthResponse(false, null, "MFA výzva je neplatná nebo expirovaná."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid code",
+                "The code you entered is invalid. Please try again.");
         }
 
         var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
         if (user is null || user.Id != challenge.UserId)
         {
-            return BadRequest(new AuthResponse(false, null, "MFA výzva je neplatná nebo expirovaná."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid code",
+                "The code you entered is invalid. Please try again.");
         }
 
         var code = NormalizeCode(request.Code);
@@ -150,7 +214,18 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný ověřovací kód."));
+            if (result.IsNotAllowed)
+            {
+                return BuildAuthProblem(
+                    StatusCodes.Status403Forbidden,
+                    "Two-factor authentication unavailable",
+                    "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
+            }
+
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid code",
+                "The code you entered is invalid. Please try again.");
         }
 
         var redirectTo = string.IsNullOrWhiteSpace(challenge.ReturnUrl)
@@ -188,19 +263,28 @@ public class AuthController : ControllerBase
 
         if (user.TwoFactorEnabled)
         {
-            return BadRequest(new AuthResponse(false, null, "MFA je již aktivní. Nejprve ji vypněte."));
+            return BuildAuthProblem(
+                StatusCodes.Status409Conflict,
+                "Two-factor authentication already enabled",
+                "Two-factor authentication is already enabled for this account.");
         }
 
         var resetResult = await _userManager.ResetAuthenticatorKeyAsync(user);
         if (!resetResult.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Nepodařilo se připravit MFA."));
+            return BuildAuthProblem(
+                StatusCodes.Status500InternalServerError,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         var key = await _userManager.GetAuthenticatorKeyAsync(user);
         if (string.IsNullOrWhiteSpace(key))
         {
-            return BadRequest(new AuthResponse(false, null, "Nepodařilo se připravit MFA."));
+            return BuildAuthProblem(
+                StatusCodes.Status500InternalServerError,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         var sharedKey = FormatKey(key);
@@ -221,12 +305,20 @@ public class AuthController : ControllerBase
 
         if (user.TwoFactorEnabled)
         {
-            return BadRequest(new AuthResponse(false, null, "MFA je již aktivní."));
+            return BuildAuthProblem(
+                StatusCodes.Status409Conflict,
+                "Two-factor authentication already enabled",
+                "Two-factor authentication is already enabled for this account.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Code))
         {
-            return BadRequest(new AuthResponse(false, null, "Zadejte ověřovací kód."));
+            return BuildValidationProblem(
+                "Invalid verification code.",
+                new Dictionary<string, string[]>
+                {
+                    ["code"] = ["Verification code is required."]
+                });
         }
 
         var code = NormalizeCode(request.Code);
@@ -237,13 +329,19 @@ public class AuthController : ControllerBase
 
         if (!isValid)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný ověřovací kód."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid code",
+                "The code you entered is invalid. Please try again.");
         }
 
         var enableResult = await _userManager.SetTwoFactorEnabledAsync(user, true);
         if (!enableResult.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Nepodařilo se aktivovat MFA."));
+            return BuildAuthProblem(
+                StatusCodes.Status500InternalServerError,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
@@ -262,7 +360,10 @@ public class AuthController : ControllerBase
 
         if (!user.TwoFactorEnabled)
         {
-            return BadRequest(new AuthResponse(false, null, "MFA není aktivní."));
+            return BuildAuthProblem(
+                StatusCodes.Status409Conflict,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
@@ -281,12 +382,20 @@ public class AuthController : ControllerBase
 
         if (!user.TwoFactorEnabled)
         {
-            return BadRequest(new AuthResponse(false, null, "MFA není aktivní."));
+            return BuildAuthProblem(
+                StatusCodes.Status409Conflict,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Code))
         {
-            return BadRequest(new AuthResponse(false, null, "Zadejte ověřovací kód."));
+            return BuildValidationProblem(
+                "Invalid verification code.",
+                new Dictionary<string, string[]>
+                {
+                    ["code"] = ["Verification code is required."]
+                });
         }
 
         var code = NormalizeCode(request.Code);
@@ -296,13 +405,19 @@ public class AuthController : ControllerBase
             code);
         if (!isValid)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný ověřovací kód."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid code",
+                "The code you entered is invalid. Please try again.");
         }
 
         var disableResult = await _userManager.SetTwoFactorEnabledAsync(user, false);
         if (!disableResult.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Nepodařilo se vypnout MFA."));
+            return BuildAuthProblem(
+                StatusCodes.Status500InternalServerError,
+                "Two-factor authentication unavailable",
+                "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
         }
 
         await _userManager.ResetAuthenticatorKeyAsync(user);
@@ -325,18 +440,37 @@ public class AuthController : ControllerBase
             string.IsNullOrWhiteSpace(request.Password) ||
             string.IsNullOrWhiteSpace(request.ConfirmPassword))
         {
-            return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
+            return BuildValidationProblem(
+                "Invalid registration request.",
+                new Dictionary<string, string[]>
+                {
+                    ["email"] = string.IsNullOrWhiteSpace(email) ? ["Email is required."] : [],
+                    ["password"] = string.IsNullOrWhiteSpace(request.Password) ? ["Password is required."] : [],
+                    ["confirmPassword"] = string.IsNullOrWhiteSpace(request.ConfirmPassword)
+                        ? ["Password confirmation is required."]
+                        : []
+                });
         }
 
         if (!string.Equals(request.Password, request.ConfirmPassword, StringComparison.Ordinal))
         {
-            return BadRequest(new AuthResponse(false, null, "Hesla se neshodují."));
+            return BuildValidationProblem(
+                "Invalid registration request.",
+                new Dictionary<string, string[]>
+                {
+                    ["confirmPassword"] = ["Passwords do not match."]
+                });
         }
 
         var returnUrl = request.ReturnUrl?.Trim();
         if (!string.IsNullOrWhiteSpace(returnUrl) && !_returnUrlValidator.IsValidReturnUrl(returnUrl))
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný returnUrl."));
+            return BuildValidationProblem(
+                "Invalid registration request.",
+                new Dictionary<string, string[]>
+                {
+                    ["returnUrl"] = ["The return URL is invalid."]
+                });
         }
 
         var existing = await _userManager.FindByEmailAsync(email);
@@ -373,7 +507,16 @@ public class AuthController : ControllerBase
         var createResult = await _userManager.CreateAsync(user, request.Password);
         if (!createResult.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Registrace se nezdařila."));
+            var passwordErrors = createResult.Errors
+                .Select(error => error.Description)
+                .Where(description => !string.IsNullOrWhiteSpace(description))
+                .ToArray();
+            return BuildValidationProblem(
+                "Registration failed",
+                new Dictionary<string, string[]>
+                {
+                    ["password"] = passwordErrors.Length > 0 ? passwordErrors : ["Registration failed."]
+                });
         }
 
         var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -399,7 +542,12 @@ public class AuthController : ControllerBase
         var email = request.Email?.Trim();
         if (string.IsNullOrWhiteSpace(email))
         {
-            return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
+            return BuildValidationProblem(
+                "Invalid password reset request.",
+                new Dictionary<string, string[]>
+                {
+                    ["email"] = ["Email is required."]
+                });
         }
 
         var user = await _userManager.FindByEmailAsync(email);
@@ -414,7 +562,7 @@ public class AuthController : ControllerBase
                 HttpContext.RequestAborted);
         }
 
-        return Ok(new AuthResponse(true, null, null));
+        return Ok(new AuthResponse(true, null, null, "If an account exists for this email, you’ll receive a password reset link shortly."));
     }
 
     [HttpPost("reset-password")]
@@ -432,12 +580,27 @@ public class AuthController : ControllerBase
             string.IsNullOrWhiteSpace(request.NewPassword) ||
             string.IsNullOrWhiteSpace(request.ConfirmPassword))
         {
-            return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
+            return BuildValidationProblem(
+                "Invalid password reset request.",
+                new Dictionary<string, string[]>
+                {
+                    ["email"] = string.IsNullOrWhiteSpace(email) ? ["Email is required."] : [],
+                    ["token"] = string.IsNullOrWhiteSpace(request.Token) ? ["Reset token is required."] : [],
+                    ["newPassword"] = string.IsNullOrWhiteSpace(request.NewPassword) ? ["New password is required."] : [],
+                    ["confirmPassword"] = string.IsNullOrWhiteSpace(request.ConfirmPassword)
+                        ? ["Password confirmation is required."]
+                        : []
+                });
         }
 
         if (!string.Equals(request.NewPassword, request.ConfirmPassword, StringComparison.Ordinal))
         {
-            return BadRequest(new AuthResponse(false, null, "Hesla se neshodují."));
+            return BuildValidationProblem(
+                "Invalid password reset request.",
+                new Dictionary<string, string[]>
+                {
+                    ["confirmPassword"] = ["Passwords do not match."]
+                });
         }
 
         var user = await _userManager.FindByEmailAsync(email);
@@ -449,13 +612,19 @@ public class AuthController : ControllerBase
         var decodedToken = DecodeToken(request.Token);
         if (decodedToken is null)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid reset link",
+                "This password reset link is invalid or has expired. Please request a new one.");
         }
 
         var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
         if (!result.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Obnovení hesla se nezdařilo."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid reset link",
+                "This password reset link is invalid or has expired. Please request a new one.");
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -473,7 +642,12 @@ public class AuthController : ControllerBase
         var email = request.Email?.Trim();
         if (string.IsNullOrWhiteSpace(email))
         {
-            return BadRequest(new AuthResponse(false, null, "Zadejte e-mail."));
+            return BuildValidationProblem(
+                "Invalid activation request.",
+                new Dictionary<string, string[]>
+                {
+                    ["email"] = ["Email is required."]
+                });
         }
 
         var user = await _userManager.FindByEmailAsync(email);
@@ -503,25 +677,40 @@ public class AuthController : ControllerBase
         var email = request.Email?.Trim();
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(request.Token))
         {
-            return BadRequest(new AuthResponse(false, null, "Vyplňte všechny povinné údaje."));
+            return BuildValidationProblem(
+                "Invalid activation request.",
+                new Dictionary<string, string[]>
+                {
+                    ["email"] = string.IsNullOrWhiteSpace(email) ? ["Email is required."] : [],
+                    ["token"] = string.IsNullOrWhiteSpace(request.Token) ? ["Activation token is required."] : []
+                });
         }
 
         var user = await _userManager.FindByEmailAsync(email);
         if (user is null)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid verification link",
+                "This verification link is invalid or has expired. Please request a new one.");
         }
 
         var decodedToken = DecodeToken(request.Token);
         if (decodedToken is null)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid verification link",
+                "This verification link is invalid or has expired. Please request a new one.");
         }
 
         var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
         if (!result.Succeeded)
         {
-            return BadRequest(new AuthResponse(false, null, "Neplatný nebo expirovaný token."));
+            return BuildAuthProblem(
+                StatusCodes.Status400BadRequest,
+                "Invalid verification link",
+                "This verification link is invalid or has expired. Please request a new one.");
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -590,9 +779,38 @@ public class AuthController : ControllerBase
             Response.Headers.RetryAfter = retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
         }
 
-        return StatusCode(
+        return BuildAuthProblem(
             StatusCodes.Status429TooManyRequests,
-            new AuthResponse(false, null, "Příliš mnoho pokusů. Zkuste to prosím později."));
+            "Too many attempts",
+            "Too many attempts. Please try again later.");
+    }
+
+    private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = title,
+            Detail = detail
+        }.ApplyDefaults(HttpContext);
+
+        return StatusCode(statusCode, problem);
+    }
+
+    private IActionResult BuildValidationProblem(string title, Dictionary<string, string[]> errors)
+    {
+        var filtered = errors
+            .Where(entry => entry.Value is { Length: > 0 })
+            .ToDictionary(entry => entry.Key, entry => entry.Value);
+
+        var details = new ValidationProblemDetails(filtered)
+        {
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Title = title,
+            Detail = ProblemDetailsDefaults.GetDefaultDetail(StatusCodes.Status422UnprocessableEntity)
+        }.ApplyDefaults(HttpContext);
+
+        return UnprocessableEntity(details);
     }
 
     private AuthResponse BuildRegistrationResponse(string? returnUrl)

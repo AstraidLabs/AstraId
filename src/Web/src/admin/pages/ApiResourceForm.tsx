@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminApiResourceDetail } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
@@ -38,6 +38,9 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
     {}
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
 
   useEffect(() => {
     if (mode !== "edit" || !resourceId) {
@@ -88,6 +91,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
     }
     setErrors(nextErrors);
     setFormError(null);
+    setFormDiagnostics(undefined);
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
@@ -122,7 +126,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
       });
       pushToast({ message: "API resource updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setErrors({
           name: parsed.fieldErrors.name?.[0],
@@ -130,9 +134,11 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
           baseUrl: parsed.fieldErrors.baseUrl?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save API resource.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to save API resource.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -192,7 +198,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
         </div>
       )}
 
-      <FormError message={formError} />
+      <FormError message={formError} diagnostics={formDiagnostics} />
 
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field

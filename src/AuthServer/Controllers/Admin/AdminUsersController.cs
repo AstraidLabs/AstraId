@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -49,7 +51,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var roles = await _userService.GetUserRolesAsync(user);
@@ -73,7 +75,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var roles = await _userService.GetUserRolesAsync(user);
@@ -108,7 +110,7 @@ public sealed class AdminUsersController : ControllerBase
 
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid user data."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid user data.").ApplyDefaults(HttpContext));
         }
 
         try
@@ -134,7 +136,7 @@ public sealed class AdminUsersController : ControllerBase
         catch (InvalidOperationException ex)
         {
             validation.AddGeneralError(ex.Message);
-            return ValidationProblem(validation.ToProblemDetails("User creation failed."));
+            return ValidationProblem(validation.ToProblemDetails("User creation failed.").ApplyDefaults(HttpContext));
         }
     }
 
@@ -147,13 +149,13 @@ public sealed class AdminUsersController : ControllerBase
         var validation = AdminValidation.ValidateEmail(request.Email);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid user data."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid user data.").ApplyDefaults(HttpContext));
         }
 
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var result = await _userService.UpdateUserAsync(user, request, cancellationToken);
@@ -163,7 +165,7 @@ public sealed class AdminUsersController : ControllerBase
             {
                 validation.AddGeneralError(error.Description);
             }
-            return ValidationProblem(validation.ToProblemDetails("Failed to update user."));
+            return ValidationProblem(validation.ToProblemDetails("Failed to update user.").ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -175,7 +177,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var result = await _userService.DeactivateUserAsync(user, cancellationToken);
@@ -184,8 +186,9 @@ public sealed class AdminUsersController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails
             {
                 Title = "Failed to deactivate user.",
-                Detail = string.Join("; ", result.Errors.Select(error => error.Description))
-            });
+                Detail = string.Join("; ", result.Errors.Select(error => error.Description)),
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -200,7 +203,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var validation = new AdminValidationResult();
@@ -235,7 +238,7 @@ public sealed class AdminUsersController : ControllerBase
 
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid role assignment."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid role assignment.").ApplyDefaults(HttpContext));
         }
 
         var result = await _userService.SetUserRolesAsync(user, desiredRoles);
@@ -245,7 +248,7 @@ public sealed class AdminUsersController : ControllerBase
             {
                 validation.AddGeneralError(error.Description);
             }
-            return ValidationProblem(validation.ToProblemDetails("Failed to update user roles."));
+            return ValidationProblem(validation.ToProblemDetails("Failed to update user roles.").ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -260,7 +263,7 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var actorId = GetActorUserId();
@@ -268,7 +271,7 @@ public sealed class AdminUsersController : ControllerBase
         {
             var validation = new AdminValidationResult();
             validation.AddGeneralError("You cannot lock your own account.");
-            return ValidationProblem(validation.ToProblemDetails("Invalid lock request."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid lock request.").ApplyDefaults(HttpContext));
         }
 
         await _userService.SetLockoutAsync(user, request.Locked, cancellationToken);
@@ -284,14 +287,14 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var validation = new AdminValidationResult();
         if (string.IsNullOrWhiteSpace(request.NewPassword))
         {
             validation.AddFieldError("newPassword", "New password is required.");
-            return ValidationProblem(validation.ToProblemDetails("Invalid password."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid password.").ApplyDefaults(HttpContext));
         }
 
         foreach (var validator in _userManager.PasswordValidators)
@@ -308,7 +311,7 @@ public sealed class AdminUsersController : ControllerBase
 
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid password."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid password.").ApplyDefaults(HttpContext));
         }
 
         var result = await _userService.ResetPasswordAsync(user, request.NewPassword);
@@ -318,7 +321,7 @@ public sealed class AdminUsersController : ControllerBase
             {
                 validation.AddGeneralError(error.Description);
             }
-            return ValidationProblem(validation.ToProblemDetails("Failed to reset password."));
+            return ValidationProblem(validation.ToProblemDetails("Failed to reset password.").ApplyDefaults(HttpContext));
         }
 
         return NoContent();
@@ -330,26 +333,26 @@ public sealed class AdminUsersController : ControllerBase
         var user = await _userService.GetUserAsync(id, cancellationToken);
         if (user is null)
         {
-            return NotFound(new ProblemDetails { Title = "User not found." });
+            return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         }
 
         var validation = new AdminValidationResult();
         if (string.IsNullOrWhiteSpace(user.Email))
         {
             validation.AddFieldError("email", "User must have an email to resend activation.");
-            return ValidationProblem(validation.ToProblemDetails("Activation is not available."));
+            return ValidationProblem(validation.ToProblemDetails("Activation is not available.").ApplyDefaults(HttpContext));
         }
 
         if (user.EmailConfirmed)
         {
             validation.AddGeneralError("User email is already confirmed.");
-            return ValidationProblem(validation.ToProblemDetails("Activation is not available."));
+            return ValidationProblem(validation.ToProblemDetails("Activation is not available.").ApplyDefaults(HttpContext));
         }
 
         if (!user.IsActive)
         {
             validation.AddGeneralError("User is deactivated. Reactivate the account before resending activation.");
-            return ValidationProblem(validation.ToProblemDetails("Activation is not available."));
+            return ValidationProblem(validation.ToProblemDetails("Activation is not available.").ApplyDefaults(HttpContext));
         }
 
         var result = await _userService.ResendActivationAsync(user, cancellationToken);
@@ -359,7 +362,7 @@ public sealed class AdminUsersController : ControllerBase
             {
                 validation.AddGeneralError(error.Description);
             }
-            return ValidationProblem(validation.ToProblemDetails("Activation email could not be sent."));
+            return ValidationProblem(validation.ToProblemDetails("Activation email could not be sent.").ApplyDefaults(HttpContext));
         }
 
         return NoContent();

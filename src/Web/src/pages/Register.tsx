@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
+import DiagnosticsPanel from "../components/DiagnosticsPanel";
+import FieldError from "../components/FieldError";
 import { register, resolveReturnUrl } from "../api/authServer";
+import { AppError, type FieldErrors } from "../api/errors";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -11,12 +14,14 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
+    setError(null);
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
@@ -34,9 +39,13 @@ const Register = () => {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Nepodařilo se zaregistrovat."
-      );
+      if (err && typeof err === "object" && "status" in err) {
+        const appError = err as AppError;
+        setError(appError);
+        setFieldErrors(appError.fieldErrors ?? {});
+      } else {
+        setError(new AppError({ status: 500, detail: "Unable to register." }));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -44,11 +53,21 @@ const Register = () => {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Registrace" description="Vytvořte nový účet.">
+      <Card title="Register" description="Create a new account.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          {error ? <Alert variant="error">{error}</Alert> : null}
+          {error ? (
+            <div className="flex flex-col gap-3">
+              <Alert variant="error">{error.detail ?? error.message}</Alert>
+              <DiagnosticsPanel
+                traceId={error.traceId}
+                errorId={error.errorId}
+                debug={error.debug}
+                compact
+              />
+            </div>
+          ) : null}
           <label className="text-sm text-slate-200">
-            E-mail
+            Email
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="email"
@@ -57,9 +76,10 @@ const Register = () => {
               autoComplete="email"
               required
             />
+            <FieldError message={fieldErrors.email?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            Heslo
+            Password
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -68,9 +88,10 @@ const Register = () => {
               autoComplete="new-password"
               required
             />
+            <FieldError message={fieldErrors.password?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            Potvrzení hesla
+            Confirm password
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -79,18 +100,19 @@ const Register = () => {
               autoComplete="new-password"
               required
             />
+            <FieldError message={fieldErrors.confirmPassword?.[0]} />
           </label>
           <button
             type="submit"
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Registrujeme..." : "Zaregistrovat"}
+            {isSubmitting ? "Registering..." : "Register"}
           </button>
           <div className="text-xs text-slate-400">
-            Už máte účet?{" "}
+            Already have an account?{" "}
             <Link className="hover:text-slate-200" to="/login">
-              Přihlásit se
+              Sign in
             </Link>
           </div>
         </form>

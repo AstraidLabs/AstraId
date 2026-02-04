@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminApiEndpointListItem, AdminPermissionItem } from "../api/types";
 import { FormError, HelpIcon } from "../components/Field";
 import { pushToast } from "../components/toast";
@@ -19,6 +19,9 @@ export default function ApiResourceEndpoints() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
 
   useEffect(() => {
     if (!id) {
@@ -91,6 +94,7 @@ export default function ApiResourceEndpoints() {
     }
     setSaving(true);
     setFormError(null);
+    setFormDiagnostics(undefined);
     try {
       await apiRequest(
         `/admin/api/api-resources/${id}/endpoints/${editor.endpoint.id}/permissions`,
@@ -116,12 +120,14 @@ export default function ApiResourceEndpoints() {
       );
       setEditor(null);
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setFormError(parsed.generalError ?? "Unable to update endpoint permissions.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to update endpoint permissions.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -223,7 +229,7 @@ export default function ApiResourceEndpoints() {
               <p className="mb-3 text-xs text-slate-400">
                 Choose permissions required for this endpoint. You can leave it empty for public access.
               </p>
-              <FormError message={formError} />
+              <FormError message={formError} diagnostics={formDiagnostics} />
               {groupedPermissions.map(([group, items]) => (
                 <div key={group} className="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">

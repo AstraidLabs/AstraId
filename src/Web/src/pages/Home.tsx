@@ -28,7 +28,7 @@ const Home = () => {
       navigate("/", { replace: true });
     } catch (err) {
       setLogoutError(
-        err instanceof Error ? err.message : "Nepodařilo se odhlásit."
+        err instanceof Error ? err.message : "Unable to sign out."
       );
     }
   };
@@ -37,22 +37,22 @@ const Home = () => {
     <div className="flex flex-col gap-6">
       <Card
         title="Public UI"
-        description="Veřejné přihlašovací rozhraní pro uživatele."
+        description="Public sign-in interface for users."
       >
         <div className="flex flex-col gap-3 text-sm text-slate-300">
           {isLoading ? (
-            <Alert variant="info">Načítání session...</Alert>
+            <Alert variant="info">Loading session...</Alert>
           ) : error ? (
             <Alert variant="warning">{error}</Alert>
           ) : session && session.isAuthenticated ? (
             <>
               <p className="text-base font-semibold text-white">
-                Úspěšně přihlášen/a, zatím tu nic není.
+                You are signed in. Nothing else to show here yet.
               </p>
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Uživatel</p>
+                <p className="text-sm text-slate-400">User</p>
                 <p className="text-sm text-white">
-                  {session.userName ?? session.email ?? "Neznámý uživatel"}
+                  {session.userName ?? session.email ?? "Unknown user"}
                 </p>
                 {session.userId ? (
                   <>
@@ -62,13 +62,13 @@ const Home = () => {
                 ) : null}
                 {session.email ? (
                   <>
-                    <p className="mt-3 text-sm text-slate-400">E-mail</p>
+                    <p className="mt-3 text-sm text-slate-400">Email</p>
                     <p className="text-sm text-slate-200">{session.email}</p>
                   </>
                 ) : null}
                 {session.roles.length ? (
                   <>
-                    <p className="mt-3 text-sm text-slate-400">Role</p>
+                    <p className="mt-3 text-sm text-slate-400">Roles</p>
                     <p className="text-xs text-slate-300">
                       {session.roles.join(", ")}
                     </p>
@@ -76,7 +76,7 @@ const Home = () => {
                 ) : null}
                 {session.permissions.length ? (
                   <>
-                    <p className="mt-3 text-sm text-slate-400">Oprávnění</p>
+                    <p className="mt-3 text-sm text-slate-400">Permissions</p>
                     <p className="text-xs text-slate-300">
                       {session.permissions.join(", ")}
                     </p>
@@ -105,19 +105,19 @@ const Home = () => {
             </>
           ) : (
             <>
-              <p>Nejste přihlášeni. Pokračujte přihlášením nebo registrací.</p>
+              <p>You are not signed in. Continue by signing in or registering.</p>
               <div className="flex flex-wrap gap-3">
                 <Link
                   className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
                   to="/login"
                 >
-                  Přihlásit se
+                  Sign in
                 </Link>
                 <Link
                   className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
                   to="/register"
                 >
-                  Registrovat
+                  Register
                 </Link>
               </div>
             </>

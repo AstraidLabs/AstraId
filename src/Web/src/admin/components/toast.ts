@@ -1,8 +1,11 @@
 export type ToastTone = "error" | "success" | "info";
 
+import type { DiagnosticsInfo } from "../../api/errors";
+
 export type ToastPayload = {
   message: string;
   tone?: ToastTone;
+  diagnostics?: DiagnosticsInfo;
 };
 
 const toastTarget = new EventTarget();
