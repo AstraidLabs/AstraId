@@ -4,6 +4,70 @@ AstraId je demonstrační řešení OAuth2/OIDC postavené na OpenIddict + ASP.N
 
 ---
 
+## Proč AstraId (k čemu je)
+
+AstraId slouží jako **centrální Identity + OIDC provider** pro více aplikací (SPA, API, serverové aplikace) v rámci jednoho issueru. V praxi přináší jednotné přihlášení (SSO v rámci stejného issueru/originu), jednotné tokeny/claims a centralizovanou správu klientů, scopes/resources, uživatelů, rolí a permissions přes AuthServer + admin UI/API. Aktuálně podporované OIDC endpointy jsou `/.well-known/openid-configuration`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation` a vlastní auth API `/auth/*` (login/registrace/aktivace/reset/session).
+
+### Výhody
+
+**Technické**
+- OIDC/OAuth2 standard s **Authorization Code + PKCE** (server povoluje pouze authorization_code + refresh_token).
+- Centralizovaný issuer (`AuthServer:Issuer`) a jednotná validace tokenů v API přes `AddCompanyAuth` (OpenIddict Validation).
+- Permission‑based autorizace přes claim `permission` a policy (např. `system.admin`) napříč službami.
+- Admin audit log změn (admin API `/admin/api/audit`).
+- Automatické migrace + seedování scopes/clients/permissions/admin účtu při startu AuthServeru (AuthBootstrapHostedService + AuthServerDefinitions).
+
+**Praktické / uživatelské**
+- Jeden účet pro více aplikací a jednotné přihlášení přes `/connect/authorize` + společný issuer.
+- Konzistentní login/register/recovery UX přes `/auth/*` + UI režim `Separate/Hosted` (UiMode + UiBaseUrl).
+- Centralizovaná správa přístupů (role/permissions) bez zásahů do každé aplikace – permission claimy se vystavují do tokenu i session odpovědi.
+
+**Byznysové**
+- Rychlejší onboarding nové aplikace: přidáte klienta, scopes a redirect URI v admin UI/API a použijete jednotný issuer/scopes/audience v klientovi + API.
+- Jednotné řízení přístupů a compliance (centralizované audit logy admin změn).
+- Nižší náklady na údržbu auth logiky v každé aplikaci díky sdíleným helperům a jednotnému standardu.
+
+### Kdy AstraId použít
+- Máte více aplikací (SPA, API, admin portály), které musí sdílet identitu a jednotné tokeny/claims.
+- Přístupy/role/permissions se často mění a potřebujete je řídit centrálně přes admin UI/API.
+- Chcete konzistentní OIDC flow (Authorization Code + PKCE) napříč klienty.
+
+### Limity a co to není
+- **Grant types**: server povoluje pouze `authorization_code` a `refresh_token` (žádný `client_credentials`, `password`, `implicit`).
+- **Externí identity/federace**: aktuálně v repu nevidím integraci s Google/Microsoft nebo jinými IdP (žádné externí sign-in provider konfigurace v AuthServer).
+- **Multi‑tenant model**: existuje claim `tenant`, ale v kódu nevidím skutečný tenant model ani tenant‑aware autorizaci (aktuálně je to limit).
+- **Key management**: v dev se používají development certifikáty; v produkci musíte dodat signing/encryption certy – UI pro rotaci signing keys aktuálně nevidím.
+- **SSO jen v rámci stejného issueru/originu** (cookie‑based session); cross‑domain SSO bez sdíleného issueru zde není řešené. Cookie je `SameSite=None; Secure` a vyžaduje HTTPS + správné CORS/credentials nastavení.
+- **SPOF riziko**: AuthServer je centrální bod, bez HA/monitoringu je výpadek kritický (potřeba řešit dostupnost v nasazení).
+
+### Jak musí být aplikace připravena (checklist)
+
+**1) SPA klient (React/Vite)**
+- ✅ Umí Authorization Code + PKCE (react-oidc-context / oidc-client-ts).
+- ✅ Nastaví `redirect_uri` a `post_logout_redirect_uri` (např. `http://localhost:5173/auth/callback`).
+- ✅ Pracuje se scopes `openid profile email offline_access api` (nebo dle adminu).
+- ✅ Pro cookie‑based session volá `/auth/session` s `credentials: "include"` (SSO v rámci issueru).
+- ✅ Token ukládá bezpečně (aktuálně Web používá `sessionStorage`).
+
+**2) Backend API**
+- ✅ Validuje JWT proti issueru pomocí OpenIddict Validation (`AddCompanyAuth`).
+- ✅ Nastaví audience (v repo default `api`).
+- ✅ Vynucuje policies s permission claimem `permission` (např. `system.admin`).
+- ✅ Swagger OAuth2 nastavený na Authorization Code + PKCE (pokud používáte Swagger UI).
+
+**3) Server aplikace (confidential client)**
+- ✅ Pokud chcete confidential klienta, musí mít `client_secret` (spravuje admin UI/API).
+- ✅ Secret drží bezpečně (user-secrets/KeyVault/env) – v repo není automatizované uložení secretů.
+- ⚠️ Pozn.: server aktuálně nepovoluje `client_credentials`, takže typické M2M scénáře je potřeba řešit jinak nebo rozšířit konfiguraci serveru.
+
+### Typický integrační postup
+1) **V admin UI/API vytvořit API resource** (`/admin/api/api-resources`).
+2) **V admin UI/API vytvořit scopes** a přiřadit je resource (`/admin/api/oidc/scopes`, `/admin/api/oidc/resources`).
+3) **V admin UI/API vytvořit clienta** (public/confidential), nastavit grant types, redirect URI a scopes (`/admin/api/clients`).
+4) **V klientovi nastavit** `authority/issuer`, `client_id`, `redirect_uri`, `scopes` (SPA: Authorization Code + PKCE).
+5) **V API nastavit** issuer/audience a permission policies (`AddCompanyAuth`, `RequirePermission`).
+6) **Ověřit flow**: `/connect/authorize` → `/connect/token` → volání API s bearer tokenem → `/connect/userinfo`.
+
 ## 📁 Struktura repozitáře
 
 - `src/AuthServer` – OpenIddict autorizační server s Identity, admin API a hostováním admin UI (pokud je build k dispozici).
