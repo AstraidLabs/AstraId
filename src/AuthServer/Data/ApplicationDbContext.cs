@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ClientState> ClientStates => Set<ClientState>();
     public DbSet<OidcResource> OidcResources => Set<OidcResource>();
+    public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -99,6 +100,22 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(resource => resource.IsActive);
             entity.Property(resource => resource.CreatedUtc);
             entity.Property(resource => resource.UpdatedUtc);
+        });
+
+        builder.Entity<ErrorLog>(entity =>
+        {
+            entity.HasKey(error => error.Id);
+            entity.HasIndex(error => error.TimestampUtc);
+            entity.HasIndex(error => error.TraceId);
+            entity.Property(error => error.TraceId).HasMaxLength(128);
+            entity.Property(error => error.Path).HasMaxLength(2048);
+            entity.Property(error => error.Method).HasMaxLength(32);
+            entity.Property(error => error.Title).HasMaxLength(200);
+            entity.Property(error => error.Detail).HasMaxLength(2000);
+            entity.Property(error => error.ExceptionType).HasMaxLength(500);
+            entity.Property(error => error.InnerException).HasMaxLength(2000);
+            entity.Property(error => error.UserAgent).HasMaxLength(500);
+            entity.Property(error => error.RemoteIp).HasMaxLength(64);
         });
     }
 }

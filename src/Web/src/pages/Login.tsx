@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
+import DiagnosticsPanel from "../components/DiagnosticsPanel";
+import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
+import { AppError, type FieldErrors } from "../api/errors";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -10,12 +13,14 @@ const Login = () => {
   const returnUrl = params.get("returnUrl");
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
+    setError(null);
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
@@ -28,7 +33,7 @@ const Login = () => {
       if (response.requiresTwoFactor) {
         const token = response.mfaToken;
         if (!token) {
-          throw new Error("Chybí MFA token. Zkuste to prosím znovu.");
+          throw new Error("Missing MFA token. Please try again.");
         }
         const params = new URLSearchParams();
         params.set("token", token);
@@ -48,9 +53,13 @@ const Login = () => {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Nepodařilo se přihlásit."
-      );
+      if (err && typeof err === "object" && "status" in err) {
+        const appError = err as AppError;
+        setError(appError);
+        setFieldErrors(appError.fieldErrors ?? {});
+      } else {
+        setError(new AppError({ status: 500, detail: "Unable to sign in." }));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -58,11 +67,21 @@ const Login = () => {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Přihlášení" description="Použijte účet z AuthServeru.">
+      <Card title="Sign in" description="Use your AuthServer credentials.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          {error ? <Alert variant="error">{error}</Alert> : null}
+          {error ? (
+            <div className="flex flex-col gap-3">
+              <Alert variant="error">{error.detail ?? error.message}</Alert>
+              <DiagnosticsPanel
+                traceId={error.traceId}
+                errorId={error.errorId}
+                debug={error.debug}
+                compact
+              />
+            </div>
+          ) : null}
           <label className="text-sm text-slate-200">
-            E-mail nebo uživatelské jméno
+            Email or username
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="text"
@@ -71,9 +90,10 @@ const Login = () => {
               autoComplete="username"
               required
             />
+            <FieldError message={fieldErrors.emailOrUsername?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            Heslo
+            Password
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -82,17 +102,18 @@ const Login = () => {
               autoComplete="current-password"
               required
             />
+            <FieldError message={fieldErrors.password?.[0]} />
           </label>
           <button
             type="submit"
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Přihlašování..." : "Přihlásit"}
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
           <div className="flex flex-wrap gap-3 text-xs text-slate-400">
             <Link className="hover:text-slate-200" to="/forgot-password">
-              Zapomenuté heslo
+              Forgot password
             </Link>
           </div>
         </form>

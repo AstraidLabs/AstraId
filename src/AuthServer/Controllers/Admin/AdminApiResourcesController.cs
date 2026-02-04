@@ -1,7 +1,9 @@
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -85,8 +87,9 @@ public sealed class AdminApiResourcesController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid API resource.",
-                Detail = "Name and display name are required."
-            });
+                Detail = "Name and display name are required.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         if (await _dbContext.ApiResources.AnyAsync(resource => resource.Name == name, cancellationToken))
@@ -97,8 +100,9 @@ public sealed class AdminApiResourcesController : ControllerBase
             })
             {
                 Title = "API resource already exists.",
-                Detail = $"API resource '{name}' already exists."
-            });
+                Detail = $"API resource '{name}' already exists.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         var resource = new ApiResource
@@ -154,8 +158,9 @@ public sealed class AdminApiResourcesController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails(errors)
             {
                 Title = "Invalid API resource.",
-                Detail = "Name and display name are required."
-            });
+                Detail = "Name and display name are required.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         if (!string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase)
@@ -167,8 +172,9 @@ public sealed class AdminApiResourcesController : ControllerBase
             })
             {
                 Title = "API resource already exists.",
-                Detail = $"API resource '{name}' already exists."
-            });
+                Detail = $"API resource '{name}' already exists.",
+                Status = StatusCodes.Status422UnprocessableEntity
+            }.ApplyDefaults(HttpContext));
         }
 
         resource.Name = name;
@@ -265,8 +271,9 @@ public sealed class AdminApiResourcesController : ControllerBase
                 })
                 {
                     Title = "Invalid endpoint permissions.",
-                    Detail = "One or more permissions are invalid."
-                });
+                    Detail = "One or more permissions are invalid.",
+                    Status = StatusCodes.Status422UnprocessableEntity
+                }.ApplyDefaults(HttpContext));
             }
         }
 

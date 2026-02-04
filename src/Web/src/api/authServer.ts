@@ -1,3 +1,5 @@
+import { parseErrorResponse } from "./errors";
+
 export const AUTH_SERVER_BASE_URL =
   import.meta.env.VITE_AUTHSERVER_BASE_URL ?? "https://localhost:7001";
 
@@ -10,6 +12,7 @@ export type AuthResponse = {
   success: boolean;
   redirectTo?: string | null;
   error?: string | null;
+  message?: string | null;
 };
 
 export type LoginResponse = AuthResponse & {
@@ -43,19 +46,7 @@ export const authFetch = async <T>(
   });
 
   if (!response.ok) {
-    let details: unknown;
-    try {
-      details = await response.json();
-    } catch {
-      details = await response.text();
-    }
-
-    const message =
-      typeof details === "object" && details && "error" in details
-        ? String((details as { error?: string }).error ?? "Neznámá chyba.")
-        : "Neznámá chyba.";
-
-    throw new Error(message);
+    throw await parseErrorResponse(response);
   }
 
   if (response.status === 204) {

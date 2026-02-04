@@ -1,3 +1,5 @@
+using AuthServer.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Validation;
@@ -43,7 +45,8 @@ public sealed class AdminValidationResult
         var details = new ValidationProblemDetails(errors)
         {
             Title = title,
-            Detail = detail ?? BuildDetail()
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Detail = detail ?? ProblemDetailsDefaults.GetDefaultDetail(StatusCodes.Status422UnprocessableEntity) ?? BuildDetail()
         };
 
         if (_generalErrors.Count > 0)

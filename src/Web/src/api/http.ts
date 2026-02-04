@@ -4,17 +4,8 @@ export const API_BASE_URL =
 const normalizePath = (path: string) =>
   path.startsWith("http") ? path : `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 
-export class ApiError extends Error {
-  status: number;
-  details?: unknown;
-
-  constructor(message: string, status: number, details?: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.details = details;
-  }
-}
+import { AppError, parseErrorResponse } from "./errors";
+export { AppError } from "./errors";
 
 export type ApiFetchOptions = RequestInit & {
   token?: string;
@@ -35,21 +26,7 @@ export const apiFetch = async <T>(
   });
 
   if (!response.ok) {
-    let details: unknown;
-    try {
-      details = await response.json();
-    } catch {
-      details = await response.text();
-    }
-
-    const message =
-      response.status === 401
-        ? "Nejste přihlášeni."
-        : response.status === 403
-          ? "Nemáte oprávnění na tuto akci."
-          : `API chyba (${response.status}).`;
-
-    throw new ApiError(message, response.status, details);
+    throw await parseErrorResponse(response);
   }
 
   if (response.status === 204) {

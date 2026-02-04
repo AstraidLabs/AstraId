@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminOidcResourceDetail } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
@@ -34,6 +34,9 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
   const [form, setForm] = useState<FormState>(defaultState);
   const [errors, setErrors] = useState<{ name?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -79,6 +82,7 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
     }
     setErrors({});
     setFormError(null);
+    setFormDiagnostics(undefined);
     setSaving(true);
     try {
       const payload = {
@@ -110,15 +114,17 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
       });
       pushToast({ message: "Resource updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setErrors({
           name: parsed.fieldErrors.name?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save resource.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to save resource.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -141,7 +147,7 @@ export default function OidcResourceForm({ mode, resourceId }: Props) {
         <p className="text-sm text-slate-300">Resources are used as scope targets in OpenIddict.</p>
       </div>
 
-      <FormError message={formError} />
+      <FormError message={formError} diagnostics={formDiagnostics} />
 
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field

@@ -1,5 +1,6 @@
 using AuthServer.Data;
 using AuthServer.Models;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Mvc;
@@ -45,7 +46,7 @@ public class ApiManagementController : ControllerBase
         var validation = AdminValidation.ValidateEndpointSync(endpoints);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails("Invalid endpoint payload."));
+            return ValidationProblem(validation.ToProblemDetails("Invalid endpoint payload.").ApplyDefaults(HttpContext));
         }
 
         var result = await _endpointService.SyncEndpointsAsync(apiResource, endpoints, cancellationToken);

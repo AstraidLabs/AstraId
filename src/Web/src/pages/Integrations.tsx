@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "react-oidc-context";
 import Card from "../components/Card";
 import Alert from "../components/Alert";
-import { ApiError } from "../api/http";
+import { AppError } from "../api/http";
 import {
   getAuthServerIntegrationPing,
   getCmsIntegrationPing
@@ -27,10 +27,10 @@ const Integrations = () => {
       const data = await action();
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
+      if (err instanceof AppError) {
+        setError(err.detail ?? err.message);
       } else {
-        setError("Integrace nejsou dostupné.");
+        setError("Integrations are unavailable.");
       }
     } finally {
       setLoading(false);
@@ -40,17 +40,17 @@ const Integrations = () => {
   return (
     <div className="flex flex-col gap-6">
       <Card
-        title="Integrace"
-        description="Kontrola dostupnosti napojených služeb."
+        title="Integrations"
+        description="Check the availability of connected services."
       >
         {!auth.isAuthenticated ? (
           <Alert variant="warning">
-            Přihlaste se pro kontrolu integrací.
+            Sign in to check integrations.
           </Alert>
         ) : null}
         {auth.isAuthenticated && !hasPermission("system.admin") ? (
           <Alert variant="error">
-            Integrace jsou dostupné pouze s oprávněním system.admin.
+            Integrations require the system.admin permission.
           </Alert>
         ) : null}
 
@@ -61,7 +61,7 @@ const Integrations = () => {
               onClick={() =>
                 token
                   ? runCheck(() => getAuthServerIntegrationPing(token))
-                  : setError("Chybí access token.")
+                  : setError("Missing access token.")
               }
               disabled={loading}
             >
@@ -72,7 +72,7 @@ const Integrations = () => {
               onClick={() =>
                 token
                   ? runCheck(() => getCmsIntegrationPing(token))
-                  : setError("Chybí access token.")
+                  : setError("Missing access token.")
               }
               disabled={loading}
             >

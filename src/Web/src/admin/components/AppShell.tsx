@@ -76,6 +76,10 @@ export default function AppShell({ children }: Props) {
               title="Audit"
               items={[{ to: toAdminRoute("/audit"), label: "Audit log" }]}
             />
+            <NavSection
+              title="Diagnostics"
+              items={[{ to: toAdminRoute("/diagnostics/errors"), label: "Errors" }]}
+            />
           </nav>
         </aside>
         <div className="flex min-h-screen flex-1 flex-col">

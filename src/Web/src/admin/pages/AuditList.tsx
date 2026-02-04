@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminAuditListItem, PagedResult } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import { validateAuditDateRange } from "../validation/adminValidation";
@@ -14,6 +14,9 @@ export default function AuditList() {
   const [toUtc, setToUtc] = useState("");
   const [filterError, setFilterError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]>(
+    undefined
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [result, setResult] = useState<PagedResult<AdminAuditListItem> | null>(null);
@@ -60,15 +63,18 @@ export default function AuditList() {
         }
         if (isMounted) {
           setFormError(null);
+          setFormDiagnostics(undefined);
         }
       } catch (error) {
-        if (error instanceof ApiError) {
+        if (error instanceof AppError) {
           const parsed = parseProblemDetailsErrors(error);
           if (isMounted) {
             setFormError(parsed.generalError ?? "Unable to load audit entries.");
+            setFormDiagnostics(parsed.diagnostics);
           }
         } else if (isMounted) {
           setFormError("Unable to load audit entries.");
+          setFormDiagnostics(undefined);
         }
       } finally {
         if (isMounted) {
@@ -205,7 +211,7 @@ export default function AuditList() {
           </select>
         </div>
         <div className="md:col-span-2">
-          <FormError message={formError} />
+          <FormError message={formError} diagnostics={formDiagnostics} />
         </div>
       </div>
 

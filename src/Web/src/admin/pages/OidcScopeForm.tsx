@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type {
   AdminOidcResourceListItem,
   AdminOidcScopeDetail,
@@ -41,6 +41,9 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
   const [resources, setResources] = useState<AdminOidcResourceListItem[]>([]);
   const [errors, setErrors] = useState<{ name?: string; resources?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
 
@@ -101,6 +104,7 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
     }
     setErrors({});
     setFormError(null);
+    setFormDiagnostics(undefined);
     setSaving(true);
     try {
       const payload = {
@@ -133,16 +137,18 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
       });
       pushToast({ message: "Scope updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setErrors({
           name: parsed.fieldErrors.name?.[0],
           resources: parsed.fieldErrors.resources?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save scope.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to save scope.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -165,7 +171,7 @@ export default function OidcScopeForm({ mode, scopeId }: Props) {
         <p className="text-sm text-slate-300">Define OpenIddict scopes and their resources.</p>
       </div>
 
-      <FormError message={formError} />
+      <FormError message={formError} diagnostics={formDiagnostics} />
 
       <div className="grid gap-6 rounded-lg border border-slate-800 bg-slate-900/40 p-6 md:grid-cols-2">
         <Field

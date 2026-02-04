@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminRoleListItem, AdminUserDetail } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { Field, FormError, HelpIcon } from "../components/Field";
+import DiagnosticsPanel from "../../components/DiagnosticsPanel";
 import { pushToast } from "../components/toast";
 import { useAuthSession } from "../../auth/useAuthSession";
 import { validateEmail } from "../validation/adminValidation";
@@ -23,6 +24,21 @@ export default function UserDetail() {
   const [lockError, setLockError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
+  const [profileDiagnostics, setProfileDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
+  const [rolesDiagnostics, setRolesDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
+  const [lockDiagnostics, setLockDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
+  const [passwordDiagnostics, setPasswordDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
+  const [activationDiagnostics, setActivationDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -89,6 +105,7 @@ export default function UserDetail() {
       return;
     }
     setRolesError(null);
+    setRolesDiagnostics(undefined);
     setSaving(true);
     try {
       await apiRequest(`/admin/api/users/${id}/roles`, {
@@ -98,12 +115,14 @@ export default function UserDetail() {
       });
       pushToast({ message: "User roles updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setRolesError(parsed.generalError ?? "Unable to update roles.");
+        setRolesDiagnostics(parsed.diagnostics);
         return;
       }
       setRolesError("Unable to update roles.");
+      setRolesDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -120,6 +139,7 @@ export default function UserDetail() {
     }
     setProfileErrors({});
     setProfileError(null);
+    setProfileDiagnostics(undefined);
     setSavingProfile(true);
     try {
       await apiRequest(`/admin/api/users/${id}`, {
@@ -143,13 +163,15 @@ export default function UserDetail() {
       });
       pushToast({ message: "User updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setProfileErrors({ email: parsed.fieldErrors.email?.[0] });
         setProfileError(parsed.generalError ?? "Unable to update user.");
+        setProfileDiagnostics(parsed.diagnostics);
         return;
       }
       setProfileError("Unable to update user.");
+      setProfileDiagnostics(undefined);
     } finally {
       setSavingProfile(false);
     }
@@ -160,6 +182,7 @@ export default function UserDetail() {
       return;
     }
     setLockError(null);
+    setLockDiagnostics(undefined);
     const nextLocked = !user.isLockedOut;
     try {
       await apiRequest(`/admin/api/users/${id}/lock`, {
@@ -173,12 +196,14 @@ export default function UserDetail() {
         tone: "success",
       });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setLockError(parsed.generalError ?? "Unable to update lock status.");
+        setLockDiagnostics(parsed.diagnostics);
         return;
       }
       setLockError("Unable to update lock status.");
+      setLockDiagnostics(undefined);
     }
   };
 
@@ -191,6 +216,7 @@ export default function UserDetail() {
       return;
     }
     setPasswordError(null);
+    setPasswordDiagnostics(undefined);
     try {
       await apiRequest(`/admin/api/users/${id}/reset-password`, {
         method: "POST",
@@ -200,12 +226,14 @@ export default function UserDetail() {
       setNewPassword("");
       pushToast({ message: "Password reset.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setPasswordError(parsed.fieldErrors.newPassword?.[0] ?? parsed.generalError);
+        setPasswordDiagnostics(parsed.diagnostics);
         return;
       }
       setPasswordError("Unable to reset password.");
+      setPasswordDiagnostics(undefined);
     }
   };
 
@@ -215,6 +243,7 @@ export default function UserDetail() {
     }
     setResending(true);
     setActivationError(null);
+    setActivationDiagnostics(undefined);
     try {
       await apiRequest(`/admin/api/users/${id}/resend-activation`, {
         method: "POST",
@@ -222,12 +251,14 @@ export default function UserDetail() {
       });
       pushToast({ message: "Activation email resent.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setActivationError(parsed.generalError ?? "Unable to resend activation email.");
+        setActivationDiagnostics(parsed.diagnostics);
         return;
       }
       setActivationError("Unable to resend activation email.");
+      setActivationDiagnostics(undefined);
     } finally {
       setResending(false);
     }
@@ -391,8 +422,8 @@ export default function UserDetail() {
           <HelpIcon tooltip="Aktivační email obsahuje token pro potvrzení adresy." />
         </div>
         <div className="md:col-span-2">
-          <FormError message={profileError} />
-          <FormError message={activationError} />
+          <FormError message={profileError} diagnostics={profileDiagnostics} />
+          <FormError message={activationError} diagnostics={activationDiagnostics} />
         </div>
       </div>
 
@@ -434,7 +465,7 @@ export default function UserDetail() {
           ))}
         </div>
         <div className="mt-4">
-          <FormError message={rolesError} />
+          <FormError message={rolesError} diagnostics={rolesDiagnostics} />
         </div>
       </div>
 
@@ -460,7 +491,7 @@ export default function UserDetail() {
           {session?.userId === user.id && !user.isLockedOut && (
             <p className="mt-2 text-xs text-rose-300">You cannot lock your own account.</p>
           )}
-          <FormError message={lockError} />
+          <FormError message={lockError} diagnostics={lockDiagnostics} />
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-6">
@@ -477,7 +508,17 @@ export default function UserDetail() {
               onChange={(event) => setNewPassword(event.target.value)}
               placeholder="New password"
             />
-            {passwordError && <p className="text-xs text-rose-300">{passwordError}</p>}
+            {passwordError && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-rose-300">{passwordError}</p>
+                <DiagnosticsPanel
+                  traceId={passwordDiagnostics?.traceId}
+                  errorId={passwordDiagnostics?.errorId}
+                  debug={passwordDiagnostics?.debug}
+                  compact
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={handleResetPassword}

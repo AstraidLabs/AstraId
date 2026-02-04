@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminRoleListItem, AdminRoleUsage } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { Field, FormError } from "../components/Field";
@@ -14,6 +14,9 @@ export default function RolesList() {
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleError, setNewRoleError] = useState<string | null>(null);
   const [newRoleFormError, setNewRoleFormError] = useState<string | null>(null);
+  const [newRoleDiagnostics, setNewRoleDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<AdminRoleListItem | null>(null);
   const [deleteUsage, setDeleteUsage] = useState<AdminRoleUsage | null>(null);
@@ -22,6 +25,9 @@ export default function RolesList() {
   const [editingName, setEditingName] = useState("");
   const [editingError, setEditingError] = useState<string | null>(null);
   const [editingFormError, setEditingFormError] = useState<string | null>(null);
+  const [editingDiagnostics, setEditingDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
 
   const fetchRoles = async () => {
@@ -80,6 +86,7 @@ export default function RolesList() {
     }
     setNewRoleError(null);
     setNewRoleFormError(null);
+    setNewRoleDiagnostics(undefined);
     try {
       await apiRequest("/admin/api/roles", {
         method: "POST",
@@ -90,13 +97,15 @@ export default function RolesList() {
       setNewRoleName("");
       await fetchRoles();
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setNewRoleError(parsed.fieldErrors.name?.[0] ?? null);
         setNewRoleFormError(parsed.generalError ?? "Unable to create role.");
+        setNewRoleDiagnostics(parsed.diagnostics);
         return;
       }
       setNewRoleFormError("Unable to create role.");
+      setNewRoleDiagnostics(undefined);
     }
   };
 
@@ -132,6 +141,7 @@ export default function RolesList() {
     }
     setEditingError(null);
     setEditingFormError(null);
+    setEditingDiagnostics(undefined);
     setSavingRoleId(editingRoleId);
     try {
       await apiRequest(`/admin/api/roles/${editingRoleId}`, {
@@ -147,13 +157,15 @@ export default function RolesList() {
       );
       cancelEditing();
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setEditingError(parsed.fieldErrors.name?.[0] ?? null);
         setEditingFormError(parsed.generalError ?? "Unable to update role.");
+        setEditingDiagnostics(parsed.diagnostics);
         return;
       }
       setEditingFormError("Unable to update role.");
+      setEditingDiagnostics(undefined);
     } finally {
       setSavingRoleId(null);
     }
@@ -198,7 +210,7 @@ export default function RolesList() {
           Create role
         </button>
         <div className="w-full">
-          <FormError message={newRoleFormError} />
+          <FormError message={newRoleFormError} diagnostics={newRoleDiagnostics} />
         </div>
       </form>
 
@@ -246,7 +258,12 @@ export default function RolesList() {
                   {editingRoleId === role.id && editingError && (
                     <div className="mt-1 text-xs text-rose-300">{editingError}</div>
                   )}
-                  {editingRoleId === role.id && <FormError message={editingFormError} />}
+                  {editingRoleId === role.id && (
+                    <FormError
+                      message={editingFormError}
+                      diagnostics={editingDiagnostics}
+                    />
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-300">{role.isSystem ? "Yes" : "No"}</td>
                 <td className="px-4 py-3 text-right">

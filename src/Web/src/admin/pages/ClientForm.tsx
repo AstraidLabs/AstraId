@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ApiError, apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type {
   AdminClientDetail,
   AdminClientSecretResponse,
@@ -71,6 +71,9 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [formDiagnostics, setFormDiagnostics] = useState<
+    ReturnType<typeof parseProblemDetailsErrors>["diagnostics"]
+  >(undefined);
   const [redirectErrors, setRedirectErrors] = useState<RedirectUriError[]>([]);
   const [postLogoutErrors, setPostLogoutErrors] = useState<RedirectUriError[]>([]);
   const [secret, setSecret] = useState<string | null>(() => {
@@ -185,6 +188,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       return;
     }
     setFormError(null);
+    setFormDiagnostics(undefined);
     setSaving(true);
     try {
       const payload = {
@@ -227,7 +231,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       });
       pushToast({ message: "Client updated.", tone: "success" });
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof AppError) {
         const parsed = parseProblemDetailsErrors(error);
         setErrors({
           clientId: parsed.fieldErrors.clientId?.[0],
@@ -238,9 +242,11 @@ export default function ClientForm({ mode, clientId }: Props) {
           scopes: parsed.fieldErrors.scopes?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save client.");
+        setFormDiagnostics(parsed.diagnostics);
         return;
       }
       setFormError("Unable to save client.");
+      setFormDiagnostics(undefined);
     } finally {
       setSaving(false);
     }
@@ -300,7 +306,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       </div>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-        <FormError message={formError} />
+      <FormError message={formError} diagnostics={formDiagnostics} />
         <div className="grid gap-5 md:grid-cols-2">
           <Field
             label="Client ID"

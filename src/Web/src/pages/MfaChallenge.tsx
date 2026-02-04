@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
+import DiagnosticsPanel from "../components/DiagnosticsPanel";
+import FieldError from "../components/FieldError";
 import { loginMfa, resolveReturnUrl } from "../api/authServer";
+import { AppError, type FieldErrors } from "../api/errors";
 
 const MfaChallenge = () => {
   const [params] = useSearchParams();
@@ -12,12 +15,14 @@ const MfaChallenge = () => {
   const [code, setCode] = useState("");
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [rememberMachine, setRememberMachine] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
+    setError(null);
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
@@ -37,11 +42,13 @@ const MfaChallenge = () => {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Nepodařilo se ověřit MFA kód."
-      );
+      if (err && typeof err === "object" && "status" in err) {
+        const appError = err as AppError;
+        setError(appError);
+        setFieldErrors(appError.fieldErrors ?? {});
+      } else {
+        setError(new AppError({ status: 500, detail: "Unable to verify the code." }));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -50,18 +57,28 @@ const MfaChallenge = () => {
   return (
     <div className="mx-auto max-w-md">
       <Card
-        title="Ověření MFA"
-        description="Zadejte kód z authenticator aplikace nebo použijte recovery code."
+        title="Two-factor authentication"
+        description="Enter the code from your authenticator app or use a recovery code."
       >
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          {error ? <Alert variant="error">{error}</Alert> : null}
+          {error ? (
+            <div className="flex flex-col gap-3">
+              <Alert variant="error">{error.detail ?? error.message}</Alert>
+              <DiagnosticsPanel
+                traceId={error.traceId}
+                errorId={error.errorId}
+                debug={error.debug}
+                compact
+              />
+            </div>
+          ) : null}
           {!token ? (
             <Alert variant="error">
-              MFA výzva není dostupná. Přihlaste se prosím znovu.
+              The MFA challenge is no longer available. Please sign in again.
             </Alert>
           ) : null}
           <label className="text-sm text-slate-200">
-            {useRecoveryCode ? "Recovery code" : "Ověřovací kód"}
+            {useRecoveryCode ? "Recovery code" : "Verification code"}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="text"
@@ -70,6 +87,7 @@ const MfaChallenge = () => {
               autoComplete="one-time-code"
               required
             />
+            <FieldError message={fieldErrors.code?.[0]} />
           </label>
           <label className="flex items-center gap-3 text-xs text-slate-400">
             <input
@@ -77,7 +95,7 @@ const MfaChallenge = () => {
               checked={useRecoveryCode}
               onChange={(event) => setUseRecoveryCode(event.target.checked)}
             />
-            Použít recovery code
+            Use a recovery code
           </label>
           {!useRecoveryCode ? (
             <label className="flex items-center gap-3 text-xs text-slate-400">
@@ -86,7 +104,7 @@ const MfaChallenge = () => {
                 checked={rememberMachine}
                 onChange={(event) => setRememberMachine(event.target.checked)}
               />
-              Důvěřovat tomuto zařízení
+              Trust this device
             </label>
           ) : null}
           <button
@@ -94,11 +112,11 @@ const MfaChallenge = () => {
             disabled={isSubmitting || !token}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Ověřuji..." : "Pokračovat"}
+            {isSubmitting ? "Verifying..." : "Continue"}
           </button>
           <div className="text-xs text-slate-400">
             <Link className="hover:text-slate-200" to="/login">
-              Zpět na přihlášení
+              Back to sign in
             </Link>
           </div>
         </form>

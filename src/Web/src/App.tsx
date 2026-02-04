@@ -10,6 +10,9 @@ import ActivateAccount from "./pages/ActivateAccount";
 import AccountSecurity from "./pages/AccountSecurity";
 import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
+import Error403 from "./pages/Error403";
+import Error404 from "./pages/Error404";
+import Error500 from "./pages/Error500";
 import AdminLayout from "./admin/AdminLayout";
 import AdminGuard from "./admin/AdminGuard";
 import Dashboard from "./admin/pages/Dashboard";
@@ -34,6 +37,8 @@ import ApiResourceEndpoints from "./admin/pages/ApiResourceEndpoints";
 import UsersList from "./admin/pages/UsersList";
 import UserDetail from "./admin/pages/UserDetail";
 import AuditList from "./admin/pages/AuditList";
+import DiagnosticsErrorsList from "./admin/pages/DiagnosticsErrorsList";
+import DiagnosticsErrorDetail from "./admin/pages/DiagnosticsErrorDetail";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 
 const PublicLayout = () => (
@@ -61,6 +66,9 @@ const App = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
         <Route path="/account/security" element={<AccountSecurity />} />
+        <Route path="/error/403" element={<Error403 />} />
+        <Route path="/error/404" element={<Error404 />} />
+        <Route path="/error/500" element={<Error500 />} />
         <Route path="*" element={<NotFound />} />
       </Route>
       <Route
@@ -96,6 +104,8 @@ const App = () => {
         <Route path="users" element={<UsersList />} />
         <Route path="users/:id" element={<UserDetail />} />
         <Route path="audit" element={<AuditList />} />
+        <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
+        <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
         <Route
           path="*"
           element={<Navigate to={adminRootPath} replace />}
