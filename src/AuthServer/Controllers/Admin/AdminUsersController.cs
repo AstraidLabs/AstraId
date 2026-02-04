@@ -299,10 +299,10 @@ public sealed class AdminUsersController : ControllerBase
 
         foreach (var validator in _userManager.PasswordValidators)
         {
-            var result = await validator.ValidateAsync(_userManager, user, request.NewPassword);
-            if (!result.Succeeded)
+            var validationResult = await validator.ValidateAsync(_userManager, user, request.NewPassword);
+            if (!validationResult.Succeeded)
             {
-                foreach (var error in result.Errors)
+                foreach (var error in validationResult.Errors)
                 {
                     validation.AddFieldError("newPassword", error.Description);
                 }
