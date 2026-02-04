@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { apiRequest } from "../api/http";
+import { ApiError, apiRequest } from "../api/http";
 import type { AdminApiEndpointListItem, AdminPermissionItem } from "../api/types";
-import { HelpIcon } from "../components/Field";
+import { FormError, HelpIcon } from "../components/Field";
 import { pushToast } from "../components/toast";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type EditorState = {
   endpoint: AdminApiEndpointListItem;
@@ -17,6 +18,7 @@ export default function ApiResourceEndpoints() {
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -88,12 +90,14 @@ export default function ApiResourceEndpoints() {
       return;
     }
     setSaving(true);
+    setFormError(null);
     try {
       await apiRequest(
         `/admin/api/api-resources/${id}/endpoints/${editor.endpoint.id}/permissions`,
         {
           method: "PUT",
           body: JSON.stringify({ permissionIds: Array.from(editor.selected) }),
+          suppressToast: true,
         }
       );
       pushToast({ message: "Endpoint permissions updated.", tone: "success" });
@@ -111,6 +115,13 @@ export default function ApiResourceEndpoints() {
         )
       );
       setEditor(null);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const parsed = parseProblemDetailsErrors(error);
+        setFormError(parsed.generalError ?? "Unable to update endpoint permissions.");
+        return;
+      }
+      setFormError("Unable to update endpoint permissions.");
     } finally {
       setSaving(false);
     }
@@ -125,7 +136,7 @@ export default function ApiResourceEndpoints() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold text-white">API Endpoint Permissions</h1>
-          <HelpIcon tooltip="Vyber permissiony, které musí uživatel mít pro přístup na konkrétní endpoint. Nevybrané endpointy zůstanou veřejné." />
+          <HelpIcon tooltip="Vyber permissiony pro konkrétní endpoint. Kombinace method + path musí být unikátní v rámci API resource. Endpoints se synchronizují z API služby." />
         </div>
         <p className="text-sm text-slate-300">Assign permissions to API endpoints.</p>
       </div>
@@ -212,6 +223,7 @@ export default function ApiResourceEndpoints() {
               <p className="mb-3 text-xs text-slate-400">
                 Choose permissions required for this endpoint. You can leave it empty for public access.
               </p>
+              <FormError message={formError} />
               {groupedPermissions.map(([group, items]) => (
                 <div key={group} className="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">

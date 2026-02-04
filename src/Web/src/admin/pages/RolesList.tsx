@@ -3,13 +3,17 @@ import { Link } from "react-router-dom";
 import { ApiError, apiRequest } from "../api/http";
 import type { AdminRoleListItem, AdminRoleUsage } from "../api/types";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
+import { validateRoleName } from "../validation/adminValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 export default function RolesList() {
   const [roles, setRoles] = useState<AdminRoleListItem[]>([]);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleError, setNewRoleError] = useState<string | null>(null);
+  const [newRoleFormError, setNewRoleFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<AdminRoleListItem | null>(null);
   const [deleteUsage, setDeleteUsage] = useState<AdminRoleUsage | null>(null);
@@ -17,6 +21,7 @@ export default function RolesList() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingError, setEditingError] = useState<string | null>(null);
+  const [editingFormError, setEditingFormError] = useState<string | null>(null);
   const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
 
   const fetchRoles = async () => {
@@ -68,15 +73,17 @@ export default function RolesList() {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!newRoleName.trim()) {
-      setNewRoleError("Role name is required.");
+    const validation = validateRoleName(newRoleName);
+    if (validation.error) {
+      setNewRoleError(validation.error);
       return;
     }
     setNewRoleError(null);
+    setNewRoleFormError(null);
     try {
       await apiRequest("/admin/api/roles", {
         method: "POST",
-        body: JSON.stringify({ name: newRoleName.trim() }),
+        body: JSON.stringify({ name: validation.value }),
         suppressToast: true,
       });
       pushToast({ message: "Role created.", tone: "success" });
@@ -84,14 +91,12 @@ export default function RolesList() {
       await fetchRoles();
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors?.name?.[0]) {
-          setNewRoleError(error.fieldErrors.name[0]);
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setNewRoleError(parsed.fieldErrors.name?.[0] ?? null);
+        setNewRoleFormError(parsed.generalError ?? "Unable to create role.");
         return;
       }
-      pushToast({ message: "Unable to create role.", tone: "error" });
+      setNewRoleFormError("Unable to create role.");
     }
   };
 
@@ -117,34 +122,38 @@ export default function RolesList() {
   };
 
   const saveEditing = async () => {
-    if (!editingRoleId || !editingName.trim()) {
-      setEditingError("Role name is required.");
+    if (!editingRoleId) {
       return;
     }
+    const validation = validateRoleName(editingName);
+    if (validation.error) {
+      setEditingError(validation.error);
+      return;
+    }
+    setEditingError(null);
+    setEditingFormError(null);
     setSavingRoleId(editingRoleId);
     try {
       await apiRequest(`/admin/api/roles/${editingRoleId}`, {
         method: "PUT",
-        body: JSON.stringify({ name: editingName.trim() }),
+        body: JSON.stringify({ name: validation.value }),
         suppressToast: true,
       });
       pushToast({ message: "Role updated.", tone: "success" });
       setRoles((current) =>
         current.map((role) =>
-          role.id === editingRoleId ? { ...role, name: editingName.trim() } : role
+          role.id === editingRoleId ? { ...role, name: validation.value } : role
         )
       );
       cancelEditing();
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors?.name?.[0]) {
-          setEditingError(error.fieldErrors.name[0]);
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setEditingError(parsed.fieldErrors.name?.[0] ?? null);
+        setEditingFormError(parsed.generalError ?? "Unable to update role.");
         return;
       }
-      pushToast({ message: "Unable to update role.", tone: "error" });
+      setEditingFormError("Unable to update role.");
     } finally {
       setSavingRoleId(null);
     }
@@ -159,24 +168,28 @@ export default function RolesList() {
 
       <form
         onSubmit={handleCreate}
-        className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4"
+        className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4"
       >
-        <div className="flex w-full max-w-sm flex-col gap-2">
-          <input
-            className={`w-full rounded-md border bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 ${
-              newRoleError ? "border-rose-400" : "border-slate-700"
-            }`}
-            placeholder="New role name (e.g. AdminOps)"
-            value={newRoleName}
-            onChange={(event) => setNewRoleName(event.target.value)}
-            onBlur={() =>
-              setNewRoleError(newRoleName.trim() ? null : "Role name is required.")
-            }
-          />
-          <p className="text-xs text-slate-400">
-            Roles group permissions for admin access control.
-          </p>
-          {newRoleError && <p className="text-xs text-rose-300">{newRoleError}</p>}
+        <div className="w-full max-w-sm">
+          <Field
+            label="New role"
+            tooltip="Role je Identity role. Oprávnění se mapují přes permissiony."
+            hint="Používej krátké názvy jako Admin, Support, Editor."
+            error={newRoleError}
+            required
+          >
+            <input
+              className={`w-full rounded-md border bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 ${
+                newRoleError ? "border-rose-400" : "border-slate-700"
+              }`}
+              placeholder="Admin"
+              value={newRoleName}
+              onChange={(event) => setNewRoleName(event.target.value)}
+              onBlur={() =>
+                setNewRoleError(validateRoleName(newRoleName).error ?? null)
+              }
+            />
+          </Field>
         </div>
         <button
           type="submit"
@@ -184,6 +197,9 @@ export default function RolesList() {
         >
           Create role
         </button>
+        <div className="w-full">
+          <FormError message={newRoleFormError} />
+        </div>
       </form>
 
       <div className="overflow-hidden rounded-lg border border-slate-800">
@@ -221,7 +237,7 @@ export default function RolesList() {
                       value={editingName}
                       onChange={(event) => setEditingName(event.target.value)}
                       onBlur={() =>
-                        setEditingError(editingName.trim() ? null : "Role name is required.")
+                        setEditingError(validateRoleName(editingName).error ?? null)
                       }
                     />
                   ) : (
@@ -230,6 +246,7 @@ export default function RolesList() {
                   {editingRoleId === role.id && editingError && (
                     <div className="mt-1 text-xs text-rose-300">{editingError}</div>
                   )}
+                  {editingRoleId === role.id && <FormError message={editingFormError} />}
                 </td>
                 <td className="px-4 py-3 text-slate-300">{role.isSystem ? "Yes" : "No"}</td>
                 <td className="px-4 py-3 text-right">

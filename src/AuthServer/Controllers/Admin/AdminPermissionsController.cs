@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -77,37 +78,22 @@ public sealed class AdminPermissionsController : ControllerBase
         [FromBody] AdminPermissionRequest request,
         CancellationToken cancellationToken)
     {
-        var key = request.Key?.Trim() ?? string.Empty;
-        var description = request.Description?.Trim() ?? string.Empty;
+        var validation = AdminValidation.ValidatePermission(request);
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(validation.ToProblemDetails("Invalid permission."));
+        }
+
+        var key = request.Key!.Trim();
+        var description = request.Description!.Trim();
         var group = request.Group?.Trim() ?? string.Empty;
-        var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(key))
+
+        if (await _dbContext.Permissions.AnyAsync(
+                permission => permission.Key.ToLower() == key.ToLower(),
+                cancellationToken))
         {
-            errors["key"] = ["Permission key is required."];
-        }
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            errors["description"] = ["Permission description is required."];
-        }
-        if (errors.Count > 0)
-        {
-            return ValidationProblem(new ValidationProblemDetails(errors)
-            {
-                Title = "Invalid permission.",
-                Detail = "Permission key and description are required."
-            });
-        }
-        var existing = await _permissionService.GetPermissionsAsync(cancellationToken);
-        if (existing.Any(permission => string.Equals(permission.Key, key, StringComparison.OrdinalIgnoreCase)))
-        {
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
-            {
-                ["key"] = [$"Permission key '{key}' is already in use."]
-            })
-            {
-                Title = "Permission already exists.",
-                Detail = $"Permission key '{key}' is already in use."
-            });
+            validation.AddFieldError("key", $"Permission key '{key}' is already in use.");
+            return ValidationProblem(validation.ToProblemDetails("Permission already exists."));
         }
 
         var permission = new Permission
@@ -140,37 +126,26 @@ public sealed class AdminPermissionsController : ControllerBase
             return NotFound();
         }
 
-        var key = request.Key?.Trim() ?? string.Empty;
-        var description = request.Description?.Trim() ?? string.Empty;
+        var validation = AdminValidation.ValidatePermission(request);
+        if (permission.IsSystem && !string.Equals(permission.Key, request.Key?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            validation.AddFieldError("key", "System permission keys cannot be changed.");
+        }
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(validation.ToProblemDetails("Invalid permission."));
+        }
+
+        var key = request.Key!.Trim();
+        var description = request.Description!.Trim();
         var group = request.Group?.Trim() ?? string.Empty;
-        var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(key))
+
+        if (await _dbContext.Permissions.AnyAsync(
+                item => item.Id != id && item.Key.ToLower() == key.ToLower(),
+                cancellationToken))
         {
-            errors["key"] = ["Permission key is required."];
-        }
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            errors["description"] = ["Permission description is required."];
-        }
-        if (errors.Count > 0)
-        {
-            return ValidationProblem(new ValidationProblemDetails(errors)
-            {
-                Title = "Invalid permission.",
-                Detail = "Permission key and description are required."
-            });
-        }
-        var existing = await _permissionService.GetPermissionsAsync(cancellationToken);
-        if (existing.Any(item => item.Id != id && string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)))
-        {
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
-            {
-                ["key"] = [$"Permission key '{key}' is already in use."]
-            })
-            {
-                Title = "Permission already exists.",
-                Detail = $"Permission key '{key}' is already in use."
-            });
+            validation.AddFieldError("key", $"Permission key '{key}' is already in use.");
+            return ValidationProblem(validation.ToProblemDetails("Permission already exists."));
         }
 
         permission.Key = key;
@@ -194,6 +169,13 @@ public sealed class AdminPermissionsController : ControllerBase
         if (permission is null)
         {
             return NotFound();
+        }
+
+        if (permission.IsSystem)
+        {
+            var validation = new AdminValidationResult();
+            validation.AddGeneralError("System permissions cannot be deleted.");
+            return ValidationProblem(validation.ToProblemDetails("Permission is protected."));
         }
 
         var roleCount = await _dbContext.RolePermissions.CountAsync(

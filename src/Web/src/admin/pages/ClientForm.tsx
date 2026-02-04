@@ -7,7 +7,8 @@ import type {
   AdminOidcScopeListItem,
   PagedResult,
 } from "../api/types";
-import { Field } from "../components/Field";
+import { Field, FormError } from "../components/Field";
+import MultiLineListInput from "../components/MultiLineListInput";
 import { pushToast } from "../components/toast";
 import { toAdminRoute } from "../../routing";
 import {
@@ -19,6 +20,7 @@ import {
   validatePkceRules,
   validateRedirectUris,
 } from "../validation/oidcValidation";
+import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
 type Mode = "create" | "edit";
 
@@ -68,6 +70,7 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [redirectErrors, setRedirectErrors] = useState<RedirectUriError[]>([]);
   const [postLogoutErrors, setPostLogoutErrors] = useState<RedirectUriError[]>([]);
   const [secret, setSecret] = useState<string | null>(() => {
@@ -181,6 +184,7 @@ export default function ClientForm({ mode, clientId }: Props) {
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
+    setFormError(null);
     setSaving(true);
     try {
       const payload = {
@@ -224,23 +228,19 @@ export default function ClientForm({ mode, clientId }: Props) {
       pushToast({ message: "Client updated.", tone: "success" });
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.fieldErrors) {
-          setErrors((current) => ({
-            ...current,
-            clientId: error.fieldErrors.clientId?.[0] ?? current.clientId,
-            grantTypes: error.fieldErrors.grantTypes?.[0] ?? current.grantTypes,
-            pkceRequired: error.fieldErrors.pkceRequired?.[0] ?? current.pkceRequired,
-            redirectUris: error.fieldErrors.redirectUris?.[0] ?? current.redirectUris,
-            postLogoutRedirectUris:
-              error.fieldErrors.postLogoutRedirectUris?.[0] ?? current.postLogoutRedirectUris,
-            scopes: error.fieldErrors.scopes?.[0] ?? current.scopes,
-          }));
-          return;
-        }
-        pushToast({ message: error.message, tone: "error" });
+        const parsed = parseProblemDetailsErrors(error);
+        setErrors({
+          clientId: parsed.fieldErrors.clientId?.[0],
+          grantTypes: parsed.fieldErrors.grantTypes?.[0],
+          pkceRequired: parsed.fieldErrors.pkceRequired?.[0],
+          redirectUris: parsed.fieldErrors.redirectUris?.[0],
+          postLogoutRedirectUris: parsed.fieldErrors.postLogoutRedirectUris?.[0],
+          scopes: parsed.fieldErrors.scopes?.[0],
+        });
+        setFormError(parsed.generalError ?? "Unable to save client.");
         return;
       }
-      pushToast({ message: "Unable to save client.", tone: "error" });
+      setFormError("Unable to save client.");
     } finally {
       setSaving(false);
     }
@@ -300,12 +300,14 @@ export default function ClientForm({ mode, clientId }: Props) {
       </div>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+        <FormError message={formError} />
         <div className="grid gap-5 md:grid-cols-2">
           <Field
             label="Client ID"
             tooltip="Identifikátor klienta v OIDC. Používej 3–100 znaků bez mezer. Příklad: web-spa, cms-admin."
             hint="Používej písmena, čísla, _, . nebo -. Lowercase doporučeno."
             error={errors.clientId}
+            required
           >
             <input
               className={`rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
@@ -383,12 +385,13 @@ export default function ClientForm({ mode, clientId }: Props) {
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-        <Field
-          label="Grant types"
-          tooltip="Grant types definují, jak klient získá token. Pro SPA typicky authorization_code + refresh_token."
-          hint="Vyber alespoň jeden grant type."
-          error={errors.grantTypes}
-        >
+          <Field
+            label="Grant types"
+            tooltip="Grant types definují, jak klient získá token. Pro SPA typicky authorization_code + refresh_token."
+            hint="Vyber alespoň jeden grant type."
+            error={errors.grantTypes}
+            required
+          >
           <div className="flex flex-wrap gap-4">
             {grantTypeOptions.map((option) => (
               <label key={option.value} className="flex items-center gap-2 text-sm text-slate-200">
@@ -490,27 +493,17 @@ export default function ClientForm({ mode, clientId }: Props) {
             tooltip="URL, kam se vrací uživatel po přihlášení. Musí být absolutní, HTTPS (v dev povol http://localhost)."
             hint="1 URI per line. Povinné pro authorization_code."
             error={errors.redirectUris}
+            required={form.grantTypes.includes("authorization_code")}
           >
-            <textarea
-              className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
-                errors.redirectUris ? "border-rose-400" : "border-slate-700"
-              }`}
+            <MultiLineListInput
               value={form.redirectUrisText}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, redirectUrisText: event.target.value }))
-              }
+              onChange={(value) => setForm((prev) => ({ ...prev, redirectUrisText: value }))}
               onBlur={() => runValidation(form)}
               placeholder="http://localhost:5173/auth/callback"
+              error={errors.redirectUris}
+              lineErrors={redirectErrors}
+              minRows={5}
             />
-            {redirectErrors.length > 0 && (
-              <div className="mt-2 space-y-1 text-xs text-rose-300">
-                {redirectErrors.map((error, index) => (
-                  <div key={`${error.line}-${index}`}>
-                    {error.line > 0 ? `Line ${error.line}: ` : ""}{error.message}
-                  </div>
-                ))}
-              </div>
-            )}
           </Field>
 
           <Field
@@ -519,29 +512,17 @@ export default function ClientForm({ mode, clientId }: Props) {
             hint="1 URI per line. Volitelné."
             error={errors.postLogoutRedirectUris}
           >
-            <textarea
-              className={`min-h-[120px] rounded-md border bg-slate-950 px-3 py-2 text-slate-100 ${
-                errors.postLogoutRedirectUris ? "border-rose-400" : "border-slate-700"
-              }`}
+            <MultiLineListInput
               value={form.postLogoutRedirectUrisText}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  postLogoutRedirectUrisText: event.target.value,
-                }))
+              onChange={(value) =>
+                setForm((prev) => ({ ...prev, postLogoutRedirectUrisText: value }))
               }
               onBlur={() => runValidation(form)}
               placeholder="https://app.example.com/logout/callback"
+              error={errors.postLogoutRedirectUris}
+              lineErrors={postLogoutErrors}
+              minRows={5}
             />
-            {postLogoutErrors.length > 0 && (
-              <div className="mt-2 space-y-1 text-xs text-rose-300">
-                {postLogoutErrors.map((error, index) => (
-                  <div key={`${error.line}-${index}`}>
-                    {error.line > 0 ? `Line ${error.line}: ` : ""}{error.message}
-                  </div>
-                ))}
-              </div>
-            )}
           </Field>
         </div>
       </section>

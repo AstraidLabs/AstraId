@@ -5,18 +5,22 @@ type FieldProps = {
   hint?: string;
   tooltip?: string;
   error?: string | null;
+  required?: boolean;
   children: ReactNode;
 };
 
-export function Field({ label, hint, tooltip, error, children }: FieldProps) {
+export function Field({ label, hint, tooltip, error, required, children }: FieldProps) {
   return (
     <div className="flex flex-col gap-2 text-sm text-slate-200">
       <div className="flex items-center gap-2">
-        <span className="font-medium text-slate-200">{label}</span>
+        <span className="font-medium text-slate-200">
+          {label}
+          {required && <span className="ml-1 text-rose-300">*</span>}
+        </span>
         {tooltip && <HelpIcon tooltip={tooltip} />}
       </div>
       {children}
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+      {hint && <HintText>{hint}</HintText>}
       <InlineError message={error} />
     </div>
   );
@@ -53,4 +57,28 @@ export function InlineError({ message }: InlineErrorProps) {
   }
 
   return <p className="text-xs text-rose-300">{message}</p>;
+}
+
+type HintTextProps = {
+  children: ReactNode;
+};
+
+export function HintText({ children }: HintTextProps) {
+  return <p className="text-xs text-slate-400">{children}</p>;
+}
+
+type FormErrorProps = {
+  message?: string | null;
+};
+
+export function FormError({ message }: FormErrorProps) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+      {message}
+    </div>
+  );
 }
