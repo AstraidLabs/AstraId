@@ -10,5 +10,6 @@ public interface IAdminClientService
     Task<AdminClientDetail?> UpdateClientAsync(string id, AdminClientUpdateRequest request, CancellationToken cancellationToken);
     Task<AdminClientSecretResult?> RotateSecretAsync(string id, CancellationToken cancellationToken);
     Task<AdminClientDetail?> SetEnabledAsync(string id, bool enabled, CancellationToken cancellationToken);
+    Task<bool> DeleteClientAsync(string id, CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminClientScopeItem>> GetScopesAsync(CancellationToken cancellationToken);
 }

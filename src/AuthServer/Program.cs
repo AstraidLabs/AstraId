@@ -1,9 +1,13 @@
+using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
 using AuthServer.Seeding;
 using AuthServer.Services;
+using AuthServer.Services.Cors;
+using AuthServer.Services.Cryptography;
 using AuthServer.Services.Admin;
 using Company.Auth.Contracts;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -55,6 +59,7 @@ builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>(
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<AdminUiManifestService>();
+builder.Services.AddScoped<ICorsPolicyProvider, ClientCorsPolicyProvider>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -74,6 +79,7 @@ builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
+builder.Services.Configure<AuthServerCertificateOptions>(builder.Configuration.GetSection(AuthServerCertificateOptions.SectionName));
 
 if (builder.Environment.IsDevelopment())
 {
@@ -93,17 +99,7 @@ if (builder.Environment.IsDevelopment())
 
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
-builder.Services.AddCors(options =>
-{
-    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"];
-    options.AddPolicy("Web", policy =>
-    {
-        policy.WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
+builder.Services.AddCors();
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
@@ -116,28 +112,39 @@ builder.Services.AddOpenIddict()
     .AddServer(options =>
     {
         var issuer = builder.Configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
-        options.SetIssuer(new Uri(issuer));
+        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
+        {
+            throw new InvalidOperationException("AuthServer:Issuer must be a valid absolute URI.");
+        }
 
-        options.SetAuthorizationEndpointUris("connect/authorize")
+        if (builder.Environment.IsProduction()
+            && !string.Equals(issuerUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("AuthServer:Issuer must use HTTPS in production.");
+        }
+
+        options.SetIssuer(issuerUri);
+
+        options.SetConfigurationEndpointUris(".well-known/openid-configuration")
+               .SetCryptographyEndpointUris(".well-known/jwks")
+               .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
                .SetUserInfoEndpointUris("connect/userinfo")
-               .SetEndSessionEndpointUris("connect/logout");
+               .SetEndSessionEndpointUris("connect/logout")
+               .SetRevocationEndpointUris("connect/revocation");
 
         options.AllowAuthorizationCodeFlow()
-               .AllowRefreshTokenFlow()
-               .RequireProofKeyForCodeExchange();
+               .AllowRefreshTokenFlow();
 
-        options.RegisterScopes(
-            AuthConstants.Scopes.OpenId,
-            AuthConstants.Scopes.Profile,
-            AuthConstants.Scopes.Email,
-            AuthConstants.Scopes.OfflineAccess,
-            "api");
+        options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
 
         options.DisableAccessTokenEncryption();
 
-        options.AddDevelopmentEncryptionCertificate()
-               .AddDevelopmentSigningCertificate();
+        var certificateOptions = builder.Configuration
+            .GetSection(AuthServerCertificateOptions.SectionName)
+            .Get<AuthServerCertificateOptions>() ?? new AuthServerCertificateOptions();
+
+        ConfigureCertificates(options, certificateOptions, builder.Environment);
 
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
@@ -189,6 +196,7 @@ if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(
 }
 app.UseRouting();
 
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
 
 app.UseAuthentication();
@@ -214,6 +222,53 @@ if (uiOptions.IsHosted)
 }
 
 app.Run();
+
+static void ConfigureCertificates(
+    OpenIddictServerBuilder options,
+    AuthServerCertificateOptions certificateOptions,
+    IWebHostEnvironment environment)
+{
+    var signingCertificate = CertificateLoader.TryLoadCertificate(certificateOptions.Signing);
+    var encryptionCertificate = CertificateLoader.TryLoadCertificate(certificateOptions.Encryption);
+
+    if (signingCertificate is null)
+    {
+        if (environment.IsDevelopment())
+        {
+            options.AddDevelopmentSigningCertificate();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "Signing certificate is required. Configure AuthServer:Certificates:Signing.");
+        }
+    }
+    else
+    {
+        options.AddSigningCertificate(signingCertificate);
+    }
+
+    if (encryptionCertificate is null)
+    {
+        if (signingCertificate is not null)
+        {
+            options.AddEncryptionCertificate(signingCertificate);
+        }
+        else if (environment.IsDevelopment())
+        {
+            options.AddDevelopmentEncryptionCertificate();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "Encryption certificate is required. Configure AuthServer:Certificates:Encryption.");
+        }
+    }
+    else
+    {
+        options.AddEncryptionCertificate(encryptionCertificate);
+    }
+}
 
 static void ValidateEmailOptions(EmailOptions options, IHostEnvironment environment)
 {

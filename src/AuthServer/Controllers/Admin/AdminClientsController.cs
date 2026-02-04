@@ -96,4 +96,11 @@ public sealed class AdminClientsController : ControllerBase
         var result = await _clientService.SetEnabledAsync(id, request.Enabled, cancellationToken);
         return result is null ? NotFound() : Ok(result);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteClient(string id, CancellationToken cancellationToken)
+    {
+        var deleted = await _clientService.DeleteClientAsync(id, cancellationToken);
+        return deleted ? NoContent() : NotFound();
+    }
 }
