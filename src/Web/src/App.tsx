@@ -7,6 +7,8 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ActivateAccount from "./pages/ActivateAccount";
+import AccountSecurity from "./pages/AccountSecurity";
+import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./admin/AdminLayout";
 import AdminGuard from "./admin/AdminGuard";
@@ -53,10 +55,12 @@ const App = () => {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/mfa" element={<MfaChallenge />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
+        <Route path="/account/security" element={<AccountSecurity />} />
         <Route path="*" element={<NotFound />} />
       </Route>
       <Route

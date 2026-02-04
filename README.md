@@ -80,7 +80,7 @@ AstraId slouží jako **centrální Identity + OIDC provider** pro více aplikac
 
 ## ✅ Funkcionality (stručně)
 
-- **AuthServer**: OIDC endpoints (`/.well-known/openid-configuration`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation`) a vlastní auth API `/auth/*` (login/registrace/aktivace/reset).
+- **AuthServer**: OIDC endpoints (`/.well-known/openid-configuration`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation`) a vlastní auth API `/auth/*` (login/registrace/aktivace/reset/MFA).
 - **Admin UI + Admin API**: admin UI pod `/admin` (pokud existuje build) a admin API pod `/admin/api/*` (clients, roles, permissions, users, audit, OIDC scopes/resources).
 - **Api**: chráněné endpointy `/api/*`, veřejný `/api/public`, admin `/api/admin/ping` a healthcheck `/health` s CORS pro Web SPA.
 - **Seeding/migrace**: při startu AuthServer provede `Database.Migrate()` a synchronizuje permissions, scopes, clients a admin účet podle `AuthServerDefinitions` + `BootstrapAdmin`.
@@ -96,6 +96,48 @@ AstraId slouží jako **centrální Identity + OIDC provider** pro více aplikac
 - (volitelné) **SMTP server** pro e-maily; v dev se defaultuje na `localhost:2525` (např. smtp4dev).
 
 ---
+
+## 🔐 MFA (TOTP / 2FA)
+
+AstraId podporuje **TOTP MFA** přes ASP.NET Identity. MFA je řešené jako API v AuthServeru a UI v React (public web). Klíčové vlastnosti:
+
+- Uživatel si může MFA zapnout/vypnout.
+- Přihlášení vyžaduje MFA kód nebo recovery code, pokud má MFA aktivní.
+- MFA flow funguje i při `/connect/authorize` (returnUrl pokračuje po ověření).
+- Recovery codes se zobrazují pouze jednou a je nutné je bezpečně uložit.
+
+### API endpointy
+
+**Přihlášení**
+- `POST /auth/login` → při MFA vrací `{ requiresTwoFactor: true, mfaToken, redirectTo }`.
+- `POST /auth/login/mfa` → dokončení MFA challenge.
+
+**Správa MFA (vyžaduje auth cookie)**
+- `GET /auth/mfa/status`
+- `POST /auth/mfa/setup/start` → shared key + QR (SVG)
+- `POST /auth/mfa/setup/confirm` → aktivace + recovery codes
+- `POST /auth/mfa/recovery-codes/regenerate`
+- `POST /auth/mfa/disable`
+
+### Zapnutí MFA (rychlý postup)
+1. Přihlaste se do public UI (`/login`).
+2. Otevřete **Account → Security** (`/account/security`).
+3. Spusťte nastavení MFA → naskenujte QR v authenticator aplikaci.
+4. Potvrďte kód, uložte recovery codes.
+
+### Ověření flow (manuálně)
+1. Registrace → login bez MFA.
+2. Zapnutí MFA (setup + confirm).
+3. Logout.
+4. Login → vyžádán MFA challenge.
+5. Login přes recovery code.
+6. Regenerace recovery codes.
+7. Disable MFA.
+
+### Bezpečnostní poznámky
+- MFA challenge token je krátkodobý (5 min) a jednorázový.
+- MFA kódy/recovery codes se nelogují.
+- Rate limiting chrání `/auth/login` a `/auth/login/mfa`.
 
 ## 🚀 Instalace a spuštění (krok za krokem)
 

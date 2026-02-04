@@ -19,13 +19,29 @@ const Login = () => {
     setIsSubmitting(true);
 
     try {
-      await login({
+      const response = await login({
         emailOrUsername,
         password,
         returnUrl
       });
 
-      const resolvedReturnUrl = resolveReturnUrl(returnUrl);
+      if (response.requiresTwoFactor) {
+        const token = response.mfaToken;
+        if (!token) {
+          throw new Error("Chybí MFA token. Zkuste to prosím znovu.");
+        }
+        const params = new URLSearchParams();
+        params.set("token", token);
+        if (response.redirectTo ?? returnUrl) {
+          params.set("returnUrl", response.redirectTo ?? returnUrl ?? "");
+        }
+        navigate(`/mfa?${params.toString()}`, { replace: true });
+        return;
+      }
+
+      const resolvedReturnUrl = resolveReturnUrl(
+        response.redirectTo ?? returnUrl ?? null
+      );
       if (resolvedReturnUrl) {
         window.location.href = resolvedReturnUrl;
       } else {

@@ -44,6 +44,11 @@ const TopNav = () => {
             <NavLink to="/forgot-password" className={linkClass}>
               Forgot password
             </NavLink>
+            {session?.isAuthenticated ? (
+              <NavLink to="/account/security" className={linkClass}>
+                Security
+              </NavLink>
+            ) : null}
             {isAdmin ? (
               <a
                 href="https://localhost:7001/admin"

@@ -79,6 +79,7 @@ export type AdminUserDetail = {
   phoneNumber?: string | null;
   emailConfirmed: boolean;
   twoFactorEnabled: boolean;
+  recoveryCodesLeft: number;
   isLockedOut: boolean;
   isActive: boolean;
   roles: string[];
