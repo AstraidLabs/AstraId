@@ -1,24 +1,25 @@
-using System.Diagnostics;
-using System.Security.Claims;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
 using AuthServer.Seeding;
 using AuthServer.Services;
-using AuthServer.Services.Diagnostics;
+using AuthServer.Services.Admin;
 using AuthServer.Services.Cors;
 using AuthServer.Services.Cryptography;
-using AuthServer.Services.Admin;
+using AuthServer.Services.Diagnostics;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server.AspNetCore;
+using System.Diagnostics;
+using System.Security.Claims;
+using static System.Net.Mime.MediaTypeNames;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -145,7 +146,7 @@ builder.Services.AddOpenIddict()
         options.SetIssuer(issuerUri);
 
         options.SetConfigurationEndpointUris(".well-known/openid-configuration")
-               .SetCryptographyEndpointUris(".well-known/jwks")
+               .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
                .SetUserInfoEndpointUris("connect/userinfo")
@@ -325,8 +326,11 @@ static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode,
 
 static string BuildStatusCodeHtml(int statusCode, string detail, string traceId, Guid? errorId)
 {
-    var errorText = errorId.HasValue ? $"Error ID: {errorId}<br/>Trace ID: {traceId}" : $"Trace ID: {traceId}";
-    return $"""
+    var errorText = errorId.HasValue
+        ? $"Error ID: {errorId}<br/>Trace ID: {traceId}"
+        : $"Trace ID: {traceId}";
+
+    return $$$$"""
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -334,9 +338,9 @@ static string BuildStatusCodeHtml(int statusCode, string detail, string traceId,
               <meta name="viewport" content="width=device-width, initial-scale=1" />
               <title>{statusCode} Error</title>
               <style>
-                body {{ font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
-                .card {{ max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
-                .meta {{ margin-top: 16px; font-size: 0.9rem; color: #475569; }}
+                body {{font - family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
+                .card {{max - width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
+                .meta {{margin - top: 16px; font-size: 0.9rem; color: #475569; }}
               </style>
             </head>
             <body>
@@ -349,6 +353,7 @@ static string BuildStatusCodeHtml(int statusCode, string detail, string traceId,
             </html>
             """;
 }
+
 
 static void ConfigureCertificates(
     OpenIddictServerBuilder options,

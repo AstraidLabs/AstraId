@@ -202,7 +202,7 @@ public class AuthController : ControllerBase
         }
 
         var code = NormalizeCode(request.Code);
-        SignInResult result;
+        Microsoft.AspNetCore.Identity.SignInResult result;
         if (request.UseRecoveryCode)
         {
             result = await _signInManager.TwoFactorRecoveryCodeSignInAsync(code);
@@ -421,7 +421,7 @@ public class AuthController : ControllerBase
         }
 
         await _userManager.ResetAuthenticatorKeyAsync(user);
-        await _userManager.ReplaceRecoveryCodesAsync(user, Array.Empty<string>());
+        await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 0);
 
         return Ok(new AuthResponse(true, null, null));
     }

@@ -115,14 +115,24 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
         return allowed;
     }
 
-    private static string? GetOrigin(Uri uri)
+    private static string? GetOrigin(string uri)
     {
-        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(uri))
         {
             return null;
         }
 
-        return uri.GetLeftPart(UriPartial.Authority);
+        if (!Uri.TryCreate(uri.Trim(), UriKind.Absolute, out var parsed))
+        {
+            return null;
+        }
+
+        if (!string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(parsed.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return parsed.GetLeftPart(UriPartial.Authority);
     }
 }
