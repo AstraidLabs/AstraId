@@ -5,8 +5,11 @@ public sealed record AdminSigningKeyListItem(
     string Status,
     DateTime CreatedUtc,
     DateTime? ActivatedUtc,
+    DateTime? RetireAfterUtc,
     DateTime? RetiredUtc,
+    DateTime? RevokedUtc,
     string Algorithm,
     string KeyType,
     DateTime? NotBeforeUtc,
-    DateTime? NotAfterUtc);
+    DateTime? NotAfterUtc,
+    bool IsPublished);

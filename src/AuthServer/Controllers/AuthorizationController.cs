@@ -28,6 +28,7 @@ public class AuthorizationController : ControllerBase
     private readonly TokenPolicyResolver _tokenPolicyResolver;
     private readonly TokenPolicyApplier _tokenPolicyApplier;
     private readonly RefreshTokenReuseDetectionService _refreshTokenReuseDetection;
+    private readonly RefreshTokenReuseRemediationService _refreshTokenReuseRemediation;
     private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
@@ -40,6 +41,7 @@ public class AuthorizationController : ControllerBase
         TokenPolicyResolver tokenPolicyResolver,
         TokenPolicyApplier tokenPolicyApplier,
         RefreshTokenReuseDetectionService refreshTokenReuseDetection,
+        RefreshTokenReuseRemediationService refreshTokenReuseRemediation,
         ILogger<AuthorizationController> logger)
     {
         _userManager = userManager;
@@ -51,6 +53,7 @@ public class AuthorizationController : ControllerBase
         _tokenPolicyResolver = tokenPolicyResolver;
         _tokenPolicyApplier = tokenPolicyApplier;
         _refreshTokenReuseDetection = refreshTokenReuseDetection;
+        _refreshTokenReuseRemediation = refreshTokenReuseRemediation;
         _logger = logger;
     }
 
@@ -149,6 +152,10 @@ public class AuthorizationController : ControllerBase
 
             if (reuseResult == RefreshTokenReuseResult.Reused)
             {
+                await _refreshTokenReuseRemediation.RevokeSubjectTokensAsync(
+                    authenticateResult.Principal,
+                    clientId,
+                    HttpContext.RequestAborted);
                 return Forbid(CreateInvalidGrant("The refresh token has already been used."),
                     OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }

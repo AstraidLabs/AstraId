@@ -36,6 +36,14 @@ public sealed class SigningKeyRingService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SigningKeyRingEntry>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        return await _dbContext.SigningKeyRingEntries
+            .OrderBy(entry => entry.Status)
+            .ThenByDescending(entry => entry.ActivatedUtc ?? entry.CreatedUtc)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<SigningKeyRingEntry?> GetActiveAsync(CancellationToken cancellationToken)
     {
         return await _dbContext.SigningKeyRingEntries
@@ -75,6 +83,8 @@ public sealed class SigningKeyRingService
         {
             active.Status = SigningKeyStatus.Previous;
             active.RetiredUtc = null;
+            active.RevokedUtc = null;
+            active.RetireAfterUtc = GetRetireAfterUtc(now);
             _dbContext.SigningKeyRingEntries.Update(active);
         }
 
@@ -82,6 +92,7 @@ public sealed class SigningKeyRingService
         {
             previous.Status = SigningKeyStatus.Retired;
             previous.RetiredUtc = now;
+            previous.RetireAfterUtc = null;
             _dbContext.SigningKeyRingEntries.Update(previous);
         }
 
@@ -95,12 +106,89 @@ public sealed class SigningKeyRingService
         return new SigningKeyRotationResult(created, active);
     }
 
+    public async Task<SigningKeyRingEntry?> RetireAsync(string kid, CancellationToken cancellationToken)
+    {
+        var entry = await _dbContext.SigningKeyRingEntries
+            .FirstOrDefaultAsync(current => current.Kid == kid, cancellationToken);
+
+        if (entry is null)
+        {
+            return null;
+        }
+
+        if (entry.Status == SigningKeyStatus.Active)
+        {
+            throw new InvalidOperationException("Active signing keys cannot be retired directly.");
+        }
+
+        if (entry.Status == SigningKeyStatus.Previous)
+        {
+            entry.Status = SigningKeyStatus.Retired;
+            entry.RetiredUtc = DateTime.UtcNow;
+            entry.RetireAfterUtc = null;
+            _dbContext.SigningKeyRingEntries.Update(entry);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return entry;
+    }
+
+    public async Task<SigningKeyRevokeResult> RevokeAsync(string kid, CancellationToken cancellationToken)
+    {
+        var entry = await _dbContext.SigningKeyRingEntries
+            .FirstOrDefaultAsync(current => current.Kid == kid, cancellationToken);
+
+        if (entry is null)
+        {
+            return SigningKeyRevokeResult.NotFound;
+        }
+
+        var wasActive = entry.Status == SigningKeyStatus.Active;
+        if (wasActive)
+        {
+            var created = CreateKeyEntry();
+            created.Status = SigningKeyStatus.Active;
+            created.ActivatedUtc = DateTime.UtcNow;
+            _dbContext.SigningKeyRingEntries.Add(created);
+        }
+
+        var revokedAt = DateTime.UtcNow;
+        entry.Status = SigningKeyStatus.Revoked;
+        entry.RevokedUtc = revokedAt;
+        entry.RetiredUtc = revokedAt;
+        entry.RetireAfterUtc = null;
+        _dbContext.SigningKeyRingEntries.Update(entry);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return wasActive ? SigningKeyRevokeResult.ReplacedActive : SigningKeyRevokeResult.Revoked;
+    }
+
     public async Task CleanupAsync(CancellationToken cancellationToken)
     {
         var retentionDays = Math.Max(0, _options.CurrentValue.PreviousKeyRetentionDays);
-        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+        var now = DateTime.UtcNow;
+        var retireAfter = await _dbContext.SigningKeyRingEntries
+            .Where(entry => entry.Status == SigningKeyStatus.Previous && entry.RetireAfterUtc != null && entry.RetireAfterUtc <= now)
+            .ToListAsync(cancellationToken);
+
+        if (retireAfter.Count > 0)
+        {
+            foreach (var entry in retireAfter)
+            {
+                entry.Status = SigningKeyStatus.Retired;
+                entry.RetiredUtc = now;
+                entry.RetireAfterUtc = null;
+            }
+
+            _dbContext.SigningKeyRingEntries.UpdateRange(retireAfter);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var cutoff = now.AddDays(-retentionDays);
         var retired = await _dbContext.SigningKeyRingEntries
-            .Where(entry => entry.Status == SigningKeyStatus.Retired && entry.RetiredUtc != null && entry.RetiredUtc < cutoff)
+            .Where(entry => (entry.Status == SigningKeyStatus.Retired || entry.Status == SigningKeyStatus.Revoked)
+                && entry.RetiredUtc != null
+                && entry.RetiredUtc < cutoff)
             .ToListAsync(cancellationToken);
 
         if (retired.Count == 0)
@@ -110,7 +198,7 @@ public sealed class SigningKeyRingService
 
         _dbContext.SigningKeyRingEntries.RemoveRange(retired);
         await _dbContext.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Cleaned up {Count} retired signing keys.", retired.Count);
+        _logger.LogInformation("Cleaned up {Count} retired or revoked signing keys.", retired.Count);
     }
 
     public SigningCredentials CreateSigningCredentials(SigningKeyRingEntry entry)
@@ -150,6 +238,7 @@ public sealed class SigningKeyRingService
             Status = SigningKeyStatus.Active,
             CreatedUtc = now,
             ActivatedUtc = now,
+            RetireAfterUtc = null,
             NotBeforeUtc = now,
             Algorithm = options.Algorithm,
             KeyType = "RSA",
@@ -163,6 +252,19 @@ public sealed class SigningKeyRingService
         var bytes = RandomNumberGenerator.GetBytes(16);
         return Base64UrlEncoder.Encode(bytes);
     }
+
+    private DateTime? GetRetireAfterUtc(DateTime nowUtc)
+    {
+        var retentionDays = Math.Max(0, _options.CurrentValue.PreviousKeyRetentionDays);
+        return retentionDays == 0 ? nowUtc : nowUtc.AddDays(retentionDays);
+    }
 }
 
 public sealed record SigningKeyRotationResult(SigningKeyRingEntry NewActive, SigningKeyRingEntry? PreviousActive);
+
+public enum SigningKeyRevokeResult
+{
+    Revoked = 0,
+    ReplacedActive = 1,
+    NotFound = 2
+}

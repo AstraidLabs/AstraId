@@ -84,6 +84,7 @@ builder.Services.AddScoped<SigningKeyRingService>();
 builder.Services.AddScoped<TokenPolicyService>();
 builder.Services.AddScoped<TokenPolicyResolver>();
 builder.Services.AddScoped<RefreshTokenReuseDetectionService>();
+builder.Services.AddScoped<RefreshTokenReuseRemediationService>();
 builder.Services.AddSingleton<TokenPolicyApplier>();
 builder.Services.AddSingleton<ISigningKeyProtector, SigningKeyProtector>();
 builder.Services.AddSingleton<ISigningKeyRotationState, SigningKeyRotationState>();

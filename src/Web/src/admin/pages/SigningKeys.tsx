@@ -11,20 +11,29 @@ const statusTone: Record<string, string> = {
   Active: "bg-emerald-500/20 text-emerald-200",
   Previous: "bg-indigo-500/20 text-indigo-200",
   Retired: "bg-slate-700/40 text-slate-200",
+  Revoked: "bg-rose-500/20 text-rose-200",
 };
 
 const formatDate = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "—";
+
+type KeyAction = {
+  type: "rotate" | "retire" | "revoke";
+  key?: AdminSigningKeyRingResponse["keys"][number];
+};
 
 export default function SigningKeys() {
   const [data, setData] = useState<AdminSigningKeyRingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [rotating, setRotating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<KeyAction | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const response = await apiRequest<AdminSigningKeyRingResponse>("/admin/api/signing-keys");
+    const response = await apiRequest<AdminSigningKeyRingResponse>(
+      "/admin/api/security/keys/signing"
+    );
     setData(response);
     setLoading(false);
   };
@@ -37,7 +46,7 @@ export default function SigningKeys() {
     setRotating(true);
     try {
       const response = await apiRequest<AdminSigningKeyRotationResponse>(
-        "/admin/api/signing-keys/rotate",
+        "/admin/api/security/keys/signing/rotate",
         { method: "POST" }
       );
       pushToast({
@@ -48,6 +57,30 @@ export default function SigningKeys() {
     } finally {
       setRotating(false);
       setConfirmOpen(false);
+    }
+  };
+
+  const retireKey = async (kid: string) => {
+    setRotating(true);
+    try {
+      await apiRequest(`/admin/api/security/keys/signing/${kid}/retire`, { method: "POST" });
+      pushToast({ tone: "success", message: "Signing key retired." });
+      await load();
+    } finally {
+      setRotating(false);
+      setPendingAction(null);
+    }
+  };
+
+  const revokeKey = async (kid: string) => {
+    setRotating(true);
+    try {
+      await apiRequest(`/admin/api/security/keys/signing/${kid}/revoke`, { method: "POST" });
+      pushToast({ tone: "warning", message: "Signing key revoked." });
+      await load();
+    } finally {
+      setRotating(false);
+      setPendingAction(null);
     }
   };
 
@@ -83,21 +116,25 @@ export default function SigningKeys() {
                 <th className="px-4 py-3 font-semibold">Key ID</th>
                 <th className="px-4 py-3 font-semibold">Created</th>
                 <th className="px-4 py-3 font-semibold">Activated</th>
+                <th className="px-4 py-3 font-semibold">Retire after</th>
                 <th className="px-4 py-3 font-semibold">Retired</th>
+                <th className="px-4 py-3 font-semibold">Revoked</th>
                 <th className="px-4 py-3 font-semibold">Algorithm</th>
+                <th className="px-4 py-3 font-semibold">Published</th>
+                <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-200">
               {loading && (
                 <tr>
-                  <td className="px-4 py-4 text-sm text-slate-400" colSpan={6}>
+                  <td className="px-4 py-4 text-sm text-slate-400" colSpan={10}>
                     Loading signing keys…
                   </td>
                 </tr>
               )}
               {!loading && data?.keys.length === 0 && (
                 <tr>
-                  <td className="px-4 py-4 text-sm text-slate-400" colSpan={6}>
+                  <td className="px-4 py-4 text-sm text-slate-400" colSpan={10}>
                     No signing keys found.
                   </td>
                 </tr>
@@ -116,9 +153,32 @@ export default function SigningKeys() {
                   <td className="px-4 py-3 font-mono text-xs text-slate-300">{key.kid}</td>
                   <td className="px-4 py-3">{formatDate(key.createdUtc)}</td>
                   <td className="px-4 py-3">{formatDate(key.activatedUtc)}</td>
+                  <td className="px-4 py-3">{formatDate(key.retireAfterUtc)}</td>
                   <td className="px-4 py-3">{formatDate(key.retiredUtc)}</td>
+                  <td className="px-4 py-3">{formatDate(key.revokedUtc)}</td>
                   <td className="px-4 py-3">
                     {key.algorithm} · {key.keyType}
+                  </td>
+                  <td className="px-4 py-3">{key.isPublished ? "Yes" : "No"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-50"
+                        disabled={rotating || key.status !== "Previous"}
+                        onClick={() => setPendingAction({ type: "retire", key })}
+                      >
+                        Retire
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-rose-500/60 px-2 py-1 text-xs text-rose-200 hover:border-rose-400 disabled:opacity-50"
+                        disabled={rotating || key.status === "Revoked" || key.status === "Retired"}
+                        onClick={() => setPendingAction({ type: "revoke", key })}
+                      >
+                        Revoke
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -143,6 +203,12 @@ export default function SigningKeys() {
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Last rotation</div>
+            <div className="mt-2 text-sm text-slate-200">
+              {data?.lastRotationUtc ? formatDate(data.lastRotationUtc) : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Retention</div>
             <div className="mt-2 text-sm text-slate-200">
               {data ? `${data.retentionDays} days` : "—"}
@@ -158,6 +224,12 @@ export default function SigningKeys() {
             <div className="text-xs uppercase tracking-wide text-slate-500">Check period</div>
             <div className="mt-2 text-sm text-slate-200">
               {data ? `${data.checkPeriodMinutes} minutes` : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Next rotation check</div>
+            <div className="mt-2 text-sm text-slate-200">
+              {data?.nextRotationCheckUtc ? formatDate(data.nextRotationCheckUtc) : "—"}
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4 md:col-span-3">
@@ -177,6 +249,32 @@ export default function SigningKeys() {
         confirmDisabled={rotating}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={rotateNow}
+      />
+
+      <ConfirmDialog
+        title={
+          pendingAction?.type === "revoke" ? "Revoke signing key?" : "Retire signing key?"
+        }
+        description={
+          pendingAction?.type === "revoke"
+            ? "Revoking a key immediately removes it from JWKS and invalidates tokens signed with it."
+            : "Retiring a previous key stops publishing it in JWKS."
+        }
+        confirmLabel={pendingAction?.type === "revoke" ? "Revoke" : "Retire"}
+        isOpen={!!pendingAction}
+        confirmDisabled={rotating}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => {
+          if (!pendingAction?.key) {
+            setPendingAction(null);
+            return;
+          }
+          if (pendingAction.type === "revoke") {
+            void revokeKey(pendingAction.key.kid);
+            return;
+          }
+          void retireKey(pendingAction.key.kid);
+        }}
       />
     </div>
   );

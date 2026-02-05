@@ -7,7 +7,9 @@ public sealed class SigningKeyRingEntry
     public SigningKeyStatus Status { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime? ActivatedUtc { get; set; }
+    public DateTime? RetireAfterUtc { get; set; }
     public DateTime? RetiredUtc { get; set; }
+    public DateTime? RevokedUtc { get; set; }
     public DateTime? NotBeforeUtc { get; set; }
     public DateTime? NotAfterUtc { get; set; }
     public string Algorithm { get; set; } = "RS256";
@@ -21,5 +23,6 @@ public enum SigningKeyStatus
 {
     Active = 0,
     Previous = 1,
-    Retired = 2
+    Retired = 2,
+    Revoked = 3
 }

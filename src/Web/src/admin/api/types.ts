@@ -184,16 +184,21 @@ export type AdminSigningKeyListItem = {
   status: string;
   createdUtc: string;
   activatedUtc?: string | null;
+  retireAfterUtc?: string | null;
   retiredUtc?: string | null;
+  revokedUtc?: string | null;
   algorithm: string;
   keyType: string;
   notBeforeUtc?: string | null;
   notAfterUtc?: string | null;
+  isPublished: boolean;
 };
 
 export type AdminSigningKeyRingResponse = {
   keys: AdminSigningKeyListItem[];
   nextRotationDueUtc?: string | null;
+  nextRotationCheckUtc?: string | null;
+  lastRotationUtc?: string | null;
   retentionDays: number;
   rotationEnabled: boolean;
   rotationIntervalDays: number;

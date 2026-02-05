@@ -52,7 +52,9 @@ export default function TokenPolicies() {
     const load = async () => {
       setLoading(true);
       try {
-        const response = await apiRequest<AdminTokenPolicyConfig>("/admin/api/tokens/config");
+        const response = await apiRequest<AdminTokenPolicyConfig>(
+          "/admin/api/security/tokens/policy"
+        );
         setConfig(response);
       } finally {
         setLoading(false);
@@ -90,7 +92,7 @@ export default function TokenPolicies() {
     setFormDiagnostics(undefined);
     setFieldErrors({});
     try {
-      const updated = await apiRequest<AdminTokenPolicyConfig>("/admin/api/tokens/config", {
+      const updated = await apiRequest<AdminTokenPolicyConfig>("/admin/api/security/tokens/policy", {
         method: "PUT",
         body: JSON.stringify(config),
         suppressToast: true,
