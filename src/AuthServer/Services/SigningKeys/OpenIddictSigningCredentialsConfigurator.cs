@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using AuthServer.Data;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
 
@@ -17,6 +19,7 @@ public sealed class OpenIddictSigningCredentialsConfigurator : IConfigureOptions
     {
         using var scope = _serviceProvider.CreateScope();
         var keyRing = scope.ServiceProvider.GetRequiredService<SigningKeyRingService>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<OpenIddictSigningCredentialsConfigurator>>();
         var keys = keyRing.GetCurrentAsync(CancellationToken.None).GetAwaiter().GetResult();
         if (keys.Count == 0)
         {
@@ -25,9 +28,45 @@ public sealed class OpenIddictSigningCredentialsConfigurator : IConfigureOptions
         }
 
         options.SigningCredentials.Clear();
+        var activeEntry = keys.FirstOrDefault(entry => entry.Status == SigningKeyStatus.Active);
+        var activeAdded = false;
+        var activeFailed = false;
         foreach (var entry in keys.OrderBy(entry => entry.Status))
         {
-            options.SigningCredentials.Add(keyRing.CreateSigningCredentials(entry));
+            try
+            {
+                options.SigningCredentials.Add(keyRing.CreateSigningCredentials(entry));
+                if (entry.Status == SigningKeyStatus.Active)
+                {
+                    activeAdded = true;
+                }
+            }
+            catch (CryptographicException ex)
+            {
+                logger.LogError(ex, "Failed to unprotect signing key material for {Kid}.", entry.Kid);
+                if (entry.Status == SigningKeyStatus.Active)
+                {
+                    activeFailed = true;
+                }
+            }
+        }
+
+        if (!activeAdded)
+        {
+            if (activeEntry is not null && activeFailed)
+            {
+                keyRing.RevokeAsync(activeEntry.Kid, CancellationToken.None).GetAwaiter().GetResult();
+                var refreshedActive = keyRing.GetActiveAsync(CancellationToken.None).GetAwaiter().GetResult()
+                    ?? keyRing.EnsureInitializedAsync(CancellationToken.None).GetAwaiter().GetResult();
+                options.SigningCredentials.Add(keyRing.CreateSigningCredentials(refreshedActive));
+                logger.LogWarning("Rotated signing key after failing to unprotect the active key material.");
+            }
+            else if (options.SigningCredentials.Count == 0)
+            {
+                var refreshedActive = keyRing.EnsureInitializedAsync(CancellationToken.None).GetAwaiter().GetResult();
+                options.SigningCredentials.Add(keyRing.CreateSigningCredentials(refreshedActive));
+                logger.LogWarning("Initialized a new signing key because none could be loaded.");
+            }
         }
     }
 }
