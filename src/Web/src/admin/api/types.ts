@@ -178,3 +178,56 @@ export type AdminSessionInfo = {
   roles: string[];
   permissions: string[];
 };
+
+export type AdminSigningKeyListItem = {
+  kid: string;
+  status: string;
+  createdUtc: string;
+  activatedUtc?: string | null;
+  retiredUtc?: string | null;
+  algorithm: string;
+  keyType: string;
+  notBeforeUtc?: string | null;
+  notAfterUtc?: string | null;
+};
+
+export type AdminSigningKeyRingResponse = {
+  keys: AdminSigningKeyListItem[];
+  nextRotationDueUtc?: string | null;
+  retentionDays: number;
+  rotationEnabled: boolean;
+  rotationIntervalDays: number;
+  checkPeriodMinutes: number;
+};
+
+export type AdminSigningKeyRotationResponse = {
+  newActiveKid: string;
+  previousKid?: string | null;
+  activatedUtc: string;
+};
+
+export type AdminTokenPreset = {
+  accessTokenMinutes: number;
+  identityTokenMinutes: number;
+  refreshTokenAbsoluteDays: number;
+  refreshTokenSlidingDays: number;
+};
+
+export type AdminRefreshTokenPolicy = {
+  rotationEnabled: boolean;
+  reuseDetectionEnabled: boolean;
+  reuseLeewaySeconds: number;
+};
+
+export type AdminTokenPolicyConfig = {
+  public: AdminTokenPreset;
+  confidential: AdminTokenPreset;
+  refreshPolicy: AdminRefreshTokenPolicy;
+};
+
+export type AdminTokenPolicyStatus = {
+  activeSigningKid?: string | null;
+  rotationEnabled: boolean;
+  nextRotationCheckUtc?: string | null;
+  currentPolicy: AdminTokenPolicyConfig;
+};

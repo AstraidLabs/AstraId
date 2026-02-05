@@ -77,6 +77,13 @@ export default function AppShell({ children }: Props) {
               items={[{ to: toAdminRoute("/audit"), label: "Audit log" }]}
             />
             <NavSection
+              title="Security"
+              items={[
+                { to: toAdminRoute("/security/signing-keys"), label: "Signing Keys" },
+                { to: toAdminRoute("/security/token-policies"), label: "Token Policies" },
+              ]}
+            />
+            <NavSection
               title="Diagnostics"
               items={[{ to: toAdminRoute("/diagnostics/errors"), label: "Errors" }]}
             />
