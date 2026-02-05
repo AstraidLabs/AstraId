@@ -95,7 +95,7 @@ builder.Services.AddSingleton<ISigningKeyProtector, SigningKeyProtector>();
 builder.Services.AddSingleton<ISigningKeyRotationState, SigningKeyRotationState>();
 builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictSigningCredentialsConfigurator>();
 builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictTokenPolicyConfigurator>();
-builder.Services.AddSingleton<GovernancePolicyStore>();
+builder.Services.AddScoped<GovernancePolicyStore>();
 builder.Services.AddSingleton<DataProtectionStatusService>();
 builder.Services.AddSingleton<EncryptionKeyStatusService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
