@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AuthServer.Services.Tokens;
 using Company.Auth.Contracts;
 using OpenIddict.Abstractions;
 
@@ -16,6 +17,11 @@ public static class ClaimDestinations
         if (claim.Type == AuthConstants.ClaimTypes.Permission)
         {
             return [OpenIddictConstants.Destinations.AccessToken];
+        }
+
+        if (claim.Type == TokenPolicyApplier.RefreshTokenAbsoluteExpiryClaim)
+        {
+            return [OpenIddictConstants.Destinations.RefreshToken];
         }
 
         foreach (var mapping in AuthServerScopeRegistry.ScopeClaimMap)

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Services;
+using AuthServer.Services.Tokens;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +24,11 @@ public class AuthorizationController : ControllerBase
     private readonly IPermissionService _permissionService;
     private readonly UiUrlBuilder _uiUrlBuilder;
     private readonly IClientStateService _clientStateService;
+    private readonly TokenPolicyService _tokenPolicyService;
+    private readonly TokenPolicyResolver _tokenPolicyResolver;
+    private readonly TokenPolicyApplier _tokenPolicyApplier;
+    private readonly RefreshTokenReuseDetectionService _refreshTokenReuseDetection;
+    private readonly RefreshTokenReuseRemediationService _refreshTokenReuseRemediation;
     private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
@@ -31,6 +37,11 @@ public class AuthorizationController : ControllerBase
         IPermissionService permissionService,
         UiUrlBuilder uiUrlBuilder,
         IClientStateService clientStateService,
+        TokenPolicyService tokenPolicyService,
+        TokenPolicyResolver tokenPolicyResolver,
+        TokenPolicyApplier tokenPolicyApplier,
+        RefreshTokenReuseDetectionService refreshTokenReuseDetection,
+        RefreshTokenReuseRemediationService refreshTokenReuseRemediation,
         ILogger<AuthorizationController> logger)
     {
         _userManager = userManager;
@@ -38,6 +49,11 @@ public class AuthorizationController : ControllerBase
         _permissionService = permissionService;
         _uiUrlBuilder = uiUrlBuilder;
         _clientStateService = clientStateService;
+        _tokenPolicyService = tokenPolicyService;
+        _tokenPolicyResolver = tokenPolicyResolver;
+        _tokenPolicyApplier = tokenPolicyApplier;
+        _refreshTokenReuseDetection = refreshTokenReuseDetection;
+        _refreshTokenReuseRemediation = refreshTokenReuseRemediation;
         _logger = logger;
     }
 
@@ -70,7 +86,15 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
-        var principal = await CreatePrincipalAsync(user, request.GetScopes());
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        var clientType = await _tokenPolicyResolver.GetClientTypeAsync(request.ClientId, HttpContext.RequestAborted);
+        var preset = ResolvePreset(policy, clientType);
+
+        var principal = await CreatePrincipalAsync(
+            user,
+            request.GetScopes(),
+            preset,
+            refreshAbsoluteExpiry: null);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -113,7 +137,46 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
-        var principal = await CreatePrincipalAsync(user, authenticateResult.Principal.GetScopes());
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        var clientType = await _tokenPolicyResolver.GetClientTypeAsync(clientId, HttpContext.RequestAborted);
+        var preset = ResolvePreset(policy, clientType);
+
+        if (request.IsRefreshTokenGrantType()
+            && policy.RefreshPolicy.RotationEnabled
+            && policy.RefreshPolicy.ReuseDetectionEnabled)
+        {
+            var reuseResult = await _refreshTokenReuseDetection.TryConsumeAsync(
+                authenticateResult.Principal,
+                policy.RefreshPolicy.ReuseLeewaySeconds,
+                HttpContext.RequestAborted);
+
+            if (reuseResult == RefreshTokenReuseResult.Reused)
+            {
+                await _refreshTokenReuseRemediation.RevokeSubjectTokensAsync(
+                    authenticateResult.Principal,
+                    clientId,
+                    HttpContext.RequestAborted);
+                return Forbid(CreateInvalidGrant("The refresh token has already been used."),
+                    OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            }
+        }
+
+        var refreshAbsoluteExpiry = request.IsRefreshTokenGrantType()
+            ? TokenPolicyApplier.GetAbsoluteExpiry(authenticateResult.Principal)
+            : null;
+
+        if (refreshAbsoluteExpiry is not null && refreshAbsoluteExpiry <= DateTimeOffset.UtcNow)
+        {
+            return Forbid(CreateInvalidGrant("The refresh token has expired."),
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var principal = await CreatePrincipalAsync(
+            user,
+            authenticateResult.Principal.GetScopes(),
+            preset,
+            refreshAbsoluteExpiry: refreshAbsoluteExpiry);
+
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -142,7 +205,11 @@ public class AuthorizationController : ControllerBase
         return SignOut(new AuthenticationProperties { RedirectUri = "/" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private async Task<ClaimsPrincipal> CreatePrincipalAsync(ApplicationUser user, IEnumerable<string> requestedScopes)
+    private async Task<ClaimsPrincipal> CreatePrincipalAsync(
+        ApplicationUser user,
+        IEnumerable<string> requestedScopes,
+        TokenPreset preset,
+        DateTimeOffset? refreshAbsoluteExpiry)
     {
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
@@ -166,11 +233,12 @@ public class AuthorizationController : ControllerBase
         principal.SetScopes(scopes);
         principal.SetResources(AuthServerScopeRegistry.ApiResources);
 
+        _tokenPolicyApplier.Apply(principal, preset, DateTimeOffset.UtcNow, refreshAbsoluteExpiry);
+
         foreach (var claim in principal.Claims)
         {
             claim.SetDestinations(ClaimDestinations.GetDestinations(claim, principal));
         }
-
         return await Task.FromResult(principal);
     }
 
@@ -199,5 +267,21 @@ public class AuthorizationController : ControllerBase
             Error = error,
             ErrorDescription = description
         };
+    }
+
+    private static AuthenticationProperties CreateInvalidGrant(string description)
+    {
+        return new AuthenticationProperties(new Dictionary<string, string?>
+        {
+            [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.InvalidGrant,
+            [OpenIddictConstants.Parameters.ErrorDescription] = description
+        });
+    }
+
+    private static TokenPreset ResolvePreset(TokenPolicySnapshot policy, string clientType)
+    {
+        return string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal)
+            ? policy.Confidential
+            : policy.Public;
     }
 }

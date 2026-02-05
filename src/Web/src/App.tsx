@@ -39,6 +39,8 @@ import UserDetail from "./admin/pages/UserDetail";
 import AuditList from "./admin/pages/AuditList";
 import DiagnosticsErrorsList from "./admin/pages/DiagnosticsErrorsList";
 import DiagnosticsErrorDetail from "./admin/pages/DiagnosticsErrorDetail";
+import SigningKeys from "./admin/pages/SigningKeys";
+import TokenPolicies from "./admin/pages/TokenPolicies";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 
 const PublicLayout = () => (
@@ -106,6 +108,10 @@ const App = () => {
         <Route path="audit" element={<AuditList />} />
         <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
         <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
+        <Route path="security/keys" element={<SigningKeys />} />
+        <Route path="security/tokens" element={<TokenPolicies />} />
+        <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
+        <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route
           path="*"
           element={<Navigate to={adminRootPath} replace />}

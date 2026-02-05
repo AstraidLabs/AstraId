@@ -208,6 +208,56 @@ public static class AdminValidation
         return result;
     }
 
+    public static AdminValidationResult ValidateTokenPolicy(AdminTokenPolicyConfig config)
+    {
+        var result = new AdminValidationResult();
+        ValidatePreset("public", config.Public, result);
+        ValidatePreset("confidential", config.Confidential, result);
+
+        if (config.RefreshPolicy.ReuseLeewaySeconds < 0 || config.RefreshPolicy.ReuseLeewaySeconds > 3600)
+        {
+            result.AddFieldError(
+                "refreshPolicy.reuseLeewaySeconds",
+                "Reuse leeway must be between 0 and 3600 seconds.");
+        }
+
+        return result;
+    }
+
+    private static void ValidatePreset(string prefix, AdminTokenPreset preset, AdminValidationResult result)
+    {
+        ValidatePositiveInt($"{prefix}.accessTokenMinutes", preset.AccessTokenMinutes, 1, 1440, result);
+        ValidatePositiveInt($"{prefix}.identityTokenMinutes", preset.IdentityTokenMinutes, 1, 1440, result);
+        ValidatePositiveInt($"{prefix}.refreshTokenAbsoluteDays", preset.RefreshTokenAbsoluteDays, 1, 3650, result);
+
+        if (preset.RefreshTokenSlidingDays < 0 || preset.RefreshTokenSlidingDays > 3650)
+        {
+            result.AddFieldError(
+                $"{prefix}.refreshTokenSlidingDays",
+                "Sliding refresh token days must be between 0 and 3650.");
+        }
+
+        if (preset.RefreshTokenSlidingDays > preset.RefreshTokenAbsoluteDays)
+        {
+            result.AddFieldError(
+                $"{prefix}.refreshTokenSlidingDays",
+                "Sliding refresh token days cannot exceed the absolute refresh token days.");
+        }
+    }
+
+    private static void ValidatePositiveInt(
+        string field,
+        int value,
+        int min,
+        int max,
+        AdminValidationResult result)
+    {
+        if (value < min || value > max)
+        {
+            result.AddFieldError(field, $"Value must be between {min} and {max}.");
+        }
+    }
+
     private static bool ContainsControlChars(string value)
     {
         return value.Any(char.IsControl);

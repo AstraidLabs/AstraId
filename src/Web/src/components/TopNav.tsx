@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import Container from "./Container";
 import { logout } from "../api/authServer";
 import { useAuthSession } from "../auth/useAuthSession";
+import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-3 py-1 text-sm transition ${
@@ -14,6 +15,8 @@ const TopNav = () => {
   const navigate = useNavigate();
   const { session, refresh } = useAuthSession();
   const isAdmin = session?.permissions?.includes("system.admin") ?? false;
+  const adminUrl = getAdminEntryUrl();
+  const adminIsExternal = isAbsoluteUrl(adminUrl);
 
   const handleLogout = async () => {
     await logout();
@@ -50,12 +53,18 @@ const TopNav = () => {
               </NavLink>
             ) : null}
             {isAdmin ? (
-              <a
-                href="https://localhost:7001/admin"
-                className="rounded-full px-3 py-1 text-sm text-amber-200 transition hover:text-amber-50"
-              >
-                Admin
-              </a>
+              adminIsExternal ? (
+                <a
+                  href={adminUrl}
+                  className="rounded-full px-3 py-1 text-sm text-amber-200 transition hover:text-amber-50"
+                >
+                  Admin
+                </a>
+              ) : (
+                <NavLink to={adminUrl} className={linkClass}>
+                  Admin
+                </NavLink>
+              )
             ) : null}
           </nav>
           <div className="flex flex-wrap items-center gap-3">
