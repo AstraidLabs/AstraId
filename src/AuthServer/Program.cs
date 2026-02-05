@@ -157,7 +157,16 @@ if (builder.Environment.IsDevelopment())
 
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
-builder.Services.AddCors();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Web", policy =>
+    {
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .SetIsOriginAllowed(_ => true)
+              .AllowCredentials();
+    });
+});
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
@@ -184,7 +193,7 @@ builder.Services.AddOpenIddict()
         options.SetIssuer(issuerUri);
 
         options.SetConfigurationEndpointUris(".well-known/openid-configuration")
-               .SetCryptographyEndpointUris(".well-known/jwks")
+               .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
                .SetUserInfoEndpointUris("connect/userinfo")
@@ -365,25 +374,32 @@ static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode,
 
 static string BuildStatusCodeHtml(int statusCode, string detail, string traceId, Guid? errorId)
 {
-    var errorText = errorId.HasValue ? $"Error ID: {errorId}<br/>Trace ID: {traceId}" : $"Trace ID: {traceId}";
-    return $"""
+    // Bonus: lehká hardening ochrana proti XSS, kdyby se do "detail" někdy dostalo něco z requestu.
+    var safeDetail = System.Net.WebUtility.HtmlEncode(detail);
+    var safeTraceId = System.Net.WebUtility.HtmlEncode(traceId);
+
+    var errorText = errorId.HasValue
+        ? $"Error ID: {errorId}<br/>Trace ID: {safeTraceId}"
+        : $"Trace ID: {safeTraceId}";
+
+    return $$"""
             <!DOCTYPE html>
             <html lang="en">
             <head>
               <meta charset="utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>{statusCode} Error</title>
+              <title>{{statusCode}} Error</title>
               <style>
-                body {{ font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }}
-                .card {{ max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }}
-                .meta {{ margin-top: 16px; font-size: 0.9rem; color: #475569; }}
+                body { font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }
+                .card { max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }
+                .meta { margin-top: 16px; font-size: 0.9rem; color: #475569; }
               </style>
             </head>
             <body>
               <div class="card">
-                <h1>{ReasonPhrases.GetReasonPhrase(statusCode)}</h1>
-                <p>{detail}</p>
-                <p class="meta">{errorText}</p>
+                <h1>{{ReasonPhrases.GetReasonPhrase(statusCode)}}</h1>
+                <p>{{safeDetail}}</p>
+                <p class="meta">{{errorText}}</p>
               </div>
             </body>
             </html>

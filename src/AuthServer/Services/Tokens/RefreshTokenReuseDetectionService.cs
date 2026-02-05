@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
+using System.Security.Claims;
 
 namespace AuthServer.Services.Tokens;
 
