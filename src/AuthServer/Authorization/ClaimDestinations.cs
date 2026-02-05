@@ -21,7 +21,7 @@ public static class ClaimDestinations
 
         if (claim.Type == TokenPolicyApplier.RefreshTokenAbsoluteExpiryClaim)
         {
-            return [OpenIddictConstants.Destinations.RefreshToken];
+            return [];
         }
 
         foreach (var mapping in AuthServerScopeRegistry.ScopeClaimMap)

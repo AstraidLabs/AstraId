@@ -50,7 +50,7 @@ public sealed class AdminTokensController : ControllerBase
         var validation = AdminValidation.ValidateTokenPolicy(request);
         if (!validation.IsValid)
         {
-            return ValidationProblem(validation.ToProblemDetails().ApplyDefaults(HttpContext));
+            return ValidationProblem(validation.ToProblemDetails("Invalid token policy.").ApplyDefaults(HttpContext));
         }
 
         var updated = await _policyService.UpdateConfigAsync(request, cancellationToken);
