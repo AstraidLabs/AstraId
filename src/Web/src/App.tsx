@@ -108,8 +108,10 @@ const App = () => {
         <Route path="audit" element={<AuditList />} />
         <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
         <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
-        <Route path="security/signing-keys" element={<SigningKeys />} />
-        <Route path="security/token-policies" element={<TokenPolicies />} />
+        <Route path="security/keys" element={<SigningKeys />} />
+        <Route path="security/tokens" element={<TokenPolicies />} />
+        <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
+        <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route
           path="*"
           element={<Navigate to={adminRootPath} replace />}

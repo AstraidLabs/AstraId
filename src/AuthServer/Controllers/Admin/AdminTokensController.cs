@@ -12,6 +12,7 @@ namespace AuthServer.Controllers.Admin;
 
 [ApiController]
 [Route("admin/api/tokens")]
+[Route("admin/api/security/tokens")]
 [Authorize(Policy = "AdminOnly")]
 public sealed class AdminTokensController : ControllerBase
 {
@@ -33,6 +34,7 @@ public sealed class AdminTokensController : ControllerBase
     }
 
     [HttpGet("config")]
+    [HttpGet("policy")]
     public async Task<ActionResult<AdminTokenPolicyConfig>> GetConfig(CancellationToken cancellationToken)
     {
         var config = await _policyService.GetConfigAsync(cancellationToken);
@@ -40,6 +42,7 @@ public sealed class AdminTokensController : ControllerBase
     }
 
     [HttpPut("config")]
+    [HttpPut("policy")]
     public async Task<ActionResult<AdminTokenPolicyConfig>> UpdateConfig(
         [FromBody] AdminTokenPolicyConfig request,
         CancellationToken cancellationToken)

@@ -132,6 +132,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(entry => entry.PublicJwkJson);
             entity.Property(entry => entry.PrivateKeyProtected);
             entity.Property(entry => entry.MetadataJson);
+            entity.Property(entry => entry.RetireAfterUtc);
+            entity.Property(entry => entry.RevokedUtc);
         });
 
         builder.Entity<TokenPolicyOverride>(entity =>

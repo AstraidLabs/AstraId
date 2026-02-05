@@ -345,7 +345,13 @@ namespace AuthServer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("RetireAfterUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("RetiredUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RevokedUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
