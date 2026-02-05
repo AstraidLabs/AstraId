@@ -5,7 +5,7 @@ public sealed record AdminSigningKeyRingResponse(
     DateTime? NextRotationDueUtc,
     DateTimeOffset? NextRotationCheckUtc,
     DateTimeOffset? LastRotationUtc,
-    int RetentionDays,
+    int GracePeriodDays,
     bool RotationEnabled,
     int RotationIntervalDays,
     int CheckPeriodMinutes);

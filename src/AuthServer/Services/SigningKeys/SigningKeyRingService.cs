@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Options;
+using AuthServer.Services.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -13,17 +14,23 @@ public sealed class SigningKeyRingService
     private readonly ApplicationDbContext _dbContext;
     private readonly ISigningKeyProtector _protector;
     private readonly IOptionsMonitor<AuthServerSigningKeyOptions> _options;
+    private readonly IOptions<AuthServerCertificateOptions> _certificateOptions;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<SigningKeyRingService> _logger;
 
     public SigningKeyRingService(
         ApplicationDbContext dbContext,
         ISigningKeyProtector protector,
         IOptionsMonitor<AuthServerSigningKeyOptions> options,
+        IOptions<AuthServerCertificateOptions> certificateOptions,
+        IHostEnvironment environment,
         ILogger<SigningKeyRingService> logger)
     {
         _dbContext = dbContext;
         _protector = protector;
         _options = options;
+        _certificateOptions = certificateOptions;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -60,7 +67,7 @@ public sealed class SigningKeyRingService
             return active;
         }
 
-        var created = CreateKeyEntry();
+        var created = CreateBootstrapKeyEntry();
         created.Status = SigningKeyStatus.Active;
         created.ActivatedUtc = created.CreatedUtc;
 
@@ -70,7 +77,7 @@ public sealed class SigningKeyRingService
         return created;
     }
 
-    public async Task<SigningKeyRotationResult> RotateNowAsync(CancellationToken cancellationToken)
+    public async Task<SigningKeyRotationResult> RotateNowAsync(int gracePeriodDays, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var active = await GetActiveAsync(cancellationToken);
@@ -84,7 +91,7 @@ public sealed class SigningKeyRingService
             active.Status = SigningKeyStatus.Previous;
             active.RetiredUtc = null;
             active.RevokedUtc = null;
-            active.RetireAfterUtc = GetRetireAfterUtc(now);
+            active.RetireAfterUtc = GetRetireAfterUtc(now, gracePeriodDays);
             _dbContext.SigningKeyRingEntries.Update(active);
         }
 
@@ -163,9 +170,8 @@ public sealed class SigningKeyRingService
         return wasActive ? SigningKeyRevokeResult.ReplacedActive : SigningKeyRevokeResult.Revoked;
     }
 
-    public async Task CleanupAsync(CancellationToken cancellationToken)
+    public async Task CleanupAsync(int gracePeriodDays, CancellationToken cancellationToken)
     {
-        var retentionDays = Math.Max(0, _options.CurrentValue.PreviousKeyRetentionDays);
         var now = DateTime.UtcNow;
         var retireAfter = await _dbContext.SigningKeyRingEntries
             .Where(entry => entry.Status == SigningKeyStatus.Previous && entry.RetireAfterUtc != null && entry.RetireAfterUtc <= now)
@@ -184,7 +190,7 @@ public sealed class SigningKeyRingService
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var cutoff = now.AddDays(-retentionDays);
+        var cutoff = now.AddDays(-Math.Max(0, gracePeriodDays));
         var retired = await _dbContext.SigningKeyRingEntries
             .Where(entry => (entry.Status == SigningKeyStatus.Retired || entry.Status == SigningKeyStatus.Revoked)
                 && entry.RetiredUtc != null
@@ -203,11 +209,28 @@ public sealed class SigningKeyRingService
 
     public SigningCredentials CreateSigningCredentials(SigningKeyRingEntry entry)
     {
-        var privateBytes = Convert.FromBase64String(_protector.Unprotect(entry.PrivateKeyProtected));
+        var privateBytes = Convert.FromBase64String(_protector.Unprotect(entry.PrivateMaterialProtected));
         var rsa = RSA.Create();
         rsa.ImportPkcs8PrivateKey(privateBytes, out _);
         var key = new RsaSecurityKey(rsa) { KeyId = entry.Kid };
         return new SigningCredentials(key, entry.Algorithm);
+    }
+
+    private SigningKeyRingEntry CreateBootstrapKeyEntry()
+    {
+        var signingCertificate = CertificateLoader.TryLoadCertificate(_certificateOptions.Value.Signing);
+        if (signingCertificate is not null)
+        {
+            _logger.LogInformation("Bootstrapping signing key from configured certificate {Thumbprint}.", signingCertificate.Thumbprint);
+            return CreateKeyEntryFromCertificate(signingCertificate);
+        }
+
+        if (_environment.IsProduction())
+        {
+            _logger.LogWarning("Signing certificate not configured; generating a new signing key in production.");
+        }
+
+        return CreateKeyEntry();
     }
 
     private SigningKeyRingEntry CreateKeyEntry()
@@ -243,7 +266,7 @@ public sealed class SigningKeyRingService
             Algorithm = options.Algorithm,
             KeyType = "RSA",
             PublicJwkJson = publicJson,
-            PrivateKeyProtected = _protector.Protect(privateKey)
+            PrivateMaterialProtected = _protector.Protect(privateKey)
         };
     }
 
@@ -253,9 +276,48 @@ public sealed class SigningKeyRingService
         return Base64UrlEncoder.Encode(bytes);
     }
 
-    private DateTime? GetRetireAfterUtc(DateTime nowUtc)
+    private SigningKeyRingEntry CreateKeyEntryFromCertificate(System.Security.Cryptography.X509Certificates.X509Certificate2 certificate)
     {
-        var retentionDays = Math.Max(0, _options.CurrentValue.PreviousKeyRetentionDays);
+        using var rsa = certificate.GetRSAPrivateKey()
+            ?? throw new InvalidOperationException("Signing certificate does not include a private key.");
+        var parameters = rsa.ExportParameters(true);
+        var kid = Base64UrlEncoder.Encode(certificate.GetCertHash());
+        var jwk = new JsonWebKey
+        {
+            Kty = "RSA",
+            Use = "sig",
+            Alg = _options.CurrentValue.Algorithm,
+            Kid = kid,
+            N = Base64UrlEncoder.Encode(parameters.Modulus),
+            E = Base64UrlEncoder.Encode(parameters.Exponent)
+        };
+
+        var publicJson = JsonSerializer.Serialize(jwk);
+        var privateKey = Convert.ToBase64String(rsa.ExportPkcs8PrivateKey());
+        var now = DateTime.UtcNow;
+
+        return new SigningKeyRingEntry
+        {
+            Id = Guid.NewGuid(),
+            Kid = kid,
+            Status = SigningKeyStatus.Active,
+            CreatedUtc = now,
+            ActivatedUtc = now,
+            RetireAfterUtc = null,
+            NotBeforeUtc = certificate.NotBefore.ToUniversalTime(),
+            NotAfterUtc = certificate.NotAfter.ToUniversalTime(),
+            Algorithm = _options.CurrentValue.Algorithm,
+            KeyType = "RSA",
+            PublicJwkJson = publicJson,
+            PrivateMaterialProtected = _protector.Protect(privateKey),
+            Thumbprint = certificate.Thumbprint,
+            Comment = "Bootstrapped from configured signing certificate"
+        };
+    }
+
+    private static DateTime? GetRetireAfterUtc(DateTime nowUtc, int gracePeriodDays)
+    {
+        var retentionDays = Math.Max(0, gracePeriodDays);
         return retentionDays == 0 ? nowUtc : nowUtc.AddDays(retentionDays);
     }
 }

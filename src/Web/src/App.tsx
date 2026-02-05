@@ -41,6 +41,10 @@ import DiagnosticsErrorsList from "./admin/pages/DiagnosticsErrorsList";
 import DiagnosticsErrorDetail from "./admin/pages/DiagnosticsErrorDetail";
 import SigningKeys from "./admin/pages/SigningKeys";
 import TokenPolicies from "./admin/pages/TokenPolicies";
+import SecurityRotationPolicy from "./admin/pages/SecurityRotationPolicy";
+import SecurityIncidents from "./admin/pages/SecurityIncidents";
+import SecurityRevocation from "./admin/pages/SecurityRevocation";
+import SecurityDataProtection from "./admin/pages/SecurityDataProtection";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 
 const PublicLayout = () => (
@@ -109,7 +113,11 @@ const App = () => {
         <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
         <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
         <Route path="security/keys" element={<SigningKeys />} />
+        <Route path="security/rotation" element={<SecurityRotationPolicy />} />
         <Route path="security/tokens" element={<TokenPolicies />} />
+        <Route path="security/incidents" element={<SecurityIncidents />} />
+        <Route path="security/revocation" element={<SecurityRevocation />} />
+        <Route path="security/dataprotection" element={<SecurityDataProtection />} />
         <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
         <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route

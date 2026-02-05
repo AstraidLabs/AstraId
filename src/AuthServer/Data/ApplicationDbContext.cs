@@ -21,6 +21,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<OidcResource> OidcResources => Set<OidcResource>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
     public DbSet<SigningKeyRingEntry> SigningKeyRingEntries => Set<SigningKeyRingEntry>();
+    public DbSet<KeyRotationPolicy> KeyRotationPolicies => Set<KeyRotationPolicy>();
+    public DbSet<TokenPolicy> TokenPolicies => Set<TokenPolicy>();
+    public DbSet<TokenIncident> TokenIncidents => Set<TokenIncident>();
     public DbSet<TokenPolicyOverride> TokenPolicyOverrides => Set<TokenPolicyOverride>();
     public DbSet<ConsumedRefreshToken> ConsumedRefreshTokens => Set<ConsumedRefreshToken>();
 
@@ -130,10 +133,37 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(entry => entry.Algorithm).HasMaxLength(20);
             entity.Property(entry => entry.KeyType).HasMaxLength(20);
             entity.Property(entry => entry.PublicJwkJson);
-            entity.Property(entry => entry.PrivateKeyProtected);
+            entity.Property(entry => entry.PrivateMaterialProtected).HasColumnName("PrivateKeyProtected");
+            entity.Property(entry => entry.Thumbprint).HasMaxLength(128);
+            entity.Property(entry => entry.Comment).HasMaxLength(500);
+            entity.Property(entry => entry.CreatedByUserId);
             entity.Property(entry => entry.MetadataJson);
             entity.Property(entry => entry.RetireAfterUtc);
             entity.Property(entry => entry.RevokedUtc);
+        });
+
+        builder.Entity<KeyRotationPolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedUtc);
+        });
+
+        builder.Entity<TokenPolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedUtc);
+        });
+
+        builder.Entity<TokenIncident>(entity =>
+        {
+            entity.HasKey(incident => incident.Id);
+            entity.HasIndex(incident => incident.TimestampUtc);
+            entity.HasIndex(incident => incident.Type);
+            entity.HasIndex(incident => incident.Severity);
+            entity.Property(incident => incident.Type).HasMaxLength(200);
+            entity.Property(incident => incident.Severity).HasMaxLength(50);
+            entity.Property(incident => incident.ClientId).HasMaxLength(200);
+            entity.Property(incident => incident.TraceId).HasMaxLength(128);
         });
 
         builder.Entity<TokenPolicyOverride>(entity =>

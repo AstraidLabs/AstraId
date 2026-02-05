@@ -81,6 +81,7 @@ export default function ClientForm({ mode, clientId }: Props) {
     return state?.secret ?? null;
   });
   const [showSecret, setShowSecret] = useState(() => Boolean(secret));
+  const [secretNotice, setSecretNotice] = useState<string | null>(null);
 
   const isConfidential = form.clientType === "confidential";
 
@@ -212,6 +213,11 @@ export default function ClientForm({ mode, clientId }: Props) {
         if (response.clientSecret) {
           setSecret(response.clientSecret);
           setShowSecret(true);
+          setSecretNotice(null);
+        } else {
+          setSecret(null);
+          setShowSecret(false);
+          setSecretNotice("Client created. Secret was not displayed for security reasons.");
         }
         pushToast({ message: "Client created.", tone: "success" });
         navigate(toAdminRoute(`/oidc/clients/${response.client.id}`), {
@@ -263,6 +269,11 @@ export default function ClientForm({ mode, clientId }: Props) {
     if (response.clientSecret) {
       setSecret(response.clientSecret);
       setShowSecret(true);
+      setSecretNotice(null);
+    } else {
+      setSecret(null);
+      setShowSecret(false);
+      setSecretNotice("Secret rotated. New secret was not displayed for security reasons.");
     }
   };
 
@@ -532,6 +543,12 @@ export default function ClientForm({ mode, clientId }: Props) {
           </Field>
         </div>
       </section>
+
+      {secretNotice && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          {secretNotice}
+        </div>
+      )}
 
       {showSecret && secret && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-4">

@@ -52,7 +52,7 @@ public sealed class AdminApiResourceService : IAdminApiResourceService
         await LogAuditAsync("api-resource.updated", "ApiResource", apiResource.Id.ToString(), apiResource);
     }
 
-    public async Task<(string ApiKey, ApiResource Resource)> RotateApiKeyAsync(Guid apiResourceId, CancellationToken cancellationToken)
+    public async Task<ApiResource> RotateApiKeyAsync(Guid apiResourceId, CancellationToken cancellationToken)
     {
         var resource = await _dbContext.ApiResources.FirstOrDefaultAsync(item => item.Id == apiResourceId, cancellationToken);
         if (resource is null)
@@ -67,7 +67,7 @@ public sealed class AdminApiResourceService : IAdminApiResourceService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await LogAuditAsync("api-resource.api-key.rotated", "ApiResource", resource.Id.ToString(), new { resource.Name });
 
-        return (apiKey, resource);
+        return resource;
     }
 
     private async Task LogAuditAsync(string action, string targetType, string targetId, object data)

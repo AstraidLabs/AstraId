@@ -1,4 +1,4 @@
-using AuthServer.Options;
+using AuthServer.Services.Governance;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
@@ -38,45 +38,28 @@ public sealed class SigningKeyRotationService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var options = _options.CurrentValue;
-            if (options.Enabled)
+
+            using var scope = _serviceProvider.CreateScope();
+            var coordinator = scope.ServiceProvider.GetRequiredService<SigningKeyRotationCoordinator>();
+            var policyService = scope.ServiceProvider.GetRequiredService<KeyRotationPolicyService>();
+            var keyRing = scope.ServiceProvider.GetRequiredService<SigningKeyRingService>();
+
+            var policy = await policyService.GetPolicyAsync(stoppingToken);
+            if (policy.Enabled)
             {
-                using var scope = _serviceProvider.CreateScope();
-                var keyRing = scope.ServiceProvider.GetRequiredService<SigningKeyRingService>();
-                await RotateIfDueAsync(keyRing, options, stoppingToken);
-                await keyRing.CleanupAsync(stoppingToken);
+                var rotation = await coordinator.RotateIfDueAsync(stoppingToken);
+                if (rotation is not null)
+                {
+                    _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                    _state.LastRotationUtc = DateTimeOffset.UtcNow;
+                }
+
+                await keyRing.CleanupAsync(policy.GracePeriodDays, stoppingToken);
             }
 
             var delay = TimeSpan.FromMinutes(Math.Max(1, options.CheckPeriodMinutes));
             _state.NextCheckUtc = DateTimeOffset.UtcNow.Add(delay);
             await Task.Delay(delay, stoppingToken);
         }
-    }
-
-    private async Task RotateIfDueAsync(
-        SigningKeyRingService keyRing,
-        AuthServerSigningKeyOptions options,
-        CancellationToken cancellationToken)
-    {
-        var active = await keyRing.GetActiveAsync(cancellationToken);
-        if (active is null)
-        {
-            await keyRing.EnsureInitializedAsync(cancellationToken);
-            return;
-        }
-
-        var activated = active.ActivatedUtc ?? active.CreatedUtc;
-        var dueAt = activated.AddDays(Math.Max(1, options.RotationIntervalDays));
-        if (DateTime.UtcNow < dueAt)
-        {
-            return;
-        }
-
-        var result = await keyRing.RotateNowAsync(cancellationToken);
-        _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        _state.LastRotationUtc = DateTimeOffset.UtcNow;
-        _logger.LogInformation(
-            "Rotated signing keys. New active {NewKid}, previous {PreviousKid}.",
-            result.NewActive.Kid,
-            result.PreviousActive?.Kid);
     }
 }

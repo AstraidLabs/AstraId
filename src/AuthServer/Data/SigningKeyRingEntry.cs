@@ -15,7 +15,10 @@ public sealed class SigningKeyRingEntry
     public string Algorithm { get; set; } = "RS256";
     public string KeyType { get; set; } = "RSA";
     public string PublicJwkJson { get; set; } = string.Empty;
-    public string PrivateKeyProtected { get; set; } = string.Empty;
+    public string PrivateMaterialProtected { get; set; } = string.Empty;
+    public string? Thumbprint { get; set; }
+    public string? Comment { get; set; }
+    public Guid? CreatedByUserId { get; set; }
     public string? MetadataJson { get; set; }
 }
 

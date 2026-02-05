@@ -2,6 +2,7 @@ using AuthServer.Data;
 using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Services.Governance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +18,18 @@ public sealed class AdminApiResourcesController : ControllerBase
     private readonly IAdminApiResourceService _apiResourceService;
     private readonly IAdminEndpointService _endpointService;
     private readonly ApplicationDbContext _dbContext;
+    private readonly TokenIncidentService _incidentService;
 
     public AdminApiResourcesController(
         IAdminApiResourceService apiResourceService,
         IAdminEndpointService endpointService,
-        ApplicationDbContext dbContext)
+        ApplicationDbContext dbContext,
+        TokenIncidentService incidentService)
     {
         _apiResourceService = apiResourceService;
         _endpointService = endpointService;
         _dbContext = dbContext;
+        _incidentService = incidentService;
     }
 
     [HttpGet]
@@ -196,14 +200,21 @@ public sealed class AdminApiResourcesController : ControllerBase
     [HttpPost("{id:guid}/rotate-key")]
     public async Task<ActionResult<AdminApiResourceDetail>> RotateKey(Guid id, CancellationToken cancellationToken)
     {
-        var (apiKey, resource) = await _apiResourceService.RotateApiKeyAsync(id, cancellationToken);
+        var resource = await _apiResourceService.RotateApiKeyAsync(id, cancellationToken);
+        await _incidentService.LogIncidentAsync(
+            "api_key_rotated",
+            "medium",
+            null,
+            resource.Name,
+            new { resource.Id, resource.Name },
+            cancellationToken: cancellationToken);
         return Ok(new AdminApiResourceDetail(
             resource.Id,
             resource.Name,
             resource.DisplayName,
             resource.BaseUrl,
             resource.IsActive,
-            apiKey));
+            null));
     }
 
     [HttpGet("{id:guid}/endpoints")]
