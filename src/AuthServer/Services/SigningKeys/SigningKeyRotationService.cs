@@ -1,3 +1,4 @@
+using AuthServer.Options;
 using AuthServer.Services.Governance;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;

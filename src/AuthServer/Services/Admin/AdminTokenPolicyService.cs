@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AuthServer.Data;
+using AuthServer.Options;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
