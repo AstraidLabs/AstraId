@@ -180,6 +180,14 @@ npm install
 npm run dev
 ```
 
+**Admin entry (DEV vs PROD)**
+- **DEV (Vite)**: Admin UI běží v rámci SPA na `http://localhost:5173/admin` a používá client‑side routing. Není nutné buildovat/copy admin bundle do AuthServeru.
+- **PROD (AuthServer hostované)**: Admin UI je servováno AuthServerem pod `/admin` (build + kopie do `src/AuthServer/wwwroot/admin-ui`).
+- **VITE_ADMIN_ENTRY_URL**:
+  - DEV příklad: `VITE_ADMIN_ENTRY_URL=http://localhost:5173/admin`
+  - PROD příklad (jiný host): `VITE_ADMIN_ENTRY_URL=https://<authserver-host>/admin`
+  - Pokud není nastaveno, Web UI použije relativní `/admin` (vhodné pro stejného hosta).
+
 > 🧩 **Admin UI build**: `dotnet build src/AuthServer` spustí `npm ci` + `npm run build:admin` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`.
 > Admin UI pak běží na `https://localhost:7001/admin`.
 

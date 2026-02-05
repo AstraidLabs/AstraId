@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web": "vite",
     "build": "vite build",
     "build:public": "VITE_BASE=/ VITE_OUT_DIR=dist-public VITE_ROUTER_BASE=/ vite build",
     "build:admin": "VITE_BASE=/admin/ VITE_OUT_DIR=dist-admin VITE_ROUTER_BASE=/admin vite build",
