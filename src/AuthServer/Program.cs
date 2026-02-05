@@ -176,8 +176,11 @@ var dataProtectionOptions = builder.Configuration
 if (!string.IsNullOrWhiteSpace(dataProtectionOptions.KeyPath))
 {
     dataProtectionBuilder
-        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath))
-        .DisableAutomaticKeyGeneration(dataProtectionOptions.ReadOnly);
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
+    if (dataProtectionOptions.ReadOnly)
+    {
+        dataProtectionBuilder.DisableAutomaticKeyGeneration();
+    }
 }
 
 builder.Services.AddCors(options =>
