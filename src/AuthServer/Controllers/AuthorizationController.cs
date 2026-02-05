@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
-using Microsoft.AspNetCore;
 
 namespace AuthServer.Controllers;
 
@@ -88,13 +87,11 @@ public class AuthorizationController : ControllerBase
         }
 
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
-        var clientType = await _tokenPolicyResolver.GetClientTypeAsync(request.ClientId, HttpContext.RequestAborted);
-        var preset = ResolvePreset(policy, clientType);
 
         var principal = await CreatePrincipalAsync(
             user,
             request.GetScopes(),
-            preset,
+            policy,
             refreshAbsoluteExpiry: null);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
