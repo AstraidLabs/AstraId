@@ -9,6 +9,8 @@ using AuthServer.Services.Diagnostics;
 using AuthServer.Services.Cors;
 using AuthServer.Services.Cryptography;
 using AuthServer.Services.Admin;
+using AuthServer.Services.SigningKeys;
+using AuthServer.Services.Tokens;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +20,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,6 +65,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddRazorPages();
 builder.Services.AddMemoryCache();
+builder.Services.AddDataProtection();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddHttpContextAccessor();
@@ -73,7 +77,17 @@ builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
 builder.Services.AddScoped<IAdminClientService, AdminClientService>();
 builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
 builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
+builder.Services.AddScoped<AdminSigningKeyService>();
+builder.Services.AddScoped<AdminTokenPolicyService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
+builder.Services.AddScoped<SigningKeyRingService>();
+builder.Services.AddScoped<TokenPolicyService>();
+builder.Services.AddScoped<TokenPolicyResolver>();
+builder.Services.AddScoped<RefreshTokenReuseDetectionService>();
+builder.Services.AddSingleton<TokenPolicyApplier>();
+builder.Services.AddSingleton<ISigningKeyProtector, SigningKeyProtector>();
+builder.Services.AddSingleton<ISigningKeyRotationState, SigningKeyRotationState>();
+builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictSigningCredentialsConfigurator>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddSingleton<AdminUiManifestService>();
@@ -99,6 +113,30 @@ builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
 builder.Services.Configure<AuthServerCertificateOptions>(builder.Configuration.GetSection(AuthServerCertificateOptions.SectionName));
+builder.Services.AddOptions<AuthServerSigningKeyOptions>()
+    .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
+    .Validate(options =>
+    {
+        return options.RotationIntervalDays > 0
+               && options.PreviousKeyRetentionDays >= 0
+               && options.CheckPeriodMinutes > 0
+               && options.KeySize >= 2048
+               && !string.IsNullOrWhiteSpace(options.Algorithm);
+    }, "Signing key options are invalid.")
+    .ValidateOnStart();
+builder.Services.AddOptions<AuthServerTokenOptions>()
+    .Bind(builder.Configuration.GetSection(AuthServerTokenOptions.SectionName))
+    .Validate(options =>
+    {
+        return options.Public.AccessTokenMinutes > 0
+               && options.Public.IdentityTokenMinutes > 0
+               && options.Public.RefreshTokenAbsoluteDays > 0
+               && options.Confidential.AccessTokenMinutes > 0
+               && options.Confidential.IdentityTokenMinutes > 0
+               && options.Confidential.RefreshTokenAbsoluteDays > 0
+               && options.RefreshPolicy.ReuseLeewaySeconds >= 0;
+    }, "Token policy options are invalid.")
+    .ValidateOnStart();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -163,7 +201,7 @@ builder.Services.AddOpenIddict()
             .GetSection(AuthServerCertificateOptions.SectionName)
             .Get<AuthServerCertificateOptions>() ?? new AuthServerCertificateOptions();
 
-        ConfigureCertificates(options, certificateOptions, builder.Environment);
+        ConfigureEncryptionCertificates(options, certificateOptions, builder.Environment);
 
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
@@ -174,6 +212,7 @@ builder.Services.AddOpenIddict()
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
 builder.Services.AddHostedService<ErrorLogCleanupService>();
+builder.Services.AddHostedService<SigningKeyRotationService>();
 
 var app = builder.Build();
 
@@ -350,38 +389,16 @@ static string BuildStatusCodeHtml(int statusCode, string detail, string traceId,
             """;
 }
 
-static void ConfigureCertificates(
+static void ConfigureEncryptionCertificates(
     OpenIddictServerBuilder options,
     AuthServerCertificateOptions certificateOptions,
     IWebHostEnvironment environment)
 {
-    var signingCertificate = CertificateLoader.TryLoadCertificate(certificateOptions.Signing);
     var encryptionCertificate = CertificateLoader.TryLoadCertificate(certificateOptions.Encryption);
-
-    if (signingCertificate is null)
-    {
-        if (environment.IsDevelopment())
-        {
-            options.AddDevelopmentSigningCertificate();
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                "Signing certificate is required. Configure AuthServer:Certificates:Signing.");
-        }
-    }
-    else
-    {
-        options.AddSigningCertificate(signingCertificate);
-    }
 
     if (encryptionCertificate is null)
     {
-        if (signingCertificate is not null)
-        {
-            options.AddEncryptionCertificate(signingCertificate);
-        }
-        else if (environment.IsDevelopment())
+        if (environment.IsDevelopment())
         {
             options.AddDevelopmentEncryptionCertificate();
         }

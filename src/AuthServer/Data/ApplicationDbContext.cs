@@ -20,6 +20,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<ClientState> ClientStates => Set<ClientState>();
     public DbSet<OidcResource> OidcResources => Set<OidcResource>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+    public DbSet<SigningKeyRingEntry> SigningKeyRingEntries => Set<SigningKeyRingEntry>();
+    public DbSet<TokenPolicyOverride> TokenPolicyOverrides => Set<TokenPolicyOverride>();
+    public DbSet<ConsumedRefreshToken> ConsumedRefreshTokens => Set<ConsumedRefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -116,6 +119,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(error => error.InnerException).HasMaxLength(2000);
             entity.Property(error => error.UserAgent).HasMaxLength(500);
             entity.Property(error => error.RemoteIp).HasMaxLength(64);
+        });
+
+        builder.Entity<SigningKeyRingEntry>(entity =>
+        {
+            entity.HasKey(entry => entry.Id);
+            entity.HasIndex(entry => entry.Kid).IsUnique();
+            entity.HasIndex(entry => entry.Status);
+            entity.Property(entry => entry.Kid).HasMaxLength(200);
+            entity.Property(entry => entry.Algorithm).HasMaxLength(20);
+            entity.Property(entry => entry.KeyType).HasMaxLength(20);
+            entity.Property(entry => entry.PublicJwkJson);
+            entity.Property(entry => entry.PrivateKeyProtected);
+            entity.Property(entry => entry.MetadataJson);
+        });
+
+        builder.Entity<TokenPolicyOverride>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedUtc);
+        });
+
+        builder.Entity<ConsumedRefreshToken>(entity =>
+        {
+            entity.HasKey(token => token.TokenId);
+            entity.Property(token => token.TokenId).HasMaxLength(200);
+            entity.HasIndex(token => token.ExpiresUtc);
         });
     }
 }
