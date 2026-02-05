@@ -1,40 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppError, apiRequest } from "../api/http";
-import type { AdminTokenPolicyConfig } from "../api/types";
+import type { AdminTokenPolicyConfig, AdminTokenPolicyValues } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import { pushToast } from "../components/toast";
 import { parseProblemDetailsErrors } from "../validation/problemDetails";
 
-type Tab = "public" | "confidential";
-
-const defaultConfig: AdminTokenPolicyConfig = {
-  public: {
-    accessTokenMinutes: 30,
-    identityTokenMinutes: 15,
-    refreshTokenAbsoluteDays: 30,
-    refreshTokenSlidingDays: 7,
-  },
-  confidential: {
-    accessTokenMinutes: 60,
-    identityTokenMinutes: 30,
-    refreshTokenAbsoluteDays: 60,
-    refreshTokenSlidingDays: 14,
-  },
-  refreshPolicy: {
-    rotationEnabled: true,
-    reuseDetectionEnabled: true,
-    reuseLeewaySeconds: 30,
-  },
+const defaultPolicy: AdminTokenPolicyValues = {
+  accessTokenMinutes: 30,
+  identityTokenMinutes: 15,
+  authorizationCodeMinutes: 5,
+  refreshTokenDays: 30,
+  refreshRotationEnabled: true,
+  refreshReuseDetectionEnabled: true,
+  refreshReuseLeewaySeconds: 30,
+  clockSkewSeconds: 60,
 };
 
-const tabButtonClass = (active: boolean) =>
-  `rounded-md px-3 py-2 text-sm font-semibold transition ${
-    active ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-900"
-  }`;
-
 export default function TokenPolicies() {
-  const [tab, setTab] = useState<Tab>("public");
-  const [config, setConfig] = useState<AdminTokenPolicyConfig>(defaultConfig);
+  const [policy, setPolicy] = useState<AdminTokenPolicyValues>(defaultPolicy);
+  const [guardrails, setGuardrails] = useState<AdminTokenPolicyConfig["guardrails"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -43,19 +27,13 @@ export default function TokenPolicies() {
   >(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  const preset = useMemo(() => (tab === "public" ? config.public : config.confidential), [
-    tab,
-    config,
-  ]);
-
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const response = await apiRequest<AdminTokenPolicyConfig>(
-          "/admin/api/security/tokens/policy"
-        );
-        setConfig(response);
+        const response = await apiRequest<AdminTokenPolicyConfig>("/admin/api/security/token-policy");
+        setPolicy(response.policy);
+        setGuardrails(response.guardrails);
       } finally {
         setLoading(false);
       }
@@ -63,41 +41,19 @@ export default function TokenPolicies() {
     load();
   }, []);
 
-  const updatePreset = (field: keyof AdminTokenPolicyConfig["public"], value: number) => {
-    setConfig((current) => ({
-      ...current,
-      [tab]: {
-        ...current[tab],
-        [field]: value,
-      },
-    }));
-  };
-
-  const updateRefreshPolicy = (
-    field: keyof AdminTokenPolicyConfig["refreshPolicy"],
-    value: boolean | number
-  ) => {
-    setConfig((current) => ({
-      ...current,
-      refreshPolicy: {
-        ...current.refreshPolicy,
-        [field]: value,
-      },
-    }));
-  };
-
   const handleSave = async () => {
     setSaving(true);
     setFormError(null);
     setFormDiagnostics(undefined);
     setFieldErrors({});
     try {
-      const updated = await apiRequest<AdminTokenPolicyConfig>("/admin/api/security/tokens/policy", {
+      const updated = await apiRequest<AdminTokenPolicyConfig>("/admin/api/security/token-policy", {
         method: "PUT",
-        body: JSON.stringify(config),
+        body: JSON.stringify(policy),
         suppressToast: true,
       });
-      setConfig(updated);
+      setPolicy(updated.policy);
+      setGuardrails(updated.guardrails);
       pushToast({ tone: "success", message: "Token policy updated." });
     } catch (error) {
       const parsed = parseProblemDetailsErrors(error);
@@ -116,91 +72,116 @@ export default function TokenPolicies() {
     return <div className="text-sm text-slate-400">Loading token policy…</div>;
   }
 
+  const guardrailHint = guardrails
+    ? `Guardrails: ${guardrails.minAccessTokenMinutes}-${guardrails.maxAccessTokenMinutes} min access tokens, ${guardrails.minRefreshTokenDays}-${guardrails.maxRefreshTokenDays} day refresh.`
+    : undefined;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-white">Token Policies</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Tune token lifetimes and refresh token safeguards for public and confidential clients.
+          Set global token lifetimes and refresh token safeguards for OpenID Connect flows.
         </p>
       </div>
 
-      <div className="flex gap-2 rounded-lg border border-slate-800 bg-slate-950/60 p-2">
-        <button
-          type="button"
-          className={tabButtonClass(tab === "public")}
-          onClick={() => setTab("public")}
-        >
-          Public clients
-        </button>
-        <button
-          type="button"
-          className={tabButtonClass(tab === "confidential")}
-          onClick={() => setTab("confidential")}
-        >
-          Confidential clients
-        </button>
-      </div>
+      {!policy.refreshReuseDetectionEnabled && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          Refresh token reuse detection is disabled. Enable it to detect replayed refresh tokens.
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-5">
           <h2 className="text-lg font-semibold text-white">Token lifetimes</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Shorter lifetimes improve security but increase refresh frequency.
-          </p>
+          <p className="mt-1 text-sm text-slate-400">{guardrailHint ?? "Adjust lifetimes with care."}</p>
           <div className="mt-4 grid gap-4">
             <Field
               label="Access token (minutes)"
               tooltip="Recommended 5–60 minutes. Shorter values reduce exposure for leaked tokens."
-              error={fieldErrors?.[`${tab}.accessTokenMinutes`]?.[0]}
+              error={fieldErrors?.["accessTokenMinutes"]?.[0]}
             >
               <input
                 type="number"
                 min={1}
-                value={preset.accessTokenMinutes}
-                onChange={(event) => updatePreset("accessTokenMinutes", Number(event.target.value))}
+                value={policy.accessTokenMinutes}
+                onChange={(event) =>
+                  setPolicy((current) => ({
+                    ...current,
+                    accessTokenMinutes: Number(event.target.value),
+                  }))
+                }
                 className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </Field>
             <Field
               label="ID token (minutes)"
               tooltip="Keep short, usually aligned with access token lifetime."
-              error={fieldErrors?.[`${tab}.identityTokenMinutes`]?.[0]}
+              error={fieldErrors?.["identityTokenMinutes"]?.[0]}
             >
               <input
                 type="number"
                 min={1}
-                value={preset.identityTokenMinutes}
-                onChange={(event) => updatePreset("identityTokenMinutes", Number(event.target.value))}
-                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-              />
-            </Field>
-            <Field
-              label="Refresh token absolute (days)"
-              tooltip="Maximum lifetime regardless of activity."
-              error={fieldErrors?.[`${tab}.refreshTokenAbsoluteDays`]?.[0]}
-            >
-              <input
-                type="number"
-                min={1}
-                value={preset.refreshTokenAbsoluteDays}
+                value={policy.identityTokenMinutes}
                 onChange={(event) =>
-                  updatePreset("refreshTokenAbsoluteDays", Number(event.target.value))
+                  setPolicy((current) => ({
+                    ...current,
+                    identityTokenMinutes: Number(event.target.value),
+                  }))
                 }
                 className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </Field>
             <Field
-              label="Refresh token sliding (days)"
-              tooltip="Extends refresh token lifetime while the client is active. Set to 0 to disable."
-              error={fieldErrors?.[`${tab}.refreshTokenSlidingDays`]?.[0]}
+              label="Authorization code (minutes)"
+              tooltip="Short lifetimes reduce replay risk for authorization codes."
+              error={fieldErrors?.["authorizationCodeMinutes"]?.[0]}
+            >
+              <input
+                type="number"
+                min={1}
+                value={policy.authorizationCodeMinutes}
+                onChange={(event) =>
+                  setPolicy((current) => ({
+                    ...current,
+                    authorizationCodeMinutes: Number(event.target.value),
+                  }))
+                }
+                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+              />
+            </Field>
+            <Field
+              label="Refresh token lifetime (days)"
+              tooltip="Total lifetime for refresh tokens before re-authentication is required."
+              error={fieldErrors?.["refreshTokenDays"]?.[0]}
+            >
+              <input
+                type="number"
+                min={1}
+                value={policy.refreshTokenDays}
+                onChange={(event) =>
+                  setPolicy((current) => ({
+                    ...current,
+                    refreshTokenDays: Number(event.target.value),
+                  }))
+                }
+                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+              />
+            </Field>
+            <Field
+              label="Clock skew (seconds)"
+              tooltip="Allowed clock drift when validating tokens."
+              error={fieldErrors?.["clockSkewSeconds"]?.[0]}
             >
               <input
                 type="number"
                 min={0}
-                value={preset.refreshTokenSlidingDays}
+                value={policy.clockSkewSeconds}
                 onChange={(event) =>
-                  updatePreset("refreshTokenSlidingDays", Number(event.target.value))
+                  setPolicy((current) => ({
+                    ...current,
+                    clockSkewSeconds: Number(event.target.value),
+                  }))
                 }
                 className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
@@ -217,8 +198,13 @@ export default function TokenPolicies() {
             <label className="flex items-center gap-3 text-sm text-slate-200">
               <input
                 type="checkbox"
-                checked={config.refreshPolicy.rotationEnabled}
-                onChange={(event) => updateRefreshPolicy("rotationEnabled", event.target.checked)}
+                checked={policy.refreshRotationEnabled}
+                onChange={(event) =>
+                  setPolicy((current) => ({
+                    ...current,
+                    refreshRotationEnabled: event.target.checked,
+                  }))
+                }
                 className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-400"
               />
               Enable refresh token rotation
@@ -226,9 +212,12 @@ export default function TokenPolicies() {
             <label className="flex items-center gap-3 text-sm text-slate-200">
               <input
                 type="checkbox"
-                checked={config.refreshPolicy.reuseDetectionEnabled}
+                checked={policy.refreshReuseDetectionEnabled}
                 onChange={(event) =>
-                  updateRefreshPolicy("reuseDetectionEnabled", event.target.checked)
+                  setPolicy((current) => ({
+                    ...current,
+                    refreshReuseDetectionEnabled: event.target.checked,
+                  }))
                 }
                 className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-400"
               />
@@ -237,14 +226,17 @@ export default function TokenPolicies() {
             <Field
               label="Reuse leeway (seconds)"
               tooltip="Allows short overlap during parallel refresh calls before marking a token as reused."
-              error={fieldErrors?.["refreshPolicy.reuseLeewaySeconds"]?.[0]}
+              error={fieldErrors?.["refreshReuseLeewaySeconds"]?.[0]}
             >
               <input
                 type="number"
                 min={0}
-                value={config.refreshPolicy.reuseLeewaySeconds}
+                value={policy.refreshReuseLeewaySeconds}
                 onChange={(event) =>
-                  updateRefreshPolicy("reuseLeewaySeconds", Number(event.target.value))
+                  setPolicy((current) => ({
+                    ...current,
+                    refreshReuseLeewaySeconds: Number(event.target.value),
+                  }))
                 }
                 className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />

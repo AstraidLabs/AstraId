@@ -9,5 +9,5 @@ public interface IAdminApiResourceService
     Task<ApiResource?> GetApiResourceByNameAsync(string name, CancellationToken cancellationToken);
     Task<ApiResource> CreateApiResourceAsync(ApiResource apiResource, CancellationToken cancellationToken);
     Task UpdateApiResourceAsync(ApiResource apiResource, CancellationToken cancellationToken);
-    Task<(string ApiKey, ApiResource Resource)> RotateApiKeyAsync(Guid apiResourceId, CancellationToken cancellationToken);
+    Task<ApiResource> RotateApiKeyAsync(Guid apiResourceId, CancellationToken cancellationToken);
 }

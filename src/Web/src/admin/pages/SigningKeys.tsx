@@ -42,6 +42,12 @@ export default function SigningKeys() {
     load();
   }, []);
 
+  const publishedKeys = data?.keys.filter((key) => key.isPublished) ?? [];
+  const activeKey = data?.keys.find((key) => key.status === "Active");
+  const activeExpiry = activeKey?.notAfterUtc ? new Date(activeKey.notAfterUtc) : null;
+  const activeExpiresSoon =
+    activeExpiry && activeExpiry.getTime() - Date.now() < 1000 * 60 * 60 * 24 * 30;
+
   const rotateNow = async () => {
     setRotating(true);
     try {
@@ -102,6 +108,23 @@ export default function SigningKeys() {
           Rotate now
         </button>
       </div>
+
+      {data && !data.rotationEnabled && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          Automatic rotation is disabled. Ensure manual rotations are scheduled.
+        </div>
+      )}
+      {data && publishedKeys.length <= 1 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          Only one signing key is currently published in JWKS. Add a previous key during rotations to
+          avoid validation gaps.
+        </div>
+      )}
+      {data && activeExpiresSoon && (
+        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+          The active signing key expires within 30 days. Rotate keys or update certificates.
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-5">
         <h2 className="text-lg font-semibold text-white">Current key ring</h2>
@@ -209,9 +232,9 @@ export default function SigningKeys() {
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Retention</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Grace period</div>
             <div className="mt-2 text-sm text-slate-200">
-              {data ? `${data.retentionDays} days` : "—"}
+              {data ? `${data.gracePeriodDays} days` : "—"}
             </div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4">

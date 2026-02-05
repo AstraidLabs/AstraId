@@ -9,16 +9,16 @@ public sealed class TokenPolicyApplier
 
     public TokenPolicyApplyResult Apply(
         ClaimsPrincipal principal,
-        TokenPreset preset,
+        TokenPolicySnapshot policy,
         DateTimeOffset nowUtc,
         DateTimeOffset? absoluteExpiryOverride = null)
     {
-        principal.SetAccessTokenLifetime(TimeSpan.FromMinutes(preset.AccessTokenMinutes));
-        principal.SetIdentityTokenLifetime(TimeSpan.FromMinutes(preset.IdentityTokenMinutes));
+        principal.SetAccessTokenLifetime(TimeSpan.FromMinutes(policy.AccessTokenMinutes));
+        principal.SetIdentityTokenLifetime(TimeSpan.FromMinutes(policy.IdentityTokenMinutes));
 
         var absoluteExpiry = absoluteExpiryOverride
             ?? GetAbsoluteExpiry(principal)
-            ?? nowUtc.AddDays(preset.RefreshTokenAbsoluteDays);
+            ?? nowUtc.AddDays(policy.RefreshTokenDays);
         if (absoluteExpiry <= nowUtc)
         {
             return TokenPolicyApplyResult.ExpiredRefreshToken;
@@ -26,14 +26,7 @@ public sealed class TokenPolicyApplier
 
         principal.SetClaim(RefreshTokenAbsoluteExpiryClaim, absoluteExpiry.UtcDateTime.ToString("O"));
 
-        var refreshLifetime = TimeSpan.FromDays(preset.RefreshTokenAbsoluteDays);
-        if (preset.RefreshTokenSlidingDays > 0)
-        {
-            var remaining = absoluteExpiry - nowUtc;
-            var sliding = TimeSpan.FromDays(preset.RefreshTokenSlidingDays);
-            refreshLifetime = remaining < sliding ? remaining : sliding;
-        }
-
+        var refreshLifetime = absoluteExpiry - nowUtc;
         principal.SetRefreshTokenLifetime(refreshLifetime);
         return TokenPolicyApplyResult.Success;
     }

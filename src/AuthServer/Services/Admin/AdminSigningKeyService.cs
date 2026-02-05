@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AuthServer.Data;
+using AuthServer.Services.Governance;
 using AuthServer.Services.SigningKeys;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
@@ -13,6 +14,8 @@ public sealed class AdminSigningKeyService
     private readonly ApplicationDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly SigningKeyRingService _keyRingService;
+    private readonly SigningKeyRotationCoordinator _rotationCoordinator;
+    private readonly TokenIncidentService _incidentService;
     private readonly IOptionsMonitorCache<OpenIddictServerOptions> _optionsCache;
     private readonly ISigningKeyRotationState _rotationState;
 
@@ -20,19 +23,23 @@ public sealed class AdminSigningKeyService
         ApplicationDbContext dbContext,
         IHttpContextAccessor httpContextAccessor,
         SigningKeyRingService keyRingService,
+        SigningKeyRotationCoordinator rotationCoordinator,
+        TokenIncidentService incidentService,
         IOptionsMonitorCache<OpenIddictServerOptions> optionsCache,
         ISigningKeyRotationState rotationState)
     {
         _dbContext = dbContext;
         _httpContextAccessor = httpContextAccessor;
         _keyRingService = keyRingService;
+        _rotationCoordinator = rotationCoordinator;
+        _incidentService = incidentService;
         _optionsCache = optionsCache;
         _rotationState = rotationState;
     }
 
     public async Task<SigningKeyRotationResult> RotateNowAsync(CancellationToken cancellationToken)
     {
-        var result = await _keyRingService.RotateNowAsync(cancellationToken);
+        var result = await _rotationCoordinator.RotateNowAsync(GetActorUserId(), cancellationToken);
         _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         _rotationState.LastRotationUtc = DateTimeOffset.UtcNow;
         await LogAuditAsync("signing-keys.rotated", "SigningKeyRing", result.NewActive.Kid, new
@@ -58,6 +65,15 @@ public sealed class AdminSigningKeyService
             status = entry.Status.ToString()
         });
 
+        await _incidentService.LogIncidentAsync(
+            "signing_key_retired",
+            "medium",
+            null,
+            null,
+            new { entry.Kid },
+            GetActorUserId(),
+            cancellationToken: cancellationToken);
+
         return entry;
     }
 
@@ -72,6 +88,15 @@ public sealed class AdminSigningKeyService
                 kid,
                 result = result.ToString()
             });
+
+            await _incidentService.LogIncidentAsync(
+                "signing_key_revoked",
+                "high",
+                null,
+                null,
+                new { kid, result = result.ToString() },
+                GetActorUserId(),
+                cancellationToken: cancellationToken);
         }
 
         return result;

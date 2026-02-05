@@ -1,8 +1,8 @@
-using AuthServer.Data;
 using AuthServer.Options;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Services;
+using AuthServer.Services.Governance;
 using AuthServer.Services.SigningKeys;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,17 +21,20 @@ public sealed class AdminSigningKeysController : ControllerBase
     private readonly AdminSigningKeyService _adminSigningKeyService;
     private readonly IOptionsMonitor<AuthServerSigningKeyOptions> _options;
     private readonly ISigningKeyRotationState _rotationState;
+    private readonly KeyRotationPolicyService _policyService;
 
     public AdminSigningKeysController(
         SigningKeyRingService keyRingService,
         AdminSigningKeyService adminSigningKeyService,
         IOptionsMonitor<AuthServerSigningKeyOptions> options,
-        ISigningKeyRotationState rotationState)
+        ISigningKeyRotationState rotationState,
+        KeyRotationPolicyService policyService)
     {
         _keyRingService = keyRingService;
         _adminSigningKeyService = adminSigningKeyService;
         _options = options;
         _rotationState = rotationState;
+        _policyService = policyService;
     }
 
     [HttpGet]
@@ -53,19 +56,19 @@ public sealed class AdminSigningKeysController : ControllerBase
             entry.Status is SigningKeyStatus.Active or SigningKeyStatus.Previous)).ToList();
 
         var active = keys.FirstOrDefault(entry => entry.Status == SigningKeyStatus.Active);
-        var intervalDays = Math.Max(1, _options.CurrentValue.RotationIntervalDays);
-        var nextRotation = active is null
-            ? (DateTime?)null
-            : (active.ActivatedUtc ?? active.CreatedUtc).AddDays(intervalDays);
+        var policy = await _policyService.GetPolicyAsync(cancellationToken);
+        var intervalDays = Math.Max(1, policy.RotationIntervalDays);
+        var nextRotation = policy.NextRotationUtc
+            ?? (active is null ? null : (active.ActivatedUtc ?? active.CreatedUtc).AddDays(intervalDays));
 
         var response = new AdminSigningKeyRingResponse(
             items,
             nextRotation,
             _rotationState.NextCheckUtc,
             _rotationState.LastRotationUtc,
-            Math.Max(0, _options.CurrentValue.PreviousKeyRetentionDays),
-            _options.CurrentValue.Enabled,
-            Math.Max(1, _options.CurrentValue.RotationIntervalDays),
+            Math.Max(0, policy.GracePeriodDays),
+            policy.Enabled,
+            Math.Max(1, policy.RotationIntervalDays),
             Math.Max(1, _options.CurrentValue.CheckPeriodMinutes));
 
         return Ok(response);

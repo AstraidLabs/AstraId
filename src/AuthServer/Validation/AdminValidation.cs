@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 using AuthServer.Models;
+using AuthServer.Options;
 using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Validation;
@@ -208,41 +209,52 @@ public static class AdminValidation
         return result;
     }
 
-    public static AdminValidationResult ValidateTokenPolicy(AdminTokenPolicyConfig config)
+    public static AdminValidationResult ValidateKeyRotationPolicy(
+        AdminKeyRotationPolicyRequest request,
+        GovernanceGuardrailsOptions guardrails)
     {
         var result = new AdminValidationResult();
-        ValidatePreset("public", config.Public, result);
-        ValidatePreset("confidential", config.Confidential, result);
+        ValidatePositiveInt(
+            "rotationIntervalDays",
+            request.RotationIntervalDays,
+            guardrails.MinRotationIntervalDays,
+            guardrails.MaxRotationIntervalDays,
+            result);
+        ValidatePositiveInt(
+            "gracePeriodDays",
+            request.GracePeriodDays,
+            guardrails.MinGracePeriodDays,
+            guardrails.MaxGracePeriodDays,
+            result);
 
-        if (config.RefreshPolicy.ReuseLeewaySeconds < 0 || config.RefreshPolicy.ReuseLeewaySeconds > 3600)
+        if (request.BreakGlass && string.IsNullOrWhiteSpace(request.Reason))
         {
-            result.AddFieldError(
-                "refreshPolicy.reuseLeewaySeconds",
-                "Reuse leeway must be between 0 and 3600 seconds.");
+            result.AddFieldError("reason", "Break-glass requires a reason.");
         }
 
         return result;
     }
 
-    private static void ValidatePreset(string prefix, AdminTokenPreset preset, AdminValidationResult result)
+    public static AdminValidationResult ValidateTokenPolicy(
+        AdminTokenPolicyValues config,
+        GovernanceGuardrailsOptions guardrails)
     {
-        ValidatePositiveInt($"{prefix}.accessTokenMinutes", preset.AccessTokenMinutes, 1, 1440, result);
-        ValidatePositiveInt($"{prefix}.identityTokenMinutes", preset.IdentityTokenMinutes, 1, 1440, result);
-        ValidatePositiveInt($"{prefix}.refreshTokenAbsoluteDays", preset.RefreshTokenAbsoluteDays, 1, 3650, result);
+        var result = new AdminValidationResult();
 
-        if (preset.RefreshTokenSlidingDays < 0 || preset.RefreshTokenSlidingDays > 3650)
+        ValidatePositiveInt("accessTokenMinutes", config.AccessTokenMinutes, guardrails.MinAccessTokenMinutes, guardrails.MaxAccessTokenMinutes, result);
+        ValidatePositiveInt("identityTokenMinutes", config.IdentityTokenMinutes, guardrails.MinIdentityTokenMinutes, guardrails.MaxIdentityTokenMinutes, result);
+        ValidatePositiveInt("authorizationCodeMinutes", config.AuthorizationCodeMinutes, guardrails.MinAuthorizationCodeMinutes, guardrails.MaxAuthorizationCodeMinutes, result);
+        ValidatePositiveInt("refreshTokenDays", config.RefreshTokenDays, guardrails.MinRefreshTokenDays, guardrails.MaxRefreshTokenDays, result);
+        ValidatePositiveInt("clockSkewSeconds", config.ClockSkewSeconds, guardrails.MinClockSkewSeconds, guardrails.MaxClockSkewSeconds, result);
+
+        if (config.RefreshReuseLeewaySeconds < 0 || config.RefreshReuseLeewaySeconds > 3600)
         {
             result.AddFieldError(
-                $"{prefix}.refreshTokenSlidingDays",
-                "Sliding refresh token days must be between 0 and 3650.");
+                "refreshReuseLeewaySeconds",
+                "Reuse leeway must be between 0 and 3600 seconds.");
         }
 
-        if (preset.RefreshTokenSlidingDays > preset.RefreshTokenAbsoluteDays)
-        {
-            result.AddFieldError(
-                $"{prefix}.refreshTokenSlidingDays",
-                "Sliding refresh token days cannot exceed the absolute refresh token days.");
-        }
+        return result;
     }
 
     private static void ValidatePositiveInt(

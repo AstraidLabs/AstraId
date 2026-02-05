@@ -199,7 +199,7 @@ export type AdminSigningKeyRingResponse = {
   nextRotationDueUtc?: string | null;
   nextRotationCheckUtc?: string | null;
   lastRotationUtc?: string | null;
-  retentionDays: number;
+  gracePeriodDays: number;
   rotationEnabled: boolean;
   rotationIntervalDays: number;
   checkPeriodMinutes: number;
@@ -211,23 +211,33 @@ export type AdminSigningKeyRotationResponse = {
   activatedUtc: string;
 };
 
-export type AdminTokenPreset = {
+export type AdminTokenPolicyValues = {
   accessTokenMinutes: number;
   identityTokenMinutes: number;
-  refreshTokenAbsoluteDays: number;
-  refreshTokenSlidingDays: number;
+  authorizationCodeMinutes: number;
+  refreshTokenDays: number;
+  refreshRotationEnabled: boolean;
+  refreshReuseDetectionEnabled: boolean;
+  refreshReuseLeewaySeconds: number;
+  clockSkewSeconds: number;
 };
 
-export type AdminRefreshTokenPolicy = {
-  rotationEnabled: boolean;
-  reuseDetectionEnabled: boolean;
-  reuseLeewaySeconds: number;
+export type AdminTokenPolicyGuardrails = {
+  minAccessTokenMinutes: number;
+  maxAccessTokenMinutes: number;
+  minIdentityTokenMinutes: number;
+  maxIdentityTokenMinutes: number;
+  minAuthorizationCodeMinutes: number;
+  maxAuthorizationCodeMinutes: number;
+  minRefreshTokenDays: number;
+  maxRefreshTokenDays: number;
+  minClockSkewSeconds: number;
+  maxClockSkewSeconds: number;
 };
 
 export type AdminTokenPolicyConfig = {
-  public: AdminTokenPreset;
-  confidential: AdminTokenPreset;
-  refreshPolicy: AdminRefreshTokenPolicy;
+  policy: AdminTokenPolicyValues;
+  guardrails: AdminTokenPolicyGuardrails;
 };
 
 export type AdminTokenPolicyStatus = {
@@ -235,4 +245,71 @@ export type AdminTokenPolicyStatus = {
   rotationEnabled: boolean;
   nextRotationCheckUtc?: string | null;
   currentPolicy: AdminTokenPolicyConfig;
+};
+
+export type AdminKeyRotationPolicyValues = {
+  enabled: boolean;
+  rotationIntervalDays: number;
+  gracePeriodDays: number;
+  nextRotationUtc?: string | null;
+  lastRotationUtc?: string | null;
+};
+
+export type AdminKeyRotationPolicyGuardrails = {
+  minRotationIntervalDays: number;
+  maxRotationIntervalDays: number;
+  minGracePeriodDays: number;
+  maxGracePeriodDays: number;
+  preventDisableRotationInProduction: boolean;
+};
+
+export type AdminKeyRotationPolicyResponse = {
+  policy: AdminKeyRotationPolicyValues;
+  guardrails: AdminKeyRotationPolicyGuardrails;
+};
+
+export type AdminKeyRotationPolicyRequest = {
+  enabled: boolean;
+  rotationIntervalDays: number;
+  gracePeriodDays: number;
+  breakGlass: boolean;
+  reason?: string | null;
+};
+
+export type AdminTokenIncidentListItem = {
+  id: string;
+  timestampUtc: string;
+  type: string;
+  severity: string;
+  userId?: string | null;
+  clientId?: string | null;
+  traceId?: string | null;
+  detailJson?: string | null;
+};
+
+export type AdminTokenIncidentDetail = AdminTokenIncidentListItem & {
+  actorUserId?: string | null;
+};
+
+export type AdminDataProtectionStatus = {
+  keysPersisted: boolean;
+  keyPath?: string | null;
+  readOnly: boolean;
+  keyCount: number;
+  latestKeyActivationUtc?: string | null;
+  latestKeyExpirationUtc?: string | null;
+};
+
+export type AdminEncryptionKeyStatus = {
+  enabled: boolean;
+  source: string;
+  thumbprint?: string | null;
+  subject?: string | null;
+  notBeforeUtc?: string | null;
+  notAfterUtc?: string | null;
+};
+
+export type AdminRevocationResult = {
+  tokensRevoked: number;
+  authorizationsRevoked: number;
 };

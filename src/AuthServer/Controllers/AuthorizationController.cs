@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Services;
+using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
@@ -25,10 +26,10 @@ public class AuthorizationController : ControllerBase
     private readonly UiUrlBuilder _uiUrlBuilder;
     private readonly IClientStateService _clientStateService;
     private readonly TokenPolicyService _tokenPolicyService;
-    private readonly TokenPolicyResolver _tokenPolicyResolver;
     private readonly TokenPolicyApplier _tokenPolicyApplier;
     private readonly RefreshTokenReuseDetectionService _refreshTokenReuseDetection;
     private readonly RefreshTokenReuseRemediationService _refreshTokenReuseRemediation;
+    private readonly TokenIncidentService _incidentService;
     private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
@@ -38,10 +39,10 @@ public class AuthorizationController : ControllerBase
         UiUrlBuilder uiUrlBuilder,
         IClientStateService clientStateService,
         TokenPolicyService tokenPolicyService,
-        TokenPolicyResolver tokenPolicyResolver,
         TokenPolicyApplier tokenPolicyApplier,
         RefreshTokenReuseDetectionService refreshTokenReuseDetection,
         RefreshTokenReuseRemediationService refreshTokenReuseRemediation,
+        TokenIncidentService incidentService,
         ILogger<AuthorizationController> logger)
     {
         _userManager = userManager;
@@ -50,10 +51,10 @@ public class AuthorizationController : ControllerBase
         _uiUrlBuilder = uiUrlBuilder;
         _clientStateService = clientStateService;
         _tokenPolicyService = tokenPolicyService;
-        _tokenPolicyResolver = tokenPolicyResolver;
         _tokenPolicyApplier = tokenPolicyApplier;
         _refreshTokenReuseDetection = refreshTokenReuseDetection;
         _refreshTokenReuseRemediation = refreshTokenReuseRemediation;
+        _incidentService = incidentService;
         _logger = logger;
     }
 
@@ -138,20 +139,26 @@ public class AuthorizationController : ControllerBase
         }
 
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
-        var clientType = await _tokenPolicyResolver.GetClientTypeAsync(clientId, HttpContext.RequestAborted);
-        var preset = ResolvePreset(policy, clientType);
 
         if (request.IsRefreshTokenGrantType()
-            && policy.RefreshPolicy.RotationEnabled
-            && policy.RefreshPolicy.ReuseDetectionEnabled)
+            && policy.RefreshRotationEnabled
+            && policy.RefreshReuseDetectionEnabled)
         {
             var reuseResult = await _refreshTokenReuseDetection.TryConsumeAsync(
                 authenticateResult.Principal,
-                policy.RefreshPolicy.ReuseLeewaySeconds,
+                policy.RefreshReuseLeewaySeconds,
                 HttpContext.RequestAborted);
 
             if (reuseResult == RefreshTokenReuseResult.Reused)
             {
+                await _incidentService.LogIncidentAsync(
+                    "refresh_token_reuse",
+                    "high",
+                    user.Id,
+                    clientId,
+                    new { clientId, userId = user.Id },
+                    cancellationToken: HttpContext.RequestAborted);
+
                 await _refreshTokenReuseRemediation.RevokeSubjectTokensAsync(
                     authenticateResult.Principal,
                     clientId,
@@ -174,7 +181,7 @@ public class AuthorizationController : ControllerBase
         var principal = await CreatePrincipalAsync(
             user,
             authenticateResult.Principal.GetScopes(),
-            preset,
+            policy,
             refreshAbsoluteExpiry: refreshAbsoluteExpiry);
 
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -208,7 +215,7 @@ public class AuthorizationController : ControllerBase
     private async Task<ClaimsPrincipal> CreatePrincipalAsync(
         ApplicationUser user,
         IEnumerable<string> requestedScopes,
-        TokenPreset preset,
+        TokenPolicySnapshot policy,
         DateTimeOffset? refreshAbsoluteExpiry)
     {
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -233,7 +240,7 @@ public class AuthorizationController : ControllerBase
         principal.SetScopes(scopes);
         principal.SetResources(AuthServerScopeRegistry.ApiResources);
 
-        _tokenPolicyApplier.Apply(principal, preset, DateTimeOffset.UtcNow, refreshAbsoluteExpiry);
+        _tokenPolicyApplier.Apply(principal, policy, DateTimeOffset.UtcNow, refreshAbsoluteExpiry);
 
         foreach (var claim in principal.Claims)
         {
@@ -278,10 +285,4 @@ public class AuthorizationController : ControllerBase
         });
     }
 
-    private static TokenPreset ResolvePreset(TokenPolicySnapshot policy, string clientType)
-    {
-        return string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal)
-            ? policy.Confidential
-            : policy.Public;
-    }
 }

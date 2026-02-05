@@ -34,6 +34,7 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [rotationNotice, setRotationNotice] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; displayName?: string; baseUrl?: string }>(
     {}
   );
@@ -154,6 +155,11 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
     );
     if (data.apiKey) {
       setApiKey(data.apiKey);
+      setRotationNotice(null);
+      pushToast({ message: "API key rotated.", tone: "success" });
+    } else {
+      setApiKey(null);
+      setRotationNotice("API key rotated. New key was not displayed for security reasons.");
       pushToast({ message: "API key rotated.", tone: "success" });
     }
   };
@@ -195,6 +201,11 @@ export default function ApiResourceForm({ mode, resourceId }: Props) {
           <p className="mt-2 text-xs text-amber-100">
             Store this value securely; it will not be shown again.
           </p>
+        </div>
+      )}
+      {rotationNotice && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          {rotationNotice}
         </div>
       )}
 

@@ -11,6 +11,7 @@ using AuthServer.Services.Cryptography;
 using AuthServer.Services.Admin;
 using AuthServer.Services.SigningKeys;
 using AuthServer.Services.Tokens;
+using AuthServer.Services.Governance;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -65,7 +66,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddRazorPages();
 builder.Services.AddMemoryCache();
-builder.Services.AddDataProtection();
+var dataProtectionBuilder = builder.Services.AddDataProtection();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddHttpContextAccessor();
@@ -79,16 +80,23 @@ builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
 builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
 builder.Services.AddScoped<AdminSigningKeyService>();
 builder.Services.AddScoped<AdminTokenPolicyService>();
+builder.Services.AddScoped<SigningKeyRotationCoordinator>();
+builder.Services.AddScoped<KeyRotationPolicyService>();
+builder.Services.AddScoped<TokenIncidentService>();
+builder.Services.AddScoped<TokenRevocationService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
 builder.Services.AddScoped<SigningKeyRingService>();
 builder.Services.AddScoped<TokenPolicyService>();
-builder.Services.AddScoped<TokenPolicyResolver>();
 builder.Services.AddScoped<RefreshTokenReuseDetectionService>();
 builder.Services.AddScoped<RefreshTokenReuseRemediationService>();
 builder.Services.AddSingleton<TokenPolicyApplier>();
 builder.Services.AddSingleton<ISigningKeyProtector, SigningKeyProtector>();
 builder.Services.AddSingleton<ISigningKeyRotationState, SigningKeyRotationState>();
 builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictSigningCredentialsConfigurator>();
+builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictTokenPolicyConfigurator>();
+builder.Services.AddSingleton<GovernancePolicyStore>();
+builder.Services.AddSingleton<DataProtectionStatusService>();
+builder.Services.AddSingleton<EncryptionKeyStatusService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddSingleton<AdminUiManifestService>();
@@ -114,6 +122,10 @@ builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
 builder.Services.Configure<AuthServerCertificateOptions>(builder.Configuration.GetSection(AuthServerCertificateOptions.SectionName));
+builder.Services.Configure<AuthServerDataProtectionOptions>(builder.Configuration.GetSection(AuthServerDataProtectionOptions.SectionName));
+builder.Services.Configure<KeyRotationDefaultsOptions>(builder.Configuration.GetSection(KeyRotationDefaultsOptions.SectionName));
+builder.Services.Configure<TokenPolicyDefaultsOptions>(builder.Configuration.GetSection(TokenPolicyDefaultsOptions.SectionName));
+builder.Services.Configure<GovernanceGuardrailsOptions>(builder.Configuration.GetSection(GovernanceGuardrailsOptions.SectionName));
 builder.Services.AddOptions<AuthServerSigningKeyOptions>()
     .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
     .Validate(options =>
@@ -156,6 +168,16 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+var dataProtectionOptions = builder.Configuration
+    .GetSection(AuthServerDataProtectionOptions.SectionName)
+    .Get<AuthServerDataProtectionOptions>() ?? new AuthServerDataProtectionOptions();
+if (!string.IsNullOrWhiteSpace(dataProtectionOptions.KeyPath))
+{
+    dataProtectionBuilder
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath))
+        .DisableAutomaticKeyGeneration(dataProtectionOptions.ReadOnly);
+}
 
 builder.Services.AddCors(options =>
 {
@@ -221,6 +243,7 @@ builder.Services.AddOpenIddict()
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
+builder.Services.AddHostedService<GovernancePolicyInitializer>();
 builder.Services.AddHostedService<ErrorLogCleanupService>();
 builder.Services.AddHostedService<SigningKeyRotationService>();
 

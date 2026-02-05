@@ -1,17 +1,27 @@
 namespace AuthServer.Services.Admin.Models;
 
 public sealed record AdminTokenPolicyConfig(
-    AdminTokenPreset Public,
-    AdminTokenPreset Confidential,
-    AdminRefreshTokenPolicy RefreshPolicy);
+    AdminTokenPolicyValues Policy,
+    AdminTokenPolicyGuardrails Guardrails);
 
-public sealed record AdminTokenPreset(
+public sealed record AdminTokenPolicyValues(
     int AccessTokenMinutes,
     int IdentityTokenMinutes,
-    int RefreshTokenAbsoluteDays,
-    int RefreshTokenSlidingDays);
+    int AuthorizationCodeMinutes,
+    int RefreshTokenDays,
+    bool RefreshRotationEnabled,
+    bool RefreshReuseDetectionEnabled,
+    int RefreshReuseLeewaySeconds,
+    int ClockSkewSeconds);
 
-public sealed record AdminRefreshTokenPolicy(
-    bool RotationEnabled,
-    bool ReuseDetectionEnabled,
-    int ReuseLeewaySeconds);
+public sealed record AdminTokenPolicyGuardrails(
+    int MinAccessTokenMinutes,
+    int MaxAccessTokenMinutes,
+    int MinIdentityTokenMinutes,
+    int MaxIdentityTokenMinutes,
+    int MinAuthorizationCodeMinutes,
+    int MaxAuthorizationCodeMinutes,
+    int MinRefreshTokenDays,
+    int MaxRefreshTokenDays,
+    int MinClockSkewSeconds,
+    int MaxClockSkewSeconds);

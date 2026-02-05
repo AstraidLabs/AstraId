@@ -4,6 +4,7 @@ using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Services.Admin.Validation;
+using AuthServer.Services.Governance;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
@@ -22,17 +23,20 @@ public sealed class AdminClientService : IAdminClientService
     private readonly IOpenIddictScopeManager _scopeManager;
     private readonly ApplicationDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly TokenIncidentService _incidentService;
 
     public AdminClientService(
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictScopeManager scopeManager,
         ApplicationDbContext dbContext,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        TokenIncidentService incidentService)
     {
         _applicationManager = applicationManager;
         _scopeManager = scopeManager;
         _dbContext = dbContext;
         _httpContextAccessor = httpContextAccessor;
+        _incidentService = incidentService;
     }
 
     public async Task<PagedResult<AdminClientListItem>> GetClientsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken)
@@ -149,7 +153,19 @@ public sealed class AdminClientService : IAdminClientService
             detail.Enabled
         });
 
-        return new AdminClientSecretResult(detail, clientSecret);
+        if (!string.IsNullOrWhiteSpace(clientSecret))
+        {
+            await _incidentService.LogIncidentAsync(
+                "client_secret_created",
+                "low",
+                null,
+                detail.ClientId,
+                new { detail.ClientId },
+                GetActorUserId(),
+                cancellationToken: cancellationToken);
+        }
+
+        return new AdminClientSecretResult(detail, null);
     }
 
     public async Task<AdminClientDetail?> UpdateClientAsync(string id, AdminClientUpdateRequest request, CancellationToken cancellationToken)
@@ -258,7 +274,16 @@ public sealed class AdminClientService : IAdminClientService
             detail.ClientId
         });
 
-        return new AdminClientSecretResult(detail, newSecret);
+        await _incidentService.LogIncidentAsync(
+            "client_secret_rotated",
+            "medium",
+            null,
+            detail.ClientId,
+            new { detail.ClientId },
+            GetActorUserId(),
+            cancellationToken: cancellationToken);
+
+        return new AdminClientSecretResult(detail, null);
     }
 
     public async Task<AdminClientDetail?> SetEnabledAsync(string id, bool enabled, CancellationToken cancellationToken)
