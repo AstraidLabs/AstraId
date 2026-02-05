@@ -18,10 +18,10 @@ public sealed class OpenIddictTokenPolicyConfigurator : IConfigureOptions<OpenId
         var policyService = scope.ServiceProvider.GetRequiredService<TokenPolicyService>();
         var policy = policyService.GetEffectivePolicyAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-        options.SetAuthorizationCodeLifetime(TimeSpan.FromMinutes(policy.AuthorizationCodeMinutes));
-        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(policy.AccessTokenMinutes));
-        options.SetIdentityTokenLifetime(TimeSpan.FromMinutes(policy.IdentityTokenMinutes));
-        options.SetRefreshTokenLifetime(TimeSpan.FromDays(policy.RefreshTokenDays));
+        options.AuthorizationCodeLifetime = TimeSpan.FromMinutes(policy.AuthorizationCodeMinutes);
+        options.AccessTokenLifetime = TimeSpan.FromMinutes(policy.AccessTokenMinutes);
+        options.IdentityTokenLifetime = TimeSpan.FromMinutes(policy.IdentityTokenMinutes);
+        options.RefreshTokenLifetime = TimeSpan.FromDays(policy.RefreshTokenDays);
         options.TokenValidationParameters.ClockSkew = TimeSpan.FromSeconds(policy.ClockSkewSeconds);
     }
 }
