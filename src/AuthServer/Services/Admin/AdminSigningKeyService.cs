@@ -4,6 +4,7 @@ using AuthServer.Data;
 using AuthServer.Services.SigningKeys;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
+using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.Admin;
 
@@ -32,7 +33,7 @@ public sealed class AdminSigningKeyService
     public async Task<SigningKeyRotationResult> RotateNowAsync(CancellationToken cancellationToken)
     {
         var result = await _keyRingService.RotateNowAsync(cancellationToken);
-        _optionsCache.TryRemove(OpenIddictServerDefaults.AuthenticationScheme);
+        _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         _rotationState.LastRotationUtc = DateTimeOffset.UtcNow;
         await LogAuditAsync("signing-keys.rotated", "SigningKeyRing", result.NewActive.Kid, new
         {
@@ -50,7 +51,7 @@ public sealed class AdminSigningKeyService
             return null;
         }
 
-        _optionsCache.TryRemove(OpenIddictServerDefaults.AuthenticationScheme);
+        _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         await LogAuditAsync("signing-keys.retired", "SigningKeyRing", entry.Kid, new
         {
             kid = entry.Kid,
@@ -65,7 +66,7 @@ public sealed class AdminSigningKeyService
         var result = await _keyRingService.RevokeAsync(kid, cancellationToken);
         if (result != SigningKeyRevokeResult.NotFound)
         {
-            _optionsCache.TryRemove(OpenIddictServerDefaults.AuthenticationScheme);
+            _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             await LogAuditAsync("signing-keys.revoked", "SigningKeyRing", kid, new
             {
                 kid,

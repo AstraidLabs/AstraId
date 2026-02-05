@@ -36,21 +36,9 @@ public sealed class RefreshTokenReuseRemediationService
             return;
         }
 
-        var applicationId = string.IsNullOrWhiteSpace(clientId)
-            ? null
-            : await _dbContext.Set<OpenIddictEntityFrameworkCoreApplication>()
-                .Where(app => app.ClientId == clientId)
-                .Select(app => app.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
         var revokedAt = DateTime.UtcNow;
         var tokensQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreToken>()
             .Where(token => token.Subject == subject);
-
-        if (!string.IsNullOrWhiteSpace(applicationId))
-        {
-            tokensQuery = tokensQuery.Where(token => token.ApplicationId == applicationId);
-        }
 
         var tokens = await tokensQuery.ToListAsync(cancellationToken);
         foreach (var token in tokens)
@@ -61,11 +49,6 @@ public sealed class RefreshTokenReuseRemediationService
 
         var authorizationsQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreAuthorization>()
             .Where(authorization => authorization.Subject == subject);
-
-        if (!string.IsNullOrWhiteSpace(applicationId))
-        {
-            authorizationsQuery = authorizationsQuery.Where(authorization => authorization.ApplicationId == applicationId);
-        }
 
         var authorizations = await authorizationsQuery.ToListAsync(cancellationToken);
         foreach (var authorization in authorizations)

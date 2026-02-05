@@ -1,6 +1,7 @@
 using AuthServer.Options;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
+using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.SigningKeys;
 
@@ -71,7 +72,7 @@ public sealed class SigningKeyRotationService : BackgroundService
         }
 
         var result = await keyRing.RotateNowAsync(cancellationToken);
-        _optionsCache.TryRemove(OpenIddictServerDefaults.AuthenticationScheme);
+        _optionsCache.TryRemove(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         _state.LastRotationUtc = DateTimeOffset.UtcNow;
         _logger.LogInformation(
             "Rotated signing keys. New active {NewKid}, previous {PreviousKid}.",
