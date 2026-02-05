@@ -12,15 +12,18 @@ public sealed class RefreshTokenReuseRemediationService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly ILogger<RefreshTokenReuseRemediationService> _logger;
 
     public RefreshTokenReuseRemediationService(
         ApplicationDbContext dbContext,
         UserManager<ApplicationUser> userManager,
+        IOpenIddictApplicationManager applicationManager,
         ILogger<RefreshTokenReuseRemediationService> logger)
     {
         _dbContext = dbContext;
         _userManager = userManager;
+        _applicationManager = applicationManager;
         _logger = logger;
     }
 
@@ -37,8 +40,29 @@ public sealed class RefreshTokenReuseRemediationService
         }
 
         var revokedAt = DateTime.UtcNow;
+        string? applicationId = null;
+        if (!string.IsNullOrWhiteSpace(clientId))
+        {
+            var application = await _applicationManager.FindByClientIdAsync(clientId, cancellationToken);
+            if (application is null)
+            {
+                _logger.LogWarning(
+                    "Refresh token reuse detected for subject {Subject}, but client {ClientId} was not found.",
+                    subject,
+                    clientId);
+            }
+            else
+            {
+                applicationId = await _applicationManager.GetIdAsync(application, cancellationToken);
+            }
+        }
+
         var tokensQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreToken>()
             .Where(token => token.Subject == subject);
+        if (!string.IsNullOrWhiteSpace(applicationId))
+        {
+            tokensQuery = tokensQuery.Where(token => token.ApplicationId == applicationId);
+        }
 
         var tokens = await tokensQuery.ToListAsync(cancellationToken);
         foreach (var token in tokens)
@@ -49,6 +73,10 @@ public sealed class RefreshTokenReuseRemediationService
 
         var authorizationsQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreAuthorization>()
             .Where(authorization => authorization.Subject == subject);
+        if (!string.IsNullOrWhiteSpace(applicationId))
+        {
+            authorizationsQuery = authorizationsQuery.Where(authorization => authorization.ApplicationId == applicationId);
+        }
 
         var authorizations = await authorizationsQuery.ToListAsync(cancellationToken);
         foreach (var authorization in authorizations)
