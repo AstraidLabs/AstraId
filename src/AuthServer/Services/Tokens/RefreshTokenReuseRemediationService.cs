@@ -57,11 +57,13 @@ public sealed class RefreshTokenReuseRemediationService
             }
         }
 
+        const string applicationIdPropertyName = "ApplicationId";
         var tokensQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreToken>()
             .Where(token => token.Subject == subject);
         if (!string.IsNullOrWhiteSpace(applicationId))
         {
-            tokensQuery = tokensQuery.Where(token => token.ApplicationId == applicationId);
+            tokensQuery = tokensQuery.Where(token =>
+                EF.Property<string?>(token, applicationIdPropertyName) == applicationId);
         }
 
         var tokens = await tokensQuery.ToListAsync(cancellationToken);
@@ -75,7 +77,8 @@ public sealed class RefreshTokenReuseRemediationService
             .Where(authorization => authorization.Subject == subject);
         if (!string.IsNullOrWhiteSpace(applicationId))
         {
-            authorizationsQuery = authorizationsQuery.Where(authorization => authorization.ApplicationId == applicationId);
+            authorizationsQuery = authorizationsQuery.Where(authorization =>
+                EF.Property<string?>(authorization, applicationIdPropertyName) == applicationId);
         }
 
         var authorizations = await authorizationsQuery.ToListAsync(cancellationToken);
