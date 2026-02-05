@@ -51,6 +51,7 @@ public sealed class TokenRevocationService
             }
         }
 
+        const string applicationIdPropertyName = "ApplicationId";
         var tokensQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreToken>().AsQueryable();
         var authQuery = _dbContext.Set<OpenIddictEntityFrameworkCoreAuthorization>().AsQueryable();
 
@@ -62,8 +63,10 @@ public sealed class TokenRevocationService
 
         if (!string.IsNullOrWhiteSpace(applicationId))
         {
-            tokensQuery = tokensQuery.Where(token => token.ApplicationId == applicationId);
-            authQuery = authQuery.Where(auth => auth.ApplicationId == applicationId);
+            tokensQuery = tokensQuery.Where(token =>
+                EF.Property<string?>(token, applicationIdPropertyName) == applicationId);
+            authQuery = authQuery.Where(auth =>
+                EF.Property<string?>(auth, applicationIdPropertyName) == applicationId);
         }
 
         var tokens = await tokensQuery.ToListAsync(cancellationToken);

@@ -14,6 +14,7 @@ using AuthServer.Services.Tokens;
 using AuthServer.Services.Governance;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
