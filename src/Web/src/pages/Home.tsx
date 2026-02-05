@@ -4,12 +4,14 @@ import Card from "../components/Card";
 import Alert from "../components/Alert";
 import { logout } from "../api/authServer";
 import { useAuthSession } from "../auth/useAuthSession";
+import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 
 const Home = () => {
   const navigate = useNavigate();
   const { session, isLoading, error, refresh } = useAuthSession();
   const [logoutError, setLogoutError] = useState("");
-  const adminUrl = "https://localhost:7001/admin";
+  const adminUrl = getAdminEntryUrl();
+  const adminIsExternal = isAbsoluteUrl(adminUrl);
 
   const isAdmin = useMemo(() => {
     if (!session?.permissions?.length) {
@@ -94,12 +96,21 @@ const Home = () => {
                   Logout
                 </button>
                 {isAdmin ? (
-                  <a
-                    className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
-                    href={adminUrl}
-                  >
-                    Admin
-                  </a>
+                  adminIsExternal ? (
+                    <a
+                      className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+                      href={adminUrl}
+                    >
+                      Admin
+                    </a>
+                  ) : (
+                    <Link
+                      className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+                      to={adminUrl}
+                    >
+                      Admin
+                    </Link>
+                  )
                 ) : null}
               </div>
             </>
