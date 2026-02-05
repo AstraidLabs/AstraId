@@ -8,7 +8,6 @@ using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using AuthServer.Options;
 using AuthServer.Services.Governance;
 
 namespace AuthServer.Controllers.Admin;
