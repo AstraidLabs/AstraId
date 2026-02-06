@@ -561,7 +561,24 @@ namespace AuthServer.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("AppliedPresetId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("AppliedPresetVersion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OverridesJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Profile")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("SystemManaged")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime>("UpdatedUtc")

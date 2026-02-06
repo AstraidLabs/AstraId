@@ -4,6 +4,9 @@ import { AppError, apiRequest } from "../api/http";
 import type {
   AdminClientDetail,
   AdminClientSecretResponse,
+  AdminClientPresetListItem,
+  AdminClientPresetDetail,
+  AdminClientProfileRulesResponse,
   AdminOidcScopeListItem,
   PagedResult,
 } from "../api/types";
@@ -43,6 +46,7 @@ type FormState = {
 
 type FormErrors = {
   clientId?: string;
+  presetId?: string;
   grantTypes?: string;
   pkceRequired?: string;
   redirectUris?: string;
@@ -82,6 +86,11 @@ export default function ClientForm({ mode, clientId }: Props) {
   });
   const [showSecret, setShowSecret] = useState(() => Boolean(secret));
   const [secretNotice, setSecretNotice] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<AdminClientProfileRulesResponse["profiles"]>([]);
+  const [presets, setPresets] = useState<AdminClientPresetListItem[]>([]);
+  const [presetId, setPresetId] = useState<string>("");
+  const [presetDetail, setPresetDetail] = useState<AdminClientPresetDetail | null>(null);
+  const [profile, setProfile] = useState<string>("SpaPublic");
 
   const isConfidential = form.clientType === "confidential";
 
@@ -103,7 +112,37 @@ export default function ClientForm({ mode, clientId }: Props) {
       setScopes(data.items);
     };
     fetchScopes();
+    const fetchRules = async () => {
+      const rules = await apiRequest<AdminClientProfileRulesResponse>("/admin/api/client-profiles/rules");
+      const presetList = await apiRequest<AdminClientPresetListItem[]>("/admin/api/client-presets");
+      setProfiles(rules.profiles);
+      setPresets(presetList);
+      if (presetList.length > 0) {
+        setPresetId(presetList[0].id);
+        setProfile(presetList[0].profile);
+      }
+    };
+    fetchRules();
   }, []);
+
+  useEffect(() => {
+    if (!presetId) return;
+    apiRequest<AdminClientPresetDetail>(`/admin/api/client-presets/${presetId}`).then((detail) => {
+      setPresetDetail(detail);
+      setProfile(detail.profile);
+      if (mode === "create") {
+        setForm((prev) => ({
+          ...prev,
+          clientType: detail.defaults.clientType === "confidential" ? "confidential" : "public",
+          pkceRequired: detail.defaults.pkceRequired,
+          grantTypes: detail.defaults.grantTypes,
+          redirectUrisText: detail.defaults.redirectUris.join("\n"),
+          postLogoutRedirectUrisText: detail.defaults.postLogoutRedirectUris.join("\n"),
+          scopes: detail.defaults.scopes,
+        }));
+      }
+    });
+  }, [presetId, mode]);
 
   useEffect(() => {
     if (mode !== "edit" || !clientId) {
@@ -129,6 +168,10 @@ export default function ClientForm({ mode, clientId }: Props) {
           redirectUrisText: data.redirectUris.join("\n"),
           postLogoutRedirectUrisText: data.postLogoutRedirectUris.join("\n"),
         });
+        setProfile(data.profile ?? "SpaPublic");
+        if (data.presetId) {
+          setPresetId(data.presetId);
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -202,6 +245,17 @@ export default function ClientForm({ mode, clientId }: Props) {
         scopes: form.scopes,
         redirectUris: parseRedirectUris(form.redirectUrisText),
         postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
+        profile,
+        presetId,
+        presetVersion: presetDetail?.version,
+        overrides: {
+          clientType: form.clientType,
+          pkceRequired: form.pkceRequired,
+          grantTypes: form.grantTypes,
+          scopes: form.scopes,
+          redirectUris: parseRedirectUris(form.redirectUrisText),
+          postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
+        },
       };
 
       if (mode === "create") {
@@ -246,6 +300,7 @@ export default function ClientForm({ mode, clientId }: Props) {
           redirectUris: parsed.fieldErrors.redirectUris?.[0],
           postLogoutRedirectUris: parsed.fieldErrors.postLogoutRedirectUris?.[0],
           scopes: parsed.fieldErrors.scopes?.[0],
+          presetId: parsed.fieldErrors.presetId?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save client.");
         setFormDiagnostics(parsed.diagnostics);
@@ -318,6 +373,39 @@ export default function ClientForm({ mode, clientId }: Props) {
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
       <FormError message={formError} diagnostics={formDiagnostics} />
+        {mode === "create" && (
+          <div className="mb-6 grid gap-5 md:grid-cols-2">
+            <Field label="Client profile" hint="Server-published profile rules.">
+              <select
+                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                value={profile}
+                onChange={(event) => {
+                  const nextProfile = event.target.value;
+                  setProfile(nextProfile);
+                  const matched = presets.find((item) => item.profile === nextProfile);
+                  if (matched) {
+                    setPresetId(matched.id);
+                  }
+                }}
+              >
+                {profiles.map((rule) => (
+                  <option key={rule.profile} value={rule.profile}>{rule.profile}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Preset" error={errors.presetId} hint="Preset defaults and locked fields are provided by server.">
+              <select
+                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                value={presetId}
+                onChange={(event) => setPresetId(event.target.value)}
+              >
+                {presets.filter((item) => item.profile === profile).map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name} (v{preset.version})</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
         <div className="grid gap-5 md:grid-cols-2">
           <Field
             label="Client ID"
@@ -375,6 +463,7 @@ export default function ClientForm({ mode, clientId }: Props) {
                   grantTypes: undefined,
                 }));
               }}
+              disabled={presetDetail?.lockedFields.includes("clientType")}
             >
               <option value="public">Public</option>
               <option value="confidential">Confidential</option>
@@ -429,7 +518,7 @@ export default function ClientForm({ mode, clientId }: Props) {
                       grantTypes: validateGrantTypes(nextGrantTypes) ?? undefined,
                     }));
                   }}
-                  disabled={form.clientType === "public" && option.value === "client_credentials"}
+                  disabled={presetDetail?.lockedFields.includes("grantTypes") || (form.clientType === "public" && option.value === "client_credentials")}
                 />
                 {option.label}
               </label>
@@ -460,6 +549,7 @@ export default function ClientForm({ mode, clientId }: Props) {
                       ) ?? undefined,
                   }));
                 }}
+                disabled={presetDetail?.lockedFields.includes("pkceRequired")}
               />
               Require PKCE
             </label>
