@@ -10,4 +10,8 @@ public sealed record AdminClientDetail(
     bool PkceRequired,
     IReadOnlyList<string> Scopes,
     IReadOnlyList<string> RedirectUris,
-    IReadOnlyList<string> PostLogoutRedirectUris);
+    IReadOnlyList<string> PostLogoutRedirectUris,
+    string? Profile,
+    string? PresetId,
+    int? PresetVersion,
+    bool SystemManaged);
