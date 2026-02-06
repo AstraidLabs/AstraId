@@ -75,7 +75,8 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
 
         var clientStates = await _dbContext.ClientStates
             .AsNoTracking()
-            .ToDictionaryAsync(state => state.ApplicationId, cancellationToken);
+            .Select(state => new { state.ApplicationId, state.Enabled })
+            .ToDictionaryAsync(state => state.ApplicationId, state => state.Enabled, cancellationToken);
 
         await foreach (var application in _applicationManager.ListAsync(count: null, offset: null, cancellationToken))
         {
@@ -85,7 +86,7 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
                 continue;
             }
 
-            if (clientStates.TryGetValue(applicationId, out var state) && !state.Enabled)
+            if (clientStates.TryGetValue(applicationId, out var enabled) && !enabled)
             {
                 continue;
             }
