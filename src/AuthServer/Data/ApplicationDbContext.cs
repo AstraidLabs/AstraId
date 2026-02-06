@@ -93,6 +93,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         {
             entity.HasKey(clientState => clientState.ApplicationId);
             entity.Property(clientState => clientState.ApplicationId).HasMaxLength(200);
+            entity.Property(clientState => clientState.Profile).HasMaxLength(100);
+            entity.Property(clientState => clientState.AppliedPresetId).HasMaxLength(100);
+            entity.Property(clientState => clientState.OverridesJson);
             entity.Property(clientState => clientState.UpdatedUtc);
         });
 

@@ -29,6 +29,7 @@ public class AuthorizationController : ControllerBase
     private readonly RefreshTokenReuseDetectionService _refreshTokenReuseDetection;
     private readonly RefreshTokenReuseRemediationService _refreshTokenReuseRemediation;
     private readonly TokenIncidentService _incidentService;
+    private readonly IOidcClientPolicyEnforcer _policyEnforcer;
     private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
@@ -42,6 +43,7 @@ public class AuthorizationController : ControllerBase
         RefreshTokenReuseDetectionService refreshTokenReuseDetection,
         RefreshTokenReuseRemediationService refreshTokenReuseRemediation,
         TokenIncidentService incidentService,
+        IOidcClientPolicyEnforcer policyEnforcer,
         ILogger<AuthorizationController> logger)
     {
         _userManager = userManager;
@@ -54,6 +56,7 @@ public class AuthorizationController : ControllerBase
         _refreshTokenReuseDetection = refreshTokenReuseDetection;
         _refreshTokenReuseRemediation = refreshTokenReuseRemediation;
         _incidentService = incidentService;
+        _policyEnforcer = policyEnforcer;
         _logger = logger;
     }
 
@@ -71,6 +74,23 @@ public class AuthorizationController : ControllerBase
         {
             _logger.LogInformation("Authorization request rejected because client {ClientId} is disabled.", request.ClientId);
             return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var authorizePolicy = await _policyEnforcer.ValidateAuthorizeAsync(request, HttpContext.RequestAborted);
+        if (!authorizePolicy.Allowed)
+        {
+            await _incidentService.LogIncidentAsync(
+                "oidc_client_rule_violation",
+                "medium",
+                null,
+                request.ClientId,
+                new { request.ClientId, ruleCode = authorizePolicy.RuleCode, path = HttpContext.Request.Path, traceId = HttpContext.TraceIdentifier },
+                cancellationToken: HttpContext.RequestAborted);
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = authorizePolicy.Error,
+                [OpenIddictConstants.Parameters.ErrorDescription] = authorizePolicy.Description
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         if (!User.Identity?.IsAuthenticated ?? true)
@@ -106,12 +126,12 @@ public class AuthorizationController : ControllerBase
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "The token request is invalid."));
         }
 
-        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType())
+        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType())
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
             return BadRequest(CreateErrorResponse(
                 OpenIddictConstants.Errors.UnsupportedGrantType,
-                "Only authorization_code and refresh_token grants are supported."));
+                "Only authorization_code, refresh_token, and client_credentials grants are supported."));
         }
 
         var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -126,6 +146,34 @@ public class AuthorizationController : ControllerBase
         {
             _logger.LogInformation("Token request rejected because client {ClientId} is disabled.", clientId);
             return Forbid(CreateClientDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var tokenPolicy = await _policyEnforcer.ValidateTokenAsync(request, HttpContext.RequestAborted);
+        if (!tokenPolicy.Allowed)
+        {
+            await _incidentService.LogIncidentAsync(
+                "oidc_client_rule_violation",
+                "medium",
+                null,
+                clientId,
+                new { clientId, ruleCode = tokenPolicy.RuleCode, path = HttpContext.Request.Path, traceId = HttpContext.TraceIdentifier },
+                cancellationToken: HttpContext.RequestAborted);
+
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = tokenPolicy.Error,
+                [OpenIddictConstants.Parameters.ErrorDescription] = tokenPolicy.Description
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (request.IsClientCredentialsGrantType())
+        {
+            var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            identity.AddClaim(OpenIddictConstants.Claims.Subject, clientId ?? request.ClientId ?? string.Empty);
+            var machinePrincipal = new ClaimsPrincipal(identity);
+            machinePrincipal.SetScopes(request.GetScopes().Intersect(AllowedScopes));
+            machinePrincipal.SetResources(AuthServerScopeRegistry.ApiResources);
+            return SignIn(machinePrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var user = await _userManager.GetUserAsync(authenticateResult.Principal);

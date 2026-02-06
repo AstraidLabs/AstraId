@@ -77,6 +77,10 @@ builder.Services.AddScoped<IAdminPermissionAdminService, AdminPermissionAdminSer
 builder.Services.AddScoped<IAdminApiResourceService, AdminApiResourceService>();
 builder.Services.AddScoped<IAdminEndpointService, AdminEndpointService>();
 builder.Services.AddScoped<IAdminClientService, AdminClientService>();
+builder.Services.AddSingleton<IClientProfileRegistry, ClientProfileRegistry>();
+builder.Services.AddSingleton<IClientPresetRegistry, ClientPresetRegistry>();
+builder.Services.AddSingleton<ClientConfigComposer>();
+builder.Services.AddSingleton<ClientConfigValidator>();
 builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
 builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
 builder.Services.AddScoped<AdminSigningKeyService>();
@@ -86,6 +90,7 @@ builder.Services.AddScoped<KeyRotationPolicyService>();
 builder.Services.AddScoped<TokenIncidentService>();
 builder.Services.AddScoped<TokenRevocationService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
+builder.Services.AddScoped<IOidcClientPolicyEnforcer, OidcClientPolicyEnforcer>();
 builder.Services.AddScoped<SigningKeyRingService>();
 builder.Services.AddScoped<SigningKeyJwksService>();
 builder.Services.AddScoped<TokenPolicyService>();

@@ -24,6 +24,53 @@ export type AdminClientDetail = {
   scopes: string[];
   redirectUris: string[];
   postLogoutRedirectUris: string[];
+  profile?: string | null;
+  presetId?: string | null;
+  presetVersion?: number | null;
+  systemManaged: boolean;
+};
+
+export type AdminClientProfileRule = {
+  profile: string;
+  summary: string;
+  allowedGrantTypes: string[];
+  requiresPkceForAuthorizationCode: boolean;
+  requiresClientSecret: boolean;
+  allowsRedirectUris: boolean;
+  allowOfflineAccess: boolean;
+  redirectPolicy: string;
+  ruleCodes: string[];
+};
+
+export type AdminClientProfileRulesResponse = {
+  version: number;
+  profiles: AdminClientProfileRule[];
+};
+
+export type AdminClientPresetListItem = {
+  id: string;
+  name: string;
+  profile: string;
+  summary: string;
+  version: number;
+};
+
+export type AdminClientPresetDetail = {
+  id: string;
+  name: string;
+  profile: string;
+  summary: string;
+  version: number;
+  defaults: {
+    clientType: string;
+    pkceRequired: boolean;
+    grantTypes: string[];
+    redirectUris: string[];
+    postLogoutRedirectUris: string[];
+    scopes: string[];
+  };
+  lockedFields: string[];
+  allowedOverrides: string[];
 };
 
 export type AdminOidcScopeListItem = {

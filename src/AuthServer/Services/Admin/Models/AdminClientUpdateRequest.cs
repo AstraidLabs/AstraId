@@ -11,4 +11,9 @@ public sealed class AdminClientUpdateRequest
     public IReadOnlyList<string> Scopes { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> RedirectUris { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> PostLogoutRedirectUris { get; set; } = Array.Empty<string>();
+    public string? Profile { get; set; }
+    public string? PresetId { get; set; }
+    public int? PresetVersion { get; set; }
+    public System.Text.Json.JsonElement? Overrides { get; set; }
+    public bool ForceSystemManagedEdit { get; set; }
 }

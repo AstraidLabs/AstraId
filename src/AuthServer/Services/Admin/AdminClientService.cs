@@ -24,19 +24,28 @@ public sealed class AdminClientService : IAdminClientService
     private readonly ApplicationDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TokenIncidentService _incidentService;
+    private readonly IClientPresetRegistry _presetRegistry;
+    private readonly ClientConfigComposer _configComposer;
+    private readonly ClientConfigValidator _configValidator;
 
     public AdminClientService(
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictScopeManager scopeManager,
         ApplicationDbContext dbContext,
         IHttpContextAccessor httpContextAccessor,
-        TokenIncidentService incidentService)
+        TokenIncidentService incidentService,
+        IClientPresetRegistry presetRegistry,
+        ClientConfigComposer configComposer,
+        ClientConfigValidator configValidator)
     {
         _applicationManager = applicationManager;
         _scopeManager = scopeManager;
         _dbContext = dbContext;
         _httpContextAccessor = httpContextAccessor;
         _incidentService = incidentService;
+        _presetRegistry = presetRegistry;
+        _configComposer = configComposer;
+        _configValidator = configValidator;
     }
 
     public async Task<PagedResult<AdminClientListItem>> GetClientsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken)
@@ -140,7 +149,7 @@ public sealed class AdminClientService : IAdminClientService
             ?? throw new InvalidOperationException("Created client was not found.");
 
         var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
-        await UpsertClientStateAsync(applicationId, config.Enabled, cancellationToken);
+        await UpsertClientStateAsync(applicationId, config.Enabled, config.Profile, config.PresetId, config.PresetVersion, config.OverridesJson, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync("client.created", "OpenIddictApplication", detail.Id, new
@@ -150,7 +159,10 @@ public sealed class AdminClientService : IAdminClientService
             detail.ClientType,
             detail.GrantTypes,
             detail.Scopes,
-            detail.Enabled
+            detail.Enabled,
+            detail.Profile,
+            detail.PresetId,
+            detail.PresetVersion
         });
 
         if (!string.IsNullOrWhiteSpace(clientSecret))
@@ -174,6 +186,14 @@ public sealed class AdminClientService : IAdminClientService
         if (application is null)
         {
             return null;
+        }
+
+        var currentState = await _dbContext.ClientStates.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationId == id, cancellationToken);
+        if (currentState?.SystemManaged == true && !request.ForceSystemManagedEdit)
+        {
+            var stateErrors = new AdminValidationErrors();
+            stateErrors.Add("presetId", "This client is system managed. Set forceSystemManagedEdit to true to modify it.");
+            throw new AdminValidationException("Invalid client configuration.", stateErrors.ToDictionary());
         }
 
         var config = await NormalizeAsync(request, cancellationToken);
@@ -228,7 +248,7 @@ public sealed class AdminClientService : IAdminClientService
         await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
 
         var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
-        await UpsertClientStateAsync(applicationId, config.Enabled, cancellationToken);
+        await UpsertClientStateAsync(applicationId, config.Enabled, config.Profile, config.PresetId, config.PresetVersion, config.OverridesJson, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync("client.updated", "OpenIddictApplication", detail.Id, new
@@ -238,7 +258,10 @@ public sealed class AdminClientService : IAdminClientService
             detail.ClientType,
             detail.GrantTypes,
             detail.Scopes,
-            detail.Enabled
+            detail.Enabled,
+            detail.Profile,
+            detail.PresetId,
+            detail.PresetVersion
         });
 
         return detail;
@@ -295,7 +318,7 @@ public sealed class AdminClientService : IAdminClientService
         }
 
         var applicationId = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
-        await UpsertClientStateAsync(applicationId, enabled, cancellationToken);
+        await UpsertClientStateAsync(applicationId, enabled, profile: null, presetId: null, presetVersion: null, overridesJson: null, cancellationToken);
 
         var detail = await BuildDetailAsync(application, cancellationToken);
         await LogAuditAsync(enabled ? "client.enabled" : "client.disabled", "OpenIddictApplication", detail.Id, new
@@ -367,6 +390,7 @@ public sealed class AdminClientService : IAdminClientService
         var requirements = await _applicationManager.GetRequirementsAsync(application, cancellationToken);
         var redirectUris = await _applicationManager.GetRedirectUrisAsync(application, cancellationToken);
         var postLogoutUris = await _applicationManager.GetPostLogoutRedirectUrisAsync(application, cancellationToken);
+        var state = await _dbContext.ClientStates.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationId == id, cancellationToken);
 
         var grantTypes = ParseGrantTypes(permissions);
         var scopes = ParseScopes(permissions);
@@ -382,7 +406,11 @@ public sealed class AdminClientService : IAdminClientService
             pkceRequired,
             scopes,
             redirectUris.Select(uri => uri.ToString()).ToArray(),
-            postLogoutUris.Select(uri => uri.ToString()).ToArray());
+            postLogoutUris.Select(uri => uri.ToString()).ToArray(),
+            state?.Profile,
+            state?.AppliedPresetId,
+            state?.AppliedPresetVersion,
+            state?.SystemManaged ?? false);
     }
 
     private async Task<AdminClientConfiguration> NormalizeAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
@@ -397,6 +425,10 @@ public sealed class AdminClientService : IAdminClientService
             request.Scopes,
             request.RedirectUris,
             request.PostLogoutRedirectUris,
+            request.Profile,
+            request.PresetId,
+            request.PresetVersion,
+            request.Overrides,
             cancellationToken);
     }
 
@@ -412,6 +444,10 @@ public sealed class AdminClientService : IAdminClientService
             request.Scopes,
             request.RedirectUris,
             request.PostLogoutRedirectUris,
+            request.Profile,
+            request.PresetId,
+            request.PresetVersion,
+            request.Overrides,
             cancellationToken);
     }
 
@@ -425,38 +461,43 @@ public sealed class AdminClientService : IAdminClientService
         IReadOnlyList<string> scopes,
         IReadOnlyList<string> redirectUris,
         IReadOnlyList<string> postLogoutRedirectUris,
+        string? profile,
+        string? presetId,
+        int? presetVersion,
+        JsonElement? overrides,
         CancellationToken cancellationToken)
     {
         var errors = new AdminValidationErrors();
-
         var normalizedClientId = OidcValidationSpec.NormalizeClientId(clientId, errors, "clientId");
-        var normalizedClientType = OidcValidationSpec.NormalizeClientType(clientType, errors, "clientType");
-        var isPublic = string.Equals(normalizedClientType, OpenIddictConstants.ClientTypes.Public, StringComparison.Ordinal);
 
-        var normalizedGrantTypes = OidcValidationSpec.NormalizeGrantTypes(grantTypes, errors, "grantTypes");
-        var normalizedPkceRequired = pkceRequired
-            || (isPublic && normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode));
-
-        OidcValidationSpec.ValidatePkceRules(isPublic, normalizedGrantTypes, normalizedPkceRequired, errors);
-
-        var normalizedRedirectUris = OidcValidationSpec.NormalizeRedirectUris(
-            redirectUris,
-            errors,
-            "redirectUris",
-            "Redirect URI");
-        if (normalizedGrantTypes.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode)
-            && normalizedRedirectUris.Count == 0)
+        if (string.IsNullOrWhiteSpace(presetId))
         {
-            errors.Add("redirectUris", "Redirect URIs are required for authorization_code.");
+            errors.Add("presetId", "Preset is required.");
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
-        var normalizedPostLogoutUris = OidcValidationSpec.NormalizeRedirectUris(
-            postLogoutRedirectUris,
-            errors,
-            "postLogoutRedirectUris",
-            "Post logout redirect URI");
+        var preset = _presetRegistry.GetById(presetId);
+        if (preset is null)
+        {
+            errors.Add("presetId", "Unknown preset.");
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
+        }
 
-        var normalizedScopes = scopes
+        if (presetVersion is not null && presetVersion != preset.Version)
+        {
+            errors.Add("presetVersion", "Preset version is out of date.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile) && !string.Equals(profile, preset.Profile, StringComparison.Ordinal))
+        {
+            errors.Add("profile", "Profile must match selected preset.");
+        }
+
+        var mergedOverrides = BuildOverrides(grantTypes, pkceRequired, scopes, redirectUris, postLogoutRedirectUris, clientType, overrides);
+        var effective = _configComposer.Compose(preset, mergedOverrides);
+        _configValidator.Validate(effective, errors);
+
+        var normalizedScopes = effective.Scopes
             .Where(scope => !string.IsNullOrWhiteSpace(scope))
             .Select(scope => scope.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -476,18 +517,51 @@ public sealed class AdminClientService : IAdminClientService
             throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
+        var normalizedRedirectUris = OidcValidationSpec.NormalizeRedirectUris(effective.RedirectUris, errors, "redirectUris", "Redirect URI");
+        var normalizedPostLogoutUris = OidcValidationSpec.NormalizeRedirectUris(effective.PostLogoutRedirectUris, errors, "postLogoutRedirectUris", "Post logout redirect URI");
+
         return new AdminClientConfiguration(
             normalizedClientId!,
             string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
-            normalizedClientType,
+            effective.ClientType,
             enabled,
-            normalizedGrantTypes.ToList(),
-            normalizedPkceRequired,
+            OidcValidationSpec.NormalizeGrantTypes(effective.GrantTypes, errors, "grantTypes").ToList(),
+            effective.PkceRequired,
             normalizedScopes,
             normalizedRedirectUris,
-            normalizedPostLogoutUris);
+            normalizedPostLogoutUris,
+            preset.Profile,
+            preset.Id,
+            preset.Version,
+            mergedOverrides?.GetRawText());
     }
 
+    private static JsonElement? BuildOverrides(
+        IReadOnlyList<string> grantTypes,
+        bool pkceRequired,
+        IReadOnlyList<string> scopes,
+        IReadOnlyList<string> redirectUris,
+        IReadOnlyList<string> postLogoutRedirectUris,
+        string? clientType,
+        JsonElement? incoming)
+    {
+        if (incoming is not null && incoming.Value.ValueKind == JsonValueKind.Object)
+        {
+            return incoming;
+        }
+
+        var payload = new
+        {
+            grantTypes,
+            pkceRequired,
+            scopes,
+            redirectUris,
+            postLogoutRedirectUris,
+            clientType
+        };
+
+        return JsonSerializer.SerializeToElement(payload);
+    }
 
     private static IEnumerable<string> BuildPermissions(AdminClientConfiguration config)
     {
@@ -606,7 +680,14 @@ public sealed class AdminClientService : IAdminClientService
         return state?.Enabled ?? true;
     }
 
-    private async Task UpsertClientStateAsync(string applicationId, bool enabled, CancellationToken cancellationToken)
+    private async Task UpsertClientStateAsync(
+        string applicationId,
+        bool enabled,
+        string? profile,
+        string? presetId,
+        int? presetVersion,
+        string? overridesJson,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(applicationId))
         {
@@ -622,12 +703,28 @@ public sealed class AdminClientService : IAdminClientService
             {
                 ApplicationId = applicationId,
                 Enabled = enabled,
+                Profile = profile,
+                AppliedPresetId = presetId,
+                AppliedPresetVersion = presetVersion,
+                OverridesJson = overridesJson,
                 UpdatedUtc = DateTime.UtcNow
             });
         }
         else
         {
             state.Enabled = enabled;
+            if (!string.IsNullOrWhiteSpace(profile))
+            {
+                state.Profile = profile;
+            }
+
+            if (!string.IsNullOrWhiteSpace(presetId))
+            {
+                state.AppliedPresetId = presetId;
+                state.AppliedPresetVersion = presetVersion;
+                state.OverridesJson = overridesJson;
+            }
+
             state.UpdatedUtc = DateTime.UtcNow;
         }
 
@@ -665,5 +762,9 @@ public sealed class AdminClientService : IAdminClientService
         bool PkceRequired,
         IReadOnlyList<string> Scopes,
         IReadOnlyList<Uri> RedirectUris,
-        IReadOnlyList<Uri> PostLogoutRedirectUris);
+        IReadOnlyList<Uri> PostLogoutRedirectUris,
+        string Profile,
+        string PresetId,
+        int PresetVersion,
+        string? OverridesJson);
 }

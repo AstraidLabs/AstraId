@@ -276,6 +276,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
             {
                 ApplicationId = applicationId,
                 Enabled = true,
+                SystemManaged = true,
                 UpdatedUtc = now
             });
         }
