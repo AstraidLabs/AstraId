@@ -51,6 +51,7 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
                 policy.Enabled,
                 policy.RotationIntervalDays,
                 policy.GracePeriodDays,
+                policy.JwksCacheMarginMinutes,
                 policy.NextRotationUtc,
                 policy.LastRotationUtc),
             new AdminKeyRotationPolicyGuardrails(
@@ -58,6 +59,8 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
                 guardrails.MaxRotationIntervalDays,
                 guardrails.MinGracePeriodDays,
                 guardrails.MaxGracePeriodDays,
+                guardrails.MinJwksCacheMarginMinutes,
+                guardrails.MaxJwksCacheMarginMinutes,
                 guardrails.PreventDisableRotationInProduction)));
     }
 
@@ -100,6 +103,7 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
             request.Enabled,
             request.RotationIntervalDays,
             request.GracePeriodDays,
+            request.JwksCacheMarginMinutes,
             GetActorUserId(),
             cancellationToken);
 
@@ -121,7 +125,8 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
             {
                 updated.Enabled,
                 updated.RotationIntervalDays,
-                updated.GracePeriodDays
+                updated.GracePeriodDays,
+                updated.JwksCacheMarginMinutes
             },
             GetActorUserId(),
             cancellationToken: cancellationToken);
@@ -131,6 +136,7 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
                 updated.Enabled,
                 updated.RotationIntervalDays,
                 updated.GracePeriodDays,
+                updated.JwksCacheMarginMinutes,
                 updated.NextRotationUtc,
                 updated.LastRotationUtc),
             new AdminKeyRotationPolicyGuardrails(
@@ -138,6 +144,8 @@ public sealed class AdminSecurityPoliciesController : ControllerBase
                 guardrails.MaxRotationIntervalDays,
                 guardrails.MinGracePeriodDays,
                 guardrails.MaxGracePeriodDays,
+                guardrails.MinJwksCacheMarginMinutes,
+                guardrails.MaxJwksCacheMarginMinutes,
                 guardrails.PreventDisableRotationInProduction)));
     }
 

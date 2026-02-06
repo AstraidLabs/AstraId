@@ -45,6 +45,7 @@ public sealed class GovernancePolicyStore
         var now = DateTime.UtcNow;
         var rotationInterval = Clamp(defaults.RotationIntervalDays, guardrails.MinRotationIntervalDays, guardrails.MaxRotationIntervalDays);
         var grace = Clamp(defaults.GracePeriodDays, guardrails.MinGracePeriodDays, guardrails.MaxGracePeriodDays);
+        var jwksMargin = Clamp(defaults.JwksCacheMarginMinutes, guardrails.MinJwksCacheMarginMinutes, guardrails.MaxJwksCacheMarginMinutes);
 
         _dbContext.KeyRotationPolicies.Add(new KeyRotationPolicy
         {
@@ -52,6 +53,7 @@ public sealed class GovernancePolicyStore
             Enabled = defaults.Enabled,
             RotationIntervalDays = rotationInterval,
             GracePeriodDays = grace,
+            JwksCacheMarginMinutes = jwksMargin,
             NextRotationUtc = now.AddDays(rotationInterval),
             UpdatedUtc = now
         });

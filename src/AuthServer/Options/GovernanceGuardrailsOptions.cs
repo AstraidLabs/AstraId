@@ -8,6 +8,8 @@ public sealed class GovernanceGuardrailsOptions
     public int MaxRotationIntervalDays { get; set; } = 180;
     public int MinGracePeriodDays { get; set; } = 1;
     public int MaxGracePeriodDays { get; set; } = 60;
+    public int MinJwksCacheMarginMinutes { get; set; } = 0;
+    public int MaxJwksCacheMarginMinutes { get; set; } = 1440;
     public int MinAccessTokenMinutes { get; set; } = 5;
     public int MaxAccessTokenMinutes { get; set; } = 1440;
     public int MinIdentityTokenMinutes { get; set; } = 5;

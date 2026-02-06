@@ -1,5 +1,6 @@
 using AuthServer.Data;
 using AuthServer.Services.Governance;
+using AuthServer.Services.Tokens;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.SigningKeys;
@@ -9,17 +10,20 @@ public sealed class SigningKeyRotationCoordinator
     private readonly ApplicationDbContext _dbContext;
     private readonly SigningKeyRingService _keyRingService;
     private readonly TokenIncidentService _incidentService;
+    private readonly TokenPolicyService _tokenPolicyService;
     private readonly ILogger<SigningKeyRotationCoordinator> _logger;
 
     public SigningKeyRotationCoordinator(
         ApplicationDbContext dbContext,
         SigningKeyRingService keyRingService,
         TokenIncidentService incidentService,
+        TokenPolicyService tokenPolicyService,
         ILogger<SigningKeyRotationCoordinator> logger)
     {
         _dbContext = dbContext;
         _keyRingService = keyRingService;
         _incidentService = incidentService;
+        _tokenPolicyService = tokenPolicyService;
         _logger = logger;
     }
 
@@ -81,7 +85,12 @@ public sealed class SigningKeyRotationCoordinator
             return null;
         }
 
-        var rotation = await _keyRingService.RotateNowAsync(policy.GracePeriodDays, cancellationToken);
+        var tokenPolicy = await _tokenPolicyService.GetEffectivePolicyAsync(cancellationToken);
+        var safeWindow = CalculateSafeWindow(tokenPolicy, policy.JwksCacheMarginMinutes);
+        var graceWindow = TimeSpan.FromDays(Math.Max(0, policy.GracePeriodDays));
+        var effectiveWindow = safeWindow > graceWindow ? safeWindow : graceWindow;
+
+        var rotation = await _keyRingService.RotateNowAsync(effectiveWindow, cancellationToken);
         policy.LastRotationUtc = now;
         policy.NextRotationUtc = now.AddDays(Math.Max(1, policy.RotationIntervalDays));
         policy.UpdatedUtc = now;
@@ -105,5 +114,14 @@ public sealed class SigningKeyRotationCoordinator
             rotation.PreviousActive?.Kid);
 
         return rotation;
+    }
+
+    private static TimeSpan CalculateSafeWindow(TokenPolicySnapshot policy, int jwksCacheMarginMinutes)
+    {
+        var maxLifetimeMinutes = Math.Max(
+            policy.AccessTokenMinutes,
+            Math.Max(policy.IdentityTokenMinutes, policy.AuthorizationCodeMinutes));
+        var margin = Math.Max(0, jwksCacheMarginMinutes);
+        return TimeSpan.FromMinutes(maxLifetimeMinutes + margin);
     }
 }

@@ -9,6 +9,7 @@ const defaultRequest: AdminKeyRotationPolicyRequest = {
   enabled: true,
   rotationIntervalDays: 30,
   gracePeriodDays: 14,
+  jwksCacheMarginMinutes: 60,
   breakGlass: false,
   reason: "",
 };
@@ -36,6 +37,7 @@ export default function SecurityRotationPolicy() {
           enabled: response.policy.enabled,
           rotationIntervalDays: response.policy.rotationIntervalDays,
           gracePeriodDays: response.policy.gracePeriodDays,
+          jwksCacheMarginMinutes: response.policy.jwksCacheMarginMinutes,
           breakGlass: false,
           reason: "",
         });
@@ -142,6 +144,28 @@ export default function SecurityRotationPolicy() {
                 setForm((current) => ({
                   ...current,
                   gracePeriodDays: Number(event.target.value),
+                }))
+              }
+              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            />
+          </Field>
+          <Field
+            label="JWKS cache margin (minutes)"
+            tooltip={
+              guardrails
+                ? `Guardrails: ${guardrails.minJwksCacheMarginMinutes}–${guardrails.maxJwksCacheMarginMinutes} minutes.`
+                : "Extra time added to the safe rollover window for JWKS caches."
+            }
+            error={fieldErrors?.["jwksCacheMarginMinutes"]?.[0]}
+          >
+            <input
+              type="number"
+              min={0}
+              value={form.jwksCacheMarginMinutes}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  jwksCacheMarginMinutes: Number(event.target.value),
                 }))
               }
               className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"

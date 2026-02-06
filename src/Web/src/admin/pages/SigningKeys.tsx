@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../api/http";
 import type {
+  AdminSigningKeyJwksResponse,
   AdminSigningKeyRingResponse,
   AdminSigningKeyRotationResponse,
 } from "../api/types";
@@ -28,6 +29,8 @@ export default function SigningKeys() {
   const [rotating, setRotating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<KeyAction | null>(null);
+  const [jwksJson, setJwksJson] = useState<string | null>(null);
+  const [jwksLoading, setJwksLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -38,8 +41,21 @@ export default function SigningKeys() {
     setLoading(false);
   };
 
+  const loadJwks = async () => {
+    setJwksLoading(true);
+    try {
+      const response = await apiRequest<AdminSigningKeyJwksResponse>(
+        "/admin/api/security/keys/signing/jwks"
+      );
+      setJwksJson(response.jwksJson);
+    } finally {
+      setJwksLoading(false);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadJwks();
   }, []);
 
   const publishedKeys = data?.keys.filter((key) => key.isPublished) ?? [];
@@ -262,6 +278,28 @@ export default function SigningKeys() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">JWKS preview</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Public keys currently exposed via the JWKS endpoint.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadJwks}
+            disabled={jwksLoading}
+            className="rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-60"
+          >
+            Refresh JWKS
+          </button>
+        </div>
+        <pre className="mt-4 max-h-80 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-4 text-xs text-slate-200">
+          {jwksLoading ? "Loading JWKS…" : jwksJson ?? "JWKS not available."}
+        </pre>
       </div>
 
       <ConfirmDialog
