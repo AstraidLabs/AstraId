@@ -87,6 +87,7 @@ builder.Services.AddScoped<TokenIncidentService>();
 builder.Services.AddScoped<TokenRevocationService>();
 builder.Services.AddScoped<IClientStateService, ClientStateService>();
 builder.Services.AddScoped<SigningKeyRingService>();
+builder.Services.AddScoped<SigningKeyJwksService>();
 builder.Services.AddScoped<TokenPolicyService>();
 builder.Services.AddScoped<RefreshTokenReuseDetectionService>();
 builder.Services.AddScoped<RefreshTokenReuseRemediationService>();
@@ -135,7 +136,8 @@ builder.Services.AddOptions<AuthServerSigningKeyOptions>()
                && options.PreviousKeyRetentionDays >= 0
                && options.CheckPeriodMinutes > 0
                && options.KeySize >= 2048
-               && !string.IsNullOrWhiteSpace(options.Algorithm);
+               && !string.IsNullOrWhiteSpace(options.Algorithm)
+               && Enum.IsDefined(options.Mode);
     }, "Signing key options are invalid.")
     .ValidateOnStart();
 builder.Services.AddOptions<AuthServerTokenOptions>()

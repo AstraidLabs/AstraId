@@ -251,6 +251,7 @@ export type AdminKeyRotationPolicyValues = {
   enabled: boolean;
   rotationIntervalDays: number;
   gracePeriodDays: number;
+  jwksCacheMarginMinutes: number;
   nextRotationUtc?: string | null;
   lastRotationUtc?: string | null;
 };
@@ -260,6 +261,8 @@ export type AdminKeyRotationPolicyGuardrails = {
   maxRotationIntervalDays: number;
   minGracePeriodDays: number;
   maxGracePeriodDays: number;
+  minJwksCacheMarginMinutes: number;
+  maxJwksCacheMarginMinutes: number;
   preventDisableRotationInProduction: boolean;
 };
 
@@ -272,8 +275,13 @@ export type AdminKeyRotationPolicyRequest = {
   enabled: boolean;
   rotationIntervalDays: number;
   gracePeriodDays: number;
+  jwksCacheMarginMinutes: number;
   breakGlass: boolean;
   reason?: string | null;
+};
+
+export type AdminSigningKeyJwksResponse = {
+  jwksJson: string;
 };
 
 export type AdminTokenIncidentListItem = {

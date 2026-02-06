@@ -6,6 +6,7 @@ public sealed class KeyRotationPolicy
     public bool Enabled { get; set; }
     public int RotationIntervalDays { get; set; }
     public int GracePeriodDays { get; set; }
+    public int JwksCacheMarginMinutes { get; set; }
     public DateTime? NextRotationUtc { get; set; }
     public DateTime? LastRotationUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }

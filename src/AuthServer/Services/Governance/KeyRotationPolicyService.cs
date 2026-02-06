@@ -38,6 +38,7 @@ public sealed class KeyRotationPolicyService
         bool enabled,
         int rotationIntervalDays,
         int gracePeriodDays,
+        int jwksCacheMarginMinutes,
         Guid? updatedByUserId,
         CancellationToken cancellationToken)
     {
@@ -47,6 +48,7 @@ public sealed class KeyRotationPolicyService
         policy.Enabled = enabled;
         policy.RotationIntervalDays = rotationIntervalDays;
         policy.GracePeriodDays = gracePeriodDays;
+        policy.JwksCacheMarginMinutes = jwksCacheMarginMinutes;
         policy.UpdatedUtc = now;
         policy.UpdatedByUserId = updatedByUserId;
 

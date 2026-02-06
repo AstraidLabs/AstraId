@@ -77,7 +77,7 @@ public sealed class SigningKeyRingService
         return created;
     }
 
-    public async Task<SigningKeyRotationResult> RotateNowAsync(int gracePeriodDays, CancellationToken cancellationToken)
+    public async Task<SigningKeyRotationResult> RotateNowAsync(TimeSpan gracePeriod, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var active = await GetActiveAsync(cancellationToken);
@@ -91,7 +91,7 @@ public sealed class SigningKeyRingService
             active.Status = SigningKeyStatus.Previous;
             active.RetiredUtc = null;
             active.RevokedUtc = null;
-            active.RetireAfterUtc = GetRetireAfterUtc(now, gracePeriodDays);
+            active.RetireAfterUtc = GetRetireAfterUtc(now, gracePeriod);
             _dbContext.SigningKeyRingEntries.Update(active);
         }
 
@@ -241,15 +241,7 @@ public sealed class SigningKeyRingService
 
         var kid = GenerateKeyId();
         var now = DateTime.UtcNow;
-        var jwk = new JsonWebKey
-        {
-            Kty = "RSA",
-            Use = "sig",
-            Alg = options.Algorithm,
-            Kid = kid,
-            N = Base64UrlEncoder.Encode(parameters.Modulus),
-            E = Base64UrlEncoder.Encode(parameters.Exponent)
-        };
+        var jwk = SigningKeyJwkBuilder.FromRsaParameters(parameters, kid, options.Algorithm);
 
         var publicJson = JsonSerializer.Serialize(jwk);
         var privateKey = Convert.ToBase64String(rsa.ExportPkcs8PrivateKey());
@@ -282,15 +274,7 @@ public sealed class SigningKeyRingService
             ?? throw new InvalidOperationException("Signing certificate does not include a private key.");
         var parameters = rsa.ExportParameters(true);
         var kid = Base64UrlEncoder.Encode(certificate.GetCertHash());
-        var jwk = new JsonWebKey
-        {
-            Kty = "RSA",
-            Use = "sig",
-            Alg = _options.CurrentValue.Algorithm,
-            Kid = kid,
-            N = Base64UrlEncoder.Encode(parameters.Modulus),
-            E = Base64UrlEncoder.Encode(parameters.Exponent)
-        };
+        var jwk = SigningKeyJwkBuilder.FromRsaParameters(parameters, kid, _options.CurrentValue.Algorithm);
 
         var publicJson = JsonSerializer.Serialize(jwk);
         var privateKey = Convert.ToBase64String(rsa.ExportPkcs8PrivateKey());
@@ -315,10 +299,14 @@ public sealed class SigningKeyRingService
         };
     }
 
-    private static DateTime? GetRetireAfterUtc(DateTime nowUtc, int gracePeriodDays)
+    private static DateTime? GetRetireAfterUtc(DateTime nowUtc, TimeSpan gracePeriod)
     {
-        var retentionDays = Math.Max(0, gracePeriodDays);
-        return retentionDays == 0 ? nowUtc : nowUtc.AddDays(retentionDays);
+        if (gracePeriod <= TimeSpan.Zero)
+        {
+            return nowUtc;
+        }
+
+        return nowUtc.Add(gracePeriod);
     }
 }
 
