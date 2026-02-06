@@ -88,6 +88,7 @@ public sealed class SigningKeyRotationCoordinator
         var tokenPolicy = await _tokenPolicyService.GetEffectivePolicyAsync(cancellationToken);
         var safeWindow = CalculateSafeWindow(tokenPolicy, policy.JwksCacheMarginMinutes);
         var graceWindow = TimeSpan.FromDays(Math.Max(0, policy.GracePeriodDays));
+        // Retire old keys relative to rotation time so they stay available for the full validation window.
         var effectiveWindow = safeWindow > graceWindow ? safeWindow : graceWindow;
 
         var rotation = await _keyRingService.RotateNowAsync(effectiveWindow, cancellationToken);
@@ -118,10 +119,19 @@ public sealed class SigningKeyRotationCoordinator
 
     private static TimeSpan CalculateSafeWindow(TokenPolicySnapshot policy, int jwksCacheMarginMinutes)
     {
+        if (policy is null)
+        {
+            throw new ArgumentNullException(nameof(policy));
+        }
+
         var maxLifetimeMinutes = Math.Max(
             policy.AccessTokenMinutes,
             Math.Max(policy.IdentityTokenMinutes, policy.AuthorizationCodeMinutes));
-        var margin = Math.Max(0, jwksCacheMarginMinutes);
-        return TimeSpan.FromMinutes(maxLifetimeMinutes + margin);
+        var marginMinutes = Math.Max(0, jwksCacheMarginMinutes);
+        var skewSeconds = Math.Max(0, policy.ClockSkewSeconds);
+
+        // Include max token lifetime plus JWKS cache margin and clock skew since validation allows skewed tokens.
+        return TimeSpan.FromMinutes(maxLifetimeMinutes + marginMinutes)
+            .Add(TimeSpan.FromSeconds(skewSeconds));
     }
 }
