@@ -23,19 +23,22 @@ public sealed class AdminSigningKeysController : ControllerBase
     private readonly IOptionsMonitor<AuthServerSigningKeyOptions> _options;
     private readonly ISigningKeyRotationState _rotationState;
     private readonly KeyRotationPolicyService _policyService;
+    private readonly SigningKeyJwksService _jwksService;
 
     public AdminSigningKeysController(
         SigningKeyRingService keyRingService,
         AdminSigningKeyService adminSigningKeyService,
         IOptionsMonitor<AuthServerSigningKeyOptions> options,
         ISigningKeyRotationState rotationState,
-        KeyRotationPolicyService policyService)
+        KeyRotationPolicyService policyService,
+        SigningKeyJwksService jwksService)
     {
         _keyRingService = keyRingService;
         _adminSigningKeyService = adminSigningKeyService;
         _options = options;
         _rotationState = rotationState;
         _policyService = policyService;
+        _jwksService = jwksService;
     }
 
     [HttpGet]
@@ -126,5 +129,12 @@ public sealed class AdminSigningKeysController : ControllerBase
     {
         var result = await _adminSigningKeyService.RevokeAsync(kid, cancellationToken);
         return result == SigningKeyRevokeResult.NotFound ? NotFound() : NoContent();
+    }
+
+    [HttpGet("jwks")]
+    public async Task<ActionResult<AdminSigningKeyJwksResponse>> GetJwksPreview(CancellationToken cancellationToken)
+    {
+        var jwksJson = await _jwksService.BuildPublicJwksJsonAsync(cancellationToken);
+        return Ok(new AdminSigningKeyJwksResponse(jwksJson));
     }
 }

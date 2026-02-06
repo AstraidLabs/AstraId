@@ -12,6 +12,7 @@ public sealed class SigningKeyRotationService : BackgroundService
     private readonly IOptionsMonitor<AuthServerSigningKeyOptions> _options;
     private readonly IOptionsMonitorCache<OpenIddictServerOptions> _optionsCache;
     private readonly ISigningKeyRotationState _state;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<SigningKeyRotationService> _logger;
 
     public SigningKeyRotationService(
@@ -19,17 +20,25 @@ public sealed class SigningKeyRotationService : BackgroundService
         IOptionsMonitor<AuthServerSigningKeyOptions> options,
         IOptionsMonitorCache<OpenIddictServerOptions> optionsCache,
         ISigningKeyRotationState state,
+        IHostEnvironment environment,
         ILogger<SigningKeyRotationService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options;
         _optionsCache = optionsCache;
         _state = state;
+        _environment = environment;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (SigningKeyModeResolver.Resolve(_options.CurrentValue.Mode, _environment) != SigningKeyMode.DbKeyRing)
+        {
+            _logger.LogInformation("Signing key rotation is disabled because SigningKeys mode is not DbKeyRing.");
+            return;
+        }
+
         using (var scope = _serviceProvider.CreateScope())
         {
             var keyRing = scope.ServiceProvider.GetRequiredService<SigningKeyRingService>();
@@ -39,6 +48,7 @@ public sealed class SigningKeyRotationService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var options = _options.CurrentValue;
+            var mode = SigningKeyModeResolver.Resolve(options.Mode, _environment);
 
             using var scope = _serviceProvider.CreateScope();
             var coordinator = scope.ServiceProvider.GetRequiredService<SigningKeyRotationCoordinator>();
@@ -46,7 +56,7 @@ public sealed class SigningKeyRotationService : BackgroundService
             var keyRing = scope.ServiceProvider.GetRequiredService<SigningKeyRingService>();
 
             var policy = await policyService.GetPolicyAsync(stoppingToken);
-            if (policy.Enabled)
+            if (policy.Enabled && mode == SigningKeyMode.DbKeyRing)
             {
                 var rotation = await coordinator.RotateIfDueAsync(stoppingToken);
                 if (rotation is not null)

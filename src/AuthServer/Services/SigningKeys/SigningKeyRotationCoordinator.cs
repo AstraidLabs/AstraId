@@ -1,5 +1,6 @@
 using AuthServer.Data;
 using AuthServer.Services.Governance;
+using AuthServer.Services.Tokens;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.SigningKeys;
@@ -9,17 +10,20 @@ public sealed class SigningKeyRotationCoordinator
     private readonly ApplicationDbContext _dbContext;
     private readonly SigningKeyRingService _keyRingService;
     private readonly TokenIncidentService _incidentService;
+    private readonly TokenPolicyService _tokenPolicyService;
     private readonly ILogger<SigningKeyRotationCoordinator> _logger;
 
     public SigningKeyRotationCoordinator(
         ApplicationDbContext dbContext,
         SigningKeyRingService keyRingService,
         TokenIncidentService incidentService,
+        TokenPolicyService tokenPolicyService,
         ILogger<SigningKeyRotationCoordinator> logger)
     {
         _dbContext = dbContext;
         _keyRingService = keyRingService;
         _incidentService = incidentService;
+        _tokenPolicyService = tokenPolicyService;
         _logger = logger;
     }
 
@@ -81,7 +85,13 @@ public sealed class SigningKeyRotationCoordinator
             return null;
         }
 
-        var rotation = await _keyRingService.RotateNowAsync(policy.GracePeriodDays, cancellationToken);
+        var tokenPolicy = await _tokenPolicyService.GetEffectivePolicyAsync(cancellationToken);
+        var safeWindow = CalculateSafeWindow(tokenPolicy, policy.JwksCacheMarginMinutes);
+        var graceWindow = TimeSpan.FromDays(Math.Max(0, policy.GracePeriodDays));
+        // Retire old keys relative to rotation time so they stay available for the full validation window.
+        var effectiveWindow = safeWindow > graceWindow ? safeWindow : graceWindow;
+
+        var rotation = await _keyRingService.RotateNowAsync(effectiveWindow, cancellationToken);
         policy.LastRotationUtc = now;
         policy.NextRotationUtc = now.AddDays(Math.Max(1, policy.RotationIntervalDays));
         policy.UpdatedUtc = now;
@@ -105,5 +115,23 @@ public sealed class SigningKeyRotationCoordinator
             rotation.PreviousActive?.Kid);
 
         return rotation;
+    }
+
+    private static TimeSpan CalculateSafeWindow(TokenPolicySnapshot policy, int jwksCacheMarginMinutes)
+    {
+        if (policy is null)
+        {
+            throw new ArgumentNullException(nameof(policy));
+        }
+
+        var maxLifetimeMinutes = Math.Max(
+            policy.AccessTokenMinutes,
+            Math.Max(policy.IdentityTokenMinutes, policy.AuthorizationCodeMinutes));
+        var marginMinutes = Math.Max(0, jwksCacheMarginMinutes);
+        var skewSeconds = Math.Max(0, policy.ClockSkewSeconds);
+
+        // Include max token lifetime plus JWKS cache margin and clock skew since validation allows skewed tokens.
+        return TimeSpan.FromMinutes(maxLifetimeMinutes + marginMinutes)
+            .Add(TimeSpan.FromSeconds(skewSeconds));
     }
 }

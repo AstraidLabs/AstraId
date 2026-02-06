@@ -226,6 +226,12 @@ public static class AdminValidation
             guardrails.MinGracePeriodDays,
             guardrails.MaxGracePeriodDays,
             result);
+        ValidatePositiveInt(
+            "jwksCacheMarginMinutes",
+            request.JwksCacheMarginMinutes,
+            guardrails.MinJwksCacheMarginMinutes,
+            guardrails.MaxJwksCacheMarginMinutes,
+            result);
 
         if (request.BreakGlass && string.IsNullOrWhiteSpace(request.Reason))
         {

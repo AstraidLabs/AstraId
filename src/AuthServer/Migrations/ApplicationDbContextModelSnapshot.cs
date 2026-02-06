@@ -391,6 +391,9 @@ namespace AuthServer.Migrations
                     b.Property<int>("GracePeriodDays")
                         .HasColumnType("integer");
 
+                    b.Property<int>("JwksCacheMarginMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("LastRotationUtc")
                         .HasColumnType("timestamp with time zone");
 
