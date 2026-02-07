@@ -12,9 +12,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260301000000_AddUserIsActive")]
-    partial class AddUserIsActive
+    [Migration("20260206222018_InitialIdentity")]
+    partial class InitialIdentity
     {
+        /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -219,7 +220,24 @@ namespace AuthServer.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("AppliedPresetId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("AppliedPresetVersion")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OverridesJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Profile")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("SystemManaged")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime>("UpdatedUtc")
@@ -228,6 +246,148 @@ namespace AuthServer.Migrations
                     b.HasKey("ApplicationId");
 
                     b.ToTable("ClientStates");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.ConsumedRefreshToken", b =>
+                {
+                    b.Property<string>("TokenId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ConsumedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiresUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TokenId");
+
+                    b.HasIndex("ExpiresUtc");
+
+                    b.ToTable("ConsumedRefreshTokens");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.EndpointPermission", b =>
+                {
+                    b.Property<Guid>("EndpointId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("EndpointId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("EndpointPermissions");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.ErrorLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DataJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ExceptionType")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("InnerException")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("RemoteIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("StackTrace")
+                        .HasColumnType("text");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TraceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("TraceId");
+
+                    b.ToTable("ErrorLogs");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.KeyRotationPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("GracePeriodDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("JwksCacheMarginMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastRotationUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextRotationUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RotationIntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedUtc");
+
+                    b.ToTable("KeyRotationPolicies");
                 });
 
             modelBuilder.Entity("AuthServer.Data.OidcResource", b =>
@@ -264,21 +424,6 @@ namespace AuthServer.Migrations
                         .IsUnique();
 
                     b.ToTable("OidcResources");
-                });
-
-            modelBuilder.Entity("AuthServer.Data.EndpointPermission", b =>
-                {
-                    b.Property<Guid>("EndpointId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("EndpointId", "PermissionId");
-
-                    b.HasIndex("PermissionId");
-
-                    b.ToTable("EndpointPermissions");
                 });
 
             modelBuilder.Entity("AuthServer.Data.Permission", b =>
@@ -323,6 +468,223 @@ namespace AuthServer.Migrations
                     b.HasIndex("PermissionId");
 
                     b.ToTable("RolePermissions");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.SigningKeyRingEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ActivatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Algorithm")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("KeyType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Kid")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("NotAfterUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NotBeforeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PrivateMaterialProtected")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("PrivateKeyProtected");
+
+                    b.Property<string>("PublicJwkJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RetireAfterUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RetiredUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RevokedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Thumbprint")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kid")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("SigningKeyRingEntries");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.TokenIncident", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DetailJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Severity");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("TokenIncidents");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.TokenPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AccessTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AuthorizationCodeMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClockSkewSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("IdentityTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RefreshReuseDetectionEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RefreshReuseLeewaySeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RefreshRotationEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RefreshTokenDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedUtc");
+
+                    b.ToTable("TokenPolicies");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.TokenPolicyOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ConfidentialAccessTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConfidentialIdentityTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConfidentialRefreshTokenAbsoluteDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConfidentialRefreshTokenSlidingDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PublicAccessTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PublicIdentityTokenMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PublicRefreshTokenAbsoluteDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PublicRefreshTokenSlidingDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("RefreshReuseDetectionEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("RefreshReuseLeewaySeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("RefreshRotationEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedUtc");
+
+                    b.ToTable("TokenPolicyOverrides");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>

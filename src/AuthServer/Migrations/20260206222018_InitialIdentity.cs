@@ -49,6 +49,7 @@ namespace AuthServer.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -84,6 +85,98 @@ namespace AuthServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ClientStates",
+                columns: table => new
+                {
+                    ApplicationId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Enabled = table.Column<bool>(type: "boolean", nullable: false),
+                    SystemManaged = table.Column<bool>(type: "boolean", nullable: false),
+                    Profile = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    AppliedPresetId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    AppliedPresetVersion = table.Column<int>(type: "integer", nullable: true),
+                    OverridesJson = table.Column<string>(type: "text", nullable: true),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClientStates", x => x.ApplicationId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ConsumedRefreshTokens",
+                columns: table => new
+                {
+                    TokenId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ConsumedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ExpiresUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ConsumedRefreshTokens", x => x.TokenId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ErrorLogs",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Path = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
+                    Method = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    StatusCode = table.Column<int>(type: "integer", nullable: false),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Detail = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    ExceptionType = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    StackTrace = table.Column<string>(type: "text", nullable: true),
+                    InnerException = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    DataJson = table.Column<string>(type: "text", nullable: true),
+                    UserAgent = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    RemoteIp = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ErrorLogs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "KeyRotationPolicies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Enabled = table.Column<bool>(type: "boolean", nullable: false),
+                    RotationIntervalDays = table.Column<int>(type: "integer", nullable: false),
+                    GracePeriodDays = table.Column<int>(type: "integer", nullable: false),
+                    JwksCacheMarginMinutes = table.Column<int>(type: "integer", nullable: false),
+                    NextRotationUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    LastRotationUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedByUserId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_KeyRotationPolicies", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "OidcResources",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DisplayName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OidcResources", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -144,6 +237,97 @@ namespace AuthServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Permissions", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SigningKeyRingEntries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Kid = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ActivatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RetireAfterUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RetiredUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RevokedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    NotBeforeUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    NotAfterUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Algorithm = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    KeyType = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    PublicJwkJson = table.Column<string>(type: "text", nullable: false),
+                    PrivateKeyProtected = table.Column<string>(type: "text", nullable: false),
+                    Thumbprint = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    Comment = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    MetadataJson = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SigningKeyRingEntries", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TokenIncidents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Type = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Severity = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    ClientId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    DetailJson = table.Column<string>(type: "text", nullable: true),
+                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenIncidents", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TokenPolicies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AccessTokenMinutes = table.Column<int>(type: "integer", nullable: false),
+                    IdentityTokenMinutes = table.Column<int>(type: "integer", nullable: false),
+                    AuthorizationCodeMinutes = table.Column<int>(type: "integer", nullable: false),
+                    RefreshTokenDays = table.Column<int>(type: "integer", nullable: false),
+                    RefreshRotationEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    RefreshReuseDetectionEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    RefreshReuseLeewaySeconds = table.Column<int>(type: "integer", nullable: false),
+                    ClockSkewSeconds = table.Column<int>(type: "integer", nullable: false),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedByUserId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenPolicies", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TokenPolicyOverrides",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    PublicAccessTokenMinutes = table.Column<int>(type: "integer", nullable: true),
+                    PublicIdentityTokenMinutes = table.Column<int>(type: "integer", nullable: true),
+                    PublicRefreshTokenAbsoluteDays = table.Column<int>(type: "integer", nullable: true),
+                    PublicRefreshTokenSlidingDays = table.Column<int>(type: "integer", nullable: true),
+                    ConfidentialAccessTokenMinutes = table.Column<int>(type: "integer", nullable: true),
+                    ConfidentialIdentityTokenMinutes = table.Column<int>(type: "integer", nullable: true),
+                    ConfidentialRefreshTokenAbsoluteDays = table.Column<int>(type: "integer", nullable: true),
+                    ConfidentialRefreshTokenSlidingDays = table.Column<int>(type: "integer", nullable: true),
+                    RefreshRotationEnabled = table.Column<bool>(type: "boolean", nullable: true),
+                    RefreshReuseDetectionEnabled = table.Column<bool>(type: "boolean", nullable: true),
+                    RefreshReuseLeewaySeconds = table.Column<int>(type: "integer", nullable: true),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenPolicyOverrides", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -438,9 +622,35 @@ namespace AuthServer.Migrations
                 column: "TimestampUtc");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ConsumedRefreshTokens_ExpiresUtc",
+                table: "ConsumedRefreshTokens",
+                column: "ExpiresUtc");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_EndpointPermissions_PermissionId",
                 table: "EndpointPermissions",
                 column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ErrorLogs_TimestampUtc",
+                table: "ErrorLogs",
+                column: "TimestampUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ErrorLogs_TraceId",
+                table: "ErrorLogs",
+                column: "TraceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_KeyRotationPolicies_UpdatedUtc",
+                table: "KeyRotationPolicies",
+                column: "UpdatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OidcResources_Name",
+                table: "OidcResources",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_OpenIddictApplications_ClientId",
@@ -485,6 +695,42 @@ namespace AuthServer.Migrations
                 name: "IX_RolePermissions_PermissionId",
                 table: "RolePermissions",
                 column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SigningKeyRingEntries_Kid",
+                table: "SigningKeyRingEntries",
+                column: "Kid",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SigningKeyRingEntries_Status",
+                table: "SigningKeyRingEntries",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenIncidents_Severity",
+                table: "TokenIncidents",
+                column: "Severity");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenIncidents_TimestampUtc",
+                table: "TokenIncidents",
+                column: "TimestampUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenIncidents_Type",
+                table: "TokenIncidents",
+                column: "Type");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenPolicies_UpdatedUtc",
+                table: "TokenPolicies",
+                column: "UpdatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenPolicyOverrides_UpdatedUtc",
+                table: "TokenPolicyOverrides",
+                column: "UpdatedUtc");
         }
 
         /// <inheritdoc />
@@ -509,7 +755,22 @@ namespace AuthServer.Migrations
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
+                name: "ClientStates");
+
+            migrationBuilder.DropTable(
+                name: "ConsumedRefreshTokens");
+
+            migrationBuilder.DropTable(
                 name: "EndpointPermissions");
+
+            migrationBuilder.DropTable(
+                name: "ErrorLogs");
+
+            migrationBuilder.DropTable(
+                name: "KeyRotationPolicies");
+
+            migrationBuilder.DropTable(
+                name: "OidcResources");
 
             migrationBuilder.DropTable(
                 name: "OpenIddictScopes");
@@ -519,6 +780,18 @@ namespace AuthServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "RolePermissions");
+
+            migrationBuilder.DropTable(
+                name: "SigningKeyRingEntries");
+
+            migrationBuilder.DropTable(
+                name: "TokenIncidents");
+
+            migrationBuilder.DropTable(
+                name: "TokenPolicies");
+
+            migrationBuilder.DropTable(
+                name: "TokenPolicyOverrides");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
