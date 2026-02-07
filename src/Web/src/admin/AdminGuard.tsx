@@ -1,10 +1,9 @@
 import type { PropsWithChildren } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { hasAdminAccess } from "../auth/adminAccess";
 import { useAuthSession } from "../auth/useAuthSession";
 import { toAdminReturnUrl } from "../routing";
 
-const isAdminUser = (permissions?: string[]) =>
-  permissions?.includes("system.admin") ?? false;
 
 export default function AdminGuard({ children }: PropsWithChildren) {
   const { session, isLoading } = useAuthSession();
@@ -26,7 +25,7 @@ export default function AdminGuard({ children }: PropsWithChildren) {
     return <Navigate to={target} replace />;
   }
 
-  if (!isAdminUser(session.permissions)) {
+  if (!hasAdminAccess(session.permissions)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
