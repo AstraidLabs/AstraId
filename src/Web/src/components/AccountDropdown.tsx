@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AuthSession } from "../api/authServer";
+import { hasAdminAccess } from "../auth/adminAccess";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 
 type Props = {
@@ -17,8 +18,6 @@ type MenuItem = {
   action?: () => Promise<void>;
 };
 
-const isAdminUser = (session: AuthSession) =>
-  session.permissions?.includes("system.admin") || session.roles?.includes("Admin");
 
 const initialsFromSession = (session: AuthSession) => {
   const display = session.userName ?? session.email ?? "User";
@@ -42,7 +41,7 @@ export default function AccountDropdown({ session, onLogout }: Props) {
       { key: "security-events", label: "Security events", to: "/account/security-events" }
     ];
 
-    if (isAdminUser(session)) {
+    if (hasAdminAccess(session.permissions)) {
       items.push({
         key: "admin",
         label: "Admin",
