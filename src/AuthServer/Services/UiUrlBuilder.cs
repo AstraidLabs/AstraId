@@ -46,6 +46,23 @@ public sealed class UiUrlBuilder
         });
     }
 
+    public string BuildChangeEmailUrl(Guid userId, string email, string token, string? returnUrl)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            ["userId"] = userId.ToString(),
+            ["email"] = email,
+            ["token"] = token
+        };
+
+        if (!string.IsNullOrWhiteSpace(returnUrl))
+        {
+            query["returnUrl"] = returnUrl;
+        }
+
+        return BuildUiUrl("/account/email/confirm", query);
+    }
+
     private string BuildUiUrl(string path, string returnUrl)
     {
         var baseUrl = _options.IsHosted ? string.Empty : _options.UiBaseUrl.TrimEnd('/');
