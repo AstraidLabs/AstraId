@@ -70,10 +70,10 @@ const TopNav = () => {
           <div className="flex flex-wrap items-center gap-3">
             {session && session.isAuthenticated ? (
               <div className="text-sm text-slate-300">
-                {session.userName ?? session.email ?? "Přihlášen"}
+                {session.userName ?? session.email ?? "Signed in"}
               </div>
             ) : (
-              <span className="text-sm text-slate-500">Nepřihlášen</span>
+              <span className="text-sm text-slate-500">Signed out</span>
             )}
             {session && session.isAuthenticated ? (
               <button

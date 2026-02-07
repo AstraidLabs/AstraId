@@ -7,7 +7,7 @@ import { mapErrorToProblem } from "../../account/errors";
 import FormField from "../../components/account/FormField";
 import InlineAlert from "../../components/account/InlineAlert";
 import LoadingState from "../../components/account/LoadingState";
-import PageHeader from "../../components/account/PageHeader";
+import AccountPageHeader from "../../components/account/AccountPageHeader";
 
 export default function MfaPage() {
   const [status, setStatus] = useState<MfaStatus | null>(null);
@@ -60,7 +60,7 @@ export default function MfaPage() {
 
   return (
     <div>
-      <PageHeader title="MFA" description="Manage multi-factor authentication for your account." />
+      <AccountPageHeader title="MFA" description="Manage multi-factor authentication for your account." />
       {loading ? <LoadingState message="Loading MFA status..." /> : null}
       {success ? <InlineAlert kind="success" message={success} /> : null}
       {problem?.kind === "problem" ? <InlineAlert kind="error" message={`${problem.detail ?? "Request failed."}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`} /> : null}
