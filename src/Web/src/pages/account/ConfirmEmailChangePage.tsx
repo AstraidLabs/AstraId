@@ -41,7 +41,7 @@ export default function ConfirmEmailChangePage() {
         {working ? "Confirming..." : "Confirm email change"}
       </button>
       <div className="mt-4 text-sm">
-        <Link className="text-indigo-300 hover:text-indigo-200" to={success ? "/account/email" : "/login"}>
+        <Link className="text-indigo-300 hover:text-indigo-200" to={success ? "/account/security/email" : "/login"}>
           {success ? "Back to Account Email" : "Back to login"}
         </Link>
       </div>

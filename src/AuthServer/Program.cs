@@ -107,6 +107,7 @@ builder.Services.AddSingleton<EncryptionKeyStatusService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddScoped<UserSessionRevocationService>();
+builder.Services.AddScoped<IUserSecurityEventLogger, UserSecurityEventLogger>();
 builder.Services.AddSingleton<AdminUiManifestService>();
 builder.Services.AddScoped<ICorsPolicyProvider, ClientCorsPolicyProvider>();
 
