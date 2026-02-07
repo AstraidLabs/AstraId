@@ -8,6 +8,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ActivateAccount from "./pages/ActivateAccount";
 import AccountSecurity from "./pages/AccountSecurity";
+import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
 import Error403 from "./pages/Error403";
@@ -72,6 +73,7 @@ const App = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
         <Route path="/account/security" element={<AccountSecurity />} />
+        <Route path="/account/email/confirm" element={<ConfirmEmailChange />} />
         <Route path="/error/403" element={<Error403 />} />
         <Route path="/error/404" element={<Error404 />} />
         <Route path="/error/500" element={<Error500 />} />

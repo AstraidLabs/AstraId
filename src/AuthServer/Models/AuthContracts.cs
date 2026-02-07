@@ -40,3 +40,23 @@ public sealed record AuthSessionResponse(
     string? UserName,
     IReadOnlyCollection<string> Roles,
     IReadOnlyCollection<string> Permissions);
+
+public sealed record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword,
+    string ConfirmPassword,
+    bool SignOutOtherSessions);
+
+public sealed record ChangeEmailRequest(string NewEmail, string? ReturnUrl, string CurrentPassword);
+
+public sealed record ConfirmEmailChangeRequest(Guid UserId, string NewEmail, string Token);
+
+public sealed record RevokeSessionsRequest(string CurrentPassword);
+
+public sealed record SecurityOverviewResponse(
+    bool EmailConfirmed,
+    bool TwoFactorEnabled,
+    int RecoveryCodesLeft,
+    bool HasAuthenticatorKey,
+    string? Email,
+    string? UserName);
