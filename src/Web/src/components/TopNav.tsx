@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import Container from "./Container";
 import { logout } from "../api/authServer";
 import { useAuthSession } from "../auth/useAuthSession";
+import { isAuthenticatedSession } from "../auth/sessionState";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import AccountDropdown from "./AccountDropdown";
 
@@ -15,7 +16,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 const TopNav = () => {
   const navigate = useNavigate();
   const { session, status, refresh } = useAuthSession();
-  const isAuthenticated = status === "authenticated";
+  const isAuthenticated = isAuthenticatedSession(status, session);
   const isAdmin = session?.permissions?.includes("system.admin") ?? false;
   const adminUrl = getAdminEntryUrl();
   const adminIsExternal = isAbsoluteUrl(adminUrl);
@@ -36,7 +37,7 @@ const TopNav = () => {
             </p>
             <h1 className="text-xl font-semibold text-white">Public UI</h1>
           </div>
-          <nav className="flex flex-wrap items-center gap-2">
+          <nav className="flex flex-wrap items-center gap-2" aria-label="Primary">
             <NavLink to="/" className={linkClass}>
               Home
             </NavLink>
@@ -52,9 +53,6 @@ const TopNav = () => {
                 </NavLink>
                 <NavLink to="/register" className={linkClass}>
                   Register
-                </NavLink>
-                <NavLink to="/forgot-password" className={linkClass}>
-                  Forgot password
                 </NavLink>
               </>
             ) : null}
@@ -78,14 +76,7 @@ const TopNav = () => {
               <span className="text-sm text-slate-500">Checking session…</span>
             ) : isAuthenticated && session ? (
               <AccountDropdown session={session} onLogout={handleLogout} />
-            ) : (
-              <NavLink
-                to="/login"
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 transition hover:border-slate-500 hover:text-white"
-              >
-                Sign in
-              </NavLink>
-            )}
+            ) : null}
           </div>
         </div>
       </Container>
