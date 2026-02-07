@@ -1,53 +1,43 @@
-import { AUTH_SERVER_BASE_URL, type AuthResponse, type MfaRecoveryCodesResponse, type MfaSetupResponse, type MfaStatus, type SecurityOverviewResponse } from "../api/authServer";
-import { parseProblemDetails } from "../api/problemDetails";
+import { authFetch, type AuthResponse, type MfaRecoveryCodesResponse, type MfaSetupResponse, type MfaStatus } from "../api/authServer";
 
-const toUrl = (path: string) => `${AUTH_SERVER_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-
-const accountFetch = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
-  const response = await fetch(toUrl(path), {
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options.headers ?? {})
-    },
-    ...options
-  });
-
-  if (!response.ok) {
-    throw await parseProblemDetails(response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
+export type MeSummary = {
+  userId: string;
+  email?: string | null;
+  userName?: string | null;
+  emailConfirmed: boolean;
+  twoFactorEnabled: boolean;
+  roles: string[];
+  createdUtc?: string | null;
+  lastLoginUtc?: string | null;
 };
 
-export const getOverview = () => accountFetch<SecurityOverviewResponse>("/account/security/overview");
+export type SecurityEvent = {
+  id: string;
+  timestampUtc: string;
+  eventType: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  clientId?: string | null;
+  traceId?: string | null;
+};
 
-export const changePasswordAccount = (payload: {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-  signOutOtherSessions: boolean;
-}) => accountFetch<AuthResponse>("/account/password/change", { method: "POST", body: JSON.stringify(payload) });
+export const getOverview = () => authFetch<MeSummary>("/auth/me");
+
+export const changePasswordAccount = (payload: { currentPassword: string; newPassword: string; confirmPassword: string; signOutOtherSessions: boolean; }) =>
+  authFetch<AuthResponse>("/auth/me/change-password", { method: "POST", body: JSON.stringify({ currentPassword: payload.currentPassword, newPassword: payload.newPassword, confirmNewPassword: payload.confirmPassword }) });
 
 export const requestEmailChangeAccount = (payload: { newEmail: string; currentPassword: string; returnUrl?: string | null }) =>
-  accountFetch<AuthResponse>("/account/email/change-request", { method: "POST", body: JSON.stringify(payload) });
+  authFetch<AuthResponse>("/auth/me/change-email/start", { method: "POST", body: JSON.stringify({ newEmail: payload.newEmail, password: payload.currentPassword }) });
 
 export const confirmEmailChangeAccount = (payload: { userId: string; newEmail: string; token: string }) =>
-  accountFetch<AuthResponse>("/account/email/change-confirm", { method: "POST", body: JSON.stringify(payload) });
+  authFetch<AuthResponse>("/auth/me/change-email/confirm", { method: "POST", body: JSON.stringify(payload) });
 
-export const revokeOtherSessionsAccount = (payload: { currentPassword: string }) =>
-  accountFetch<AuthResponse>("/account/sessions/revoke-others", { method: "POST", body: JSON.stringify(payload) });
+export const revokeOtherSessionsAccount = () => authFetch<{ success: boolean; message: string }>("/auth/me/signout-all", { method: "POST" });
 
-export const getMfaStatusAccount = () => accountFetch<MfaStatus>("/auth/mfa/status");
-export const startMfaSetupAccount = () => accountFetch<MfaSetupResponse>("/auth/mfa/setup/start", { method: "POST" });
-export const confirmMfaSetupAccount = (payload: { code: string }) =>
-  accountFetch<MfaRecoveryCodesResponse>("/auth/mfa/setup/confirm", { method: "POST", body: JSON.stringify(payload) });
-export const regenerateRecoveryCodesAccount = () =>
-  accountFetch<MfaRecoveryCodesResponse>("/auth/mfa/recovery-codes/regenerate", { method: "POST" });
-export const disableMfaAccount = (payload: { code: string }) =>
-  accountFetch<AuthResponse>("/auth/mfa/disable", { method: "POST", body: JSON.stringify(payload) });
+export const getSecurityEvents = (take = 20) => authFetch<SecurityEvent[]>(`/auth/me/security-events?take=${take}`);
+
+export const getMfaStatusAccount = () => authFetch<MfaStatus>("/auth/mfa/status");
+export const startMfaSetupAccount = () => authFetch<MfaSetupResponse>("/auth/mfa/setup/start", { method: "POST" });
+export const confirmMfaSetupAccount = (payload: { code: string }) => authFetch<MfaRecoveryCodesResponse>("/auth/mfa/setup/confirm", { method: "POST", body: JSON.stringify(payload) });
+export const regenerateRecoveryCodesAccount = () => authFetch<MfaRecoveryCodesResponse>("/auth/mfa/recovery-codes/regenerate", { method: "POST" });
+export const disableMfaAccount = (payload: { code: string }) => authFetch<AuthResponse>("/auth/mfa/disable", { method: "POST", body: JSON.stringify(payload) });

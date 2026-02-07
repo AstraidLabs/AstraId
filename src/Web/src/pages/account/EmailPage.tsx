@@ -22,13 +22,13 @@ export default function EmailPage() {
     setSuccess("");
 
     try {
-      await requestEmailChangeAccount({ newEmail, currentPassword, returnUrl: "/account/email/confirm" });
+      await requestEmailChangeAccount({ newEmail, currentPassword, returnUrl: "/account/security/email/confirm" });
       setCurrentPassword("");
       setSuccess("Check your email for a confirmation link.");
     } catch (error) {
       const parsed = mapErrorToProblem(error, "Unable to request email change.");
       if (parsed.status === 401 || parsed.status === 403) {
-        navigate(`/login?returnUrl=${encodeURIComponent("/account/email")}`, { replace: true });
+        navigate(`/login?returnUrl=${encodeURIComponent("/account/security/email")}`, { replace: true });
         return;
       }
       setProblem(parsed);

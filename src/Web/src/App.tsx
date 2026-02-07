@@ -10,7 +10,6 @@ import ActivateAccount from "./pages/ActivateAccount";
 import AccountGuard from "./account/AccountGuard";
 import AccountLayout from "./account/AccountLayout";
 import OverviewPage from "./pages/account/OverviewPage";
-import ProfilePage from "./pages/account/ProfilePage";
 import PasswordPage from "./pages/account/PasswordPage";
 import EmailPage from "./pages/account/EmailPage";
 import SessionsPage from "./pages/account/SessionsPage";
@@ -90,14 +89,14 @@ const App = () => {
           }
         >
           <Route index element={<OverviewPage />} />
-          <Route path="overview" element={<Navigate to="/account" replace />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="password" element={<PasswordPage />} />
-          <Route path="email" element={<EmailPage />} />
-          <Route path="sessions" element={<SessionsPage />} />
-          <Route path="mfa" element={<MfaPage />} />
-          <Route path="security" element={<SecurityPage />} />
-          <Route path="security-events" element={<SecurityEventsPage />} />
+          <Route path="profile" element={<Navigate to="/account" replace />} />
+          <Route path="security" element={<SecurityPage />}>
+            <Route path="mfa" element={<MfaPage />} />
+            <Route path="email" element={<EmailPage />} />
+            <Route path="password" element={<PasswordPage />} />
+            <Route path="sessions" element={<SessionsPage />} />
+            <Route path="activity" element={<SecurityEventsPage />} />
+          </Route>
         </Route>
         <Route path="/account/email/confirm" element={<ConfirmEmailChangePage />} />
         <Route path="/error/403" element={<Error403 />} />

@@ -60,3 +60,30 @@ public sealed record SecurityOverviewResponse(
     bool HasAuthenticatorKey,
     string? Email,
     string? UserName);
+
+public sealed record MeSummaryResponse(
+    string UserId,
+    string? Email,
+    string? UserName,
+    bool EmailConfirmed,
+    bool TwoFactorEnabled,
+    IReadOnlyCollection<string> Roles,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? LastLoginUtc);
+
+public sealed record ChangePasswordSelfRequest(string CurrentPassword, string NewPassword, string ConfirmNewPassword);
+
+public sealed record ChangeEmailStartRequest(string NewEmail, string Password);
+
+public sealed record ConfirmEmailChangeSelfRequest(Guid UserId, string NewEmail, string Token);
+
+public sealed record SignOutAllSessionsResponse(bool Success, string Message);
+
+public sealed record UserSecurityEventResponse(
+    Guid Id,
+    DateTime TimestampUtc,
+    string EventType,
+    string? IpAddress,
+    string? UserAgent,
+    string? ClientId,
+    string? TraceId);

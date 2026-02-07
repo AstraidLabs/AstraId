@@ -26,6 +26,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<TokenIncident> TokenIncidents => Set<TokenIncident>();
     public DbSet<TokenPolicyOverride> TokenPolicyOverrides => Set<TokenPolicyOverride>();
     public DbSet<ConsumedRefreshToken> ConsumedRefreshTokens => Set<ConsumedRefreshToken>();
+    public DbSet<UserSecurityEvent> UserSecurityEvents => Set<UserSecurityEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -180,6 +181,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(token => token.TokenId);
             entity.Property(token => token.TokenId).HasMaxLength(200);
             entity.HasIndex(token => token.ExpiresUtc);
+        });
+
+        builder.Entity<UserSecurityEvent>(entity =>
+        {
+            entity.HasKey(evt => evt.Id);
+            entity.HasIndex(evt => new { evt.UserId, evt.TimestampUtc });
+            entity.Property(evt => evt.EventType).HasMaxLength(120);
+            entity.Property(evt => evt.IpAddress).HasMaxLength(64);
+            entity.Property(evt => evt.UserAgent).HasMaxLength(1024);
+            entity.Property(evt => evt.ClientId).HasMaxLength(200);
+            entity.Property(evt => evt.TraceId).HasMaxLength(128);
         });
     }
 }
