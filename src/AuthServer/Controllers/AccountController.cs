@@ -249,17 +249,23 @@ public sealed class AccountController : ControllerBase
             return BuildAuthProblem(StatusCodes.Status400BadRequest, "Invalid link", "Invalid link");
         }
 
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted);
+
         var result = await _userManager.ChangeEmailAsync(user, request.NewEmail, decodedToken);
         if (!result.Succeeded)
         {
+            await transaction.RollbackAsync(HttpContext.RequestAborted);
             return BuildAuthProblem(StatusCodes.Status400BadRequest, "Invalid link", "Invalid link");
         }
 
         var userNameResult = await _userManager.SetUserNameAsync(user, request.NewEmail);
         if (!userNameResult.Succeeded)
         {
+            await transaction.RollbackAsync(HttpContext.RequestAborted);
             return BuildAuthProblem(StatusCodes.Status400BadRequest, "Invalid link", "Invalid link");
         }
+
+        await transaction.CommitAsync(HttpContext.RequestAborted);
 
         await _userManager.UpdateSecurityStampAsync(user);
         await _sessionRevocationService.RevokeAllForUserAsync(
