@@ -32,7 +32,7 @@ export default function PasswordPage() {
     } catch (error) {
       const parsed = mapErrorToProblem(error, "Unable to update password.");
       if (parsed.status === 401 || parsed.status === 403) {
-        navigate(`/login?returnUrl=${encodeURIComponent("/account/password")}`, { replace: true });
+        navigate(`/login?returnUrl=${encodeURIComponent("/account/security/password")}`, { replace: true });
         return;
       }
       setProblem(parsed);

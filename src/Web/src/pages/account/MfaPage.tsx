@@ -29,7 +29,7 @@ export default function MfaPage() {
     } catch (error) {
       const parsed = mapErrorToProblem(error, "Unable to load MFA status.");
       if (parsed.status === 401 || parsed.status === 403) {
-        navigate(`/login?returnUrl=${encodeURIComponent("/account/mfa")}`, { replace: true });
+        navigate(`/login?returnUrl=${encodeURIComponent("/account/security/mfa")}`, { replace: true });
         return;
       }
       setProblem(parsed);

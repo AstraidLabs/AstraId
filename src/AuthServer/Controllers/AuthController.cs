@@ -27,6 +27,7 @@ public class AuthController : ControllerBase
     private readonly MfaChallengeStore _mfaChallengeStore;
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly string _issuerName;
+    private readonly IUserSecurityEventLogger _eventLogger;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
@@ -48,6 +49,7 @@ public class AuthController : ControllerBase
         AuthRateLimiter rateLimiter,
         MfaChallengeStore mfaChallengeStore,
         UserSessionRevocationService sessionRevocationService,
+        IUserSecurityEventLogger eventLogger,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -59,6 +61,7 @@ public class AuthController : ControllerBase
         _rateLimiter = rateLimiter;
         _mfaChallengeStore = mfaChallengeStore;
         _sessionRevocationService = sessionRevocationService;
+        _eventLogger = eventLogger;
         _issuerName = ResolveIssuerName(configuration);
     }
 
@@ -103,6 +106,7 @@ public class AuthController : ControllerBase
 
         if (user is null)
         {
+            await _eventLogger.LogAsync("LoginFailed", null, HttpContext, cancellationToken: HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Sign-in failed",
@@ -154,12 +158,14 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            await _eventLogger.LogAsync("LoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Sign-in failed",
                 "The email/username or password is incorrect.");
         }
 
+        await _eventLogger.LogAsync("LoginSuccess", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return Ok(new LoginResponse(true, redirectTo, null));
     }
 
@@ -219,18 +225,21 @@ public class AuthController : ControllerBase
         {
             if (result.IsNotAllowed)
             {
-                return BuildAuthProblem(
+                await _eventLogger.LogAsync("MfaLoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+            return BuildAuthProblem(
                     StatusCodes.Status403Forbidden,
                     "Two-factor authentication unavailable",
                     "Two-factor authentication is currently disabled. Please contact support if you need assistance.");
             }
 
+            await _eventLogger.LogAsync("MfaLoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Invalid code",
                 "The code you entered is invalid. Please try again.");
         }
 
+        await _eventLogger.LogAsync("MfaLoginSuccess", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         var redirectTo = string.IsNullOrWhiteSpace(challenge.ReturnUrl)
             ? _uiUrlBuilder.BuildHomeUrl()
             : challenge.ReturnUrl;
@@ -355,6 +364,7 @@ public class AuthController : ControllerBase
             new { reason = "mfa-enabled" },
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
+        await _eventLogger.LogAsync("MfaEnabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -384,6 +394,7 @@ public class AuthController : ControllerBase
             new { reason = "mfa-enabled" },
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
+        await _eventLogger.LogAsync("MfaEnabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -446,6 +457,7 @@ public class AuthController : ControllerBase
             new { reason = "mfa-disabled" },
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
+        await _eventLogger.LogAsync("MfaDisabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
 
         return Ok(new AuthResponse(true, null, null));
     }
@@ -743,7 +755,9 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
+        var user = await _userManager.GetUserAsync(User);
         await _signInManager.SignOutAsync();
+        await _eventLogger.LogAsync("Logout", user?.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return NoContent();
     }
 

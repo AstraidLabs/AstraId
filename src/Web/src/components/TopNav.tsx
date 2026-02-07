@@ -65,15 +65,7 @@ const TopNav = () => {
           </nav>
           <div className="flex flex-wrap items-center gap-3">
             {session && session.isAuthenticated ? (
-              <>
-                <AccountDropdown session={session} onLogout={handleLogout} />
-                <button
-                  className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-              </>
+              <AccountDropdown session={session} onLogout={handleLogout} />
             ) : (
               <span className="text-sm text-slate-500">Signed out</span>
             )}

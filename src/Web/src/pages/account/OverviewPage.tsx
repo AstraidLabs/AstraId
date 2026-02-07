@@ -1,107 +1,53 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getMfaStatusAccount, getOverview } from "../../account/api";
-import type { MfaStatus, SecurityOverviewResponse } from "../../api/authServer";
+import type { MfaStatus } from "../../api/authServer";
+import type { MeSummary } from "../../account/api";
 import type { ParsedProblemResult } from "../../api/problemDetails";
 import { mapErrorToProblem } from "../../account/errors";
 import InlineAlert from "../../components/account/InlineAlert";
 import AccountPageHeader from "../../components/account/AccountPageHeader";
-import { ACCOUNT_SELF_SERVICE_ITEMS } from "../../account/accountIcons";
-
-const statusCardClass = "rounded-xl border border-slate-800 bg-slate-950/50 p-4";
-const actionCardClass = "rounded-xl border border-slate-700 p-4 text-sm text-slate-100 transition hover:border-indigo-400";
+import { accountCardIconClass, accountIcons, securityItems } from "../../ui/accountIcons";
 
 export default function OverviewPage() {
-  const [overview, setOverview] = useState<SecurityOverviewResponse | null>(null);
+  const [overview, setOverview] = useState<MeSummary | null>(null);
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<ParsedProblemResult | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const run = async () => {
+    (async () => {
       try {
-        setProblem(null);
-        setLoading(true);
-        const [overviewData, mfaData] = await Promise.all([
-          getOverview(),
-          getMfaStatusAccount().catch(() => null)
-        ]);
+        const [overviewData, mfaData] = await Promise.all([getOverview(), getMfaStatusAccount().catch(() => null)]);
         setOverview(overviewData);
         setMfaStatus(mfaData);
       } catch (error) {
         const parsed = mapErrorToProblem(error, "Unable to load account dashboard.");
-        if (parsed.status === 401 || parsed.status === 403) {
-          navigate(`/login?returnUrl=${encodeURIComponent("/account")}`, { replace: true });
-          return;
-        }
+        if (parsed.status === 401 || parsed.status === 403) return navigate(`/login?returnUrl=${encodeURIComponent("/account")}`, { replace: true });
         setProblem(parsed);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    void run();
+    })();
   }, [navigate]);
 
+  const ProfileIcon = accountIcons.profile;
+  const SecurityIcon = accountIcons.security;
+
   return (
-    <div>
-      <AccountPageHeader
-        title="Account"
-        description="Enterprise self-service hub for your profile, credentials, and security controls."
-      />
+    <div className="space-y-5">
+      <AccountPageHeader title="Profile" description="Your self-service account dashboard." />
+      {problem?.kind === "problem" && <InlineAlert kind="error" message={problem.detail ?? problem.title ?? "Unable to load account dashboard."} />}
 
-      {problem?.kind === "problem" ? (
-        <InlineAlert
-          kind="error"
-          message={`${problem.detail ?? problem.title ?? "Unable to load account dashboard."}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`}
-        />
-      ) : null}
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Email</p><p className="mt-2 font-semibold text-white">{overview?.email ?? "Unknown"}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Email status</p><p className="mt-2 font-semibold text-white">{overview?.emailConfirmed ? "Verified" : "Verification required"}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">MFA</p><p className="mt-2 font-semibold text-white">{mfaStatus?.enabled ? "Enabled" : "Disabled"}</p></div>
+      </div>
 
-      {loading ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="h-28 animate-pulse rounded-xl border border-slate-800 bg-slate-900/50" />
-          ))}
-        </div>
-      ) : null}
-
-      {overview ? (
-        <div className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <div className={statusCardClass}>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Username</p>
-              <p className="mt-2 text-lg font-semibold text-white">{overview.userName ?? "Not set"}</p>
-            </div>
-            <div className={statusCardClass}>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Email</p>
-              <p className="mt-2 text-lg font-semibold text-white">{overview.emailConfirmed ? "Verified" : "Verification required"}</p>
-              <p className="mt-1 text-sm text-slate-400">{overview.email ?? "No email available"}</p>
-            </div>
-            <div className={statusCardClass}>
-              <p className="text-xs uppercase tracking-wide text-slate-400">MFA</p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {mfaStatus ? (mfaStatus.enabled ? "Enabled" : "Disabled") : "Unknown"}
-              </p>
-              <p className="mt-1 text-sm text-slate-400">
-                {mfaStatus ? `Recovery codes left: ${mfaStatus.recoveryCodesLeft}` : "Open MFA page for details."}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Self-service</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {ACCOUNT_SELF_SERVICE_ITEMS.filter((item) => item.key !== "dashboard").map((item) => (
-                <Link key={item.key} className={actionCardClass} to={item.to}>
-                  <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><item.Icon /></span>
-                  <p className="font-medium">{item.label}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        <Link to="/account" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><ProfileIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">Profile</p><p className="text-sm text-slate-400">Review your account identity details.</p></Link>
+        <Link to="/account/security" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><SecurityIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">Security</p><p className="text-sm text-slate-400">Open enterprise security controls and activity pages.</p></Link>
+        {securityItems.map((item) => { const Icon = item.icon; return <Link key={item.key} to={item.to} className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><Icon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">{item.label}</p><p className="text-sm text-slate-400">{item.description}</p></Link>; })}
+      </div>
     </div>
   );
 }
