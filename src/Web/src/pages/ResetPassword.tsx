@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import SignedInInfo from "../components/SignedInInfo";
+import { useAuthSession } from "../auth/useAuthSession";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
 import DiagnosticsPanel from "../components/DiagnosticsPanel";
@@ -8,6 +10,7 @@ import { resetPassword } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
 
 const ResetPassword = () => {
+  const { status } = useAuthSession();
   const [params] = useSearchParams();
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
   const initialToken = useMemo(() => params.get("token") ?? "", [params]);
@@ -48,6 +51,15 @@ const ResetPassword = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (status === "authenticated") {
+    return (
+      <SignedInInfo
+        title="Reset password"
+        message="You are already signed in. Reset password links are intended for signed-out recovery flows."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-md">
