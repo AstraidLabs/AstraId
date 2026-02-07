@@ -48,8 +48,8 @@ const TopNav = () => {
               Forgot password
             </NavLink>
             {session?.isAuthenticated ? (
-              <NavLink to="/account/security" className={linkClass}>
-                Security
+              <NavLink to="/account" className={linkClass}>
+                Account
               </NavLink>
             ) : null}
             {isAdmin ? (

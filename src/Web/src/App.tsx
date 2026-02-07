@@ -7,8 +7,16 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ActivateAccount from "./pages/ActivateAccount";
-import AccountSecurity from "./pages/AccountSecurity";
-import ConfirmEmailChange from "./pages/ConfirmEmailChange";
+import AccountGuard from "./account/AccountGuard";
+import AccountLayout from "./account/AccountLayout";
+import OverviewPage from "./pages/account/OverviewPage";
+import ProfilePage from "./pages/account/ProfilePage";
+import PasswordPage from "./pages/account/PasswordPage";
+import EmailPage from "./pages/account/EmailPage";
+import SessionsPage from "./pages/account/SessionsPage";
+import MfaPage from "./pages/account/MfaPage";
+import SecurityEventsPage from "./pages/account/SecurityEventsPage";
+import ConfirmEmailChangePage from "./pages/account/ConfirmEmailChangePage";
 import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
 import Error403 from "./pages/Error403";
@@ -72,8 +80,25 @@ const App = () => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
-        <Route path="/account/security" element={<AccountSecurity />} />
-        <Route path="/account/email/confirm" element={<ConfirmEmailChange />} />
+        <Route
+          path="/account"
+          element={
+            <AccountGuard>
+              <AccountLayout />
+            </AccountGuard>
+          }
+        >
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<OverviewPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="password" element={<PasswordPage />} />
+          <Route path="email" element={<EmailPage />} />
+          <Route path="sessions" element={<SessionsPage />} />
+          <Route path="mfa" element={<MfaPage />} />
+          <Route path="security-events" element={<SecurityEventsPage />} />
+        </Route>
+        <Route path="/account/security" element={<Navigate to="/account/overview" replace />} />
+        <Route path="/account/email/confirm" element={<ConfirmEmailChangePage />} />
         <Route path="/error/403" element={<Error403 />} />
         <Route path="/error/404" element={<Error404 />} />
         <Route path="/error/500" element={<Error500 />} />

@@ -95,6 +95,12 @@ const Home = () => {
                 >
                   Logout
                 </button>
+                <Link
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
+                  to="/account"
+                >
+                  Account
+                </Link>
                 {isAdmin ? (
                   adminIsExternal ? (
                     <a
