@@ -26,7 +26,12 @@ const deriveStatus = (session: AuthSession | null): AuthSessionStatus =>
 
 const getInitialStatus = (): AuthSessionStatus => {
   const persisted = sessionStorage.getItem(STATUS_STORAGE_KEY);
-  return persisted === "authenticated" ? "authenticated" : "loading";
+
+  if (persisted === "authenticated") {
+    return cachedSession?.isAuthenticated ? "authenticated" : "loading";
+  }
+
+  return "loading";
 };
 
 export const AuthSessionProvider = ({ children }: PropsWithChildren) => {
