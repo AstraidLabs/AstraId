@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { AuthSession } from "../api/authServer";
+import { ACCOUNT_SELF_SERVICE_ITEMS, AdminIcon, LogoutIcon } from "../account/accountIcons";
 import { hasAdminAccess } from "../auth/adminAccess";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 
@@ -12,6 +13,7 @@ type Props = {
 type MenuItem = {
   key: string;
   label: string;
+  icon: JSX.Element;
   to?: string;
   external?: boolean;
   danger?: boolean;
@@ -29,28 +31,29 @@ export default function AccountDropdown({ session, onLogout }: Props) {
   const [working, setWorking] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const location = useLocation();
   const adminUrl = getAdminEntryUrl();
   const adminExternal = isAbsoluteUrl(adminUrl);
 
   const menuItems = useMemo<MenuItem[]>(() => {
-    const items: MenuItem[] = [
-      { key: "profile", label: "Profile", to: "/account" },
-      { key: "security", label: "Security", to: "/account/security" },
-      { key: "sessions", label: "Sessions", to: "/account/sessions" },
-      { key: "mfa", label: "MFA", to: "/account/mfa" },
-      { key: "security-events", label: "Security events", to: "/account/security-events" }
-    ];
+    const items: MenuItem[] = ACCOUNT_SELF_SERVICE_ITEMS.map((item) => ({
+      key: item.key,
+      label: item.label,
+      to: item.to,
+      icon: <item.Icon />
+    }));
 
     if (hasAdminAccess(session.permissions)) {
       items.push({
         key: "admin",
         label: "Admin",
+        icon: <AdminIcon />,
         to: adminUrl,
         external: adminExternal
       });
     }
 
-    items.push({ key: "logout", label: "Logout", action: onLogout, danger: true });
+    items.push({ key: "logout", label: "Logout", icon: <LogoutIcon />, action: onLogout, danger: true });
 
     return items;
   }, [adminExternal, adminUrl, onLogout, session]);
@@ -148,13 +151,14 @@ export default function AccountDropdown({ session, onLogout }: Props) {
                     data-menu-item="true"
                     disabled={working}
                     onClick={() => onAction(item.action as () => Promise<void>)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       item.danger
-                        ? "text-rose-200 hover:bg-rose-900/30"
-                        : "text-slate-100 hover:bg-slate-800"
+                        ? "text-rose-200 hover:bg-rose-900/30 focus:bg-rose-900/30"
+                        : "text-slate-100 hover:bg-slate-800 focus:bg-slate-800"
                     } disabled:opacity-60`}
                   >
-                    {working ? "Logging out..." : item.label}
+                    {item.icon}
+                    <span>{working ? "Logging out..." : item.label}</span>
                   </button>
                 </div>
               );
@@ -167,13 +171,18 @@ export default function AccountDropdown({ session, onLogout }: Props) {
                   role="menuitem"
                   data-menu-item="true"
                   href={item.to}
-                  className="block rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:bg-slate-800 focus:outline-none"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:bg-slate-800 focus:outline-none"
                   onClick={() => setOpen(false)}
                 >
-                  {item.label}
+                  {item.icon}
+                  <span>{item.label}</span>
                 </a>
               );
             }
+
+            const isActive = item.to === "/account"
+              ? location.pathname === "/account"
+              : !!item.to && location.pathname.startsWith(item.to);
 
             return (
               <Link
@@ -181,10 +190,11 @@ export default function AccountDropdown({ session, onLogout }: Props) {
                 to={item.to ?? "#"}
                 role="menuitem"
                 data-menu-item="true"
-                className="block rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:bg-slate-800 focus:outline-none"
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:bg-slate-800 focus:outline-none ${isActive ? "bg-slate-800/80" : ""}`}
                 onClick={() => setOpen(false)}
               >
-                {item.label}
+                {item.icon}
+                <span>{item.label}</span>
               </Link>
             );
           })}
