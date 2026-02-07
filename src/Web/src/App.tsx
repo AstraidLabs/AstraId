@@ -16,6 +16,7 @@ import EmailPage from "./pages/account/EmailPage";
 import SessionsPage from "./pages/account/SessionsPage";
 import MfaPage from "./pages/account/MfaPage";
 import SecurityEventsPage from "./pages/account/SecurityEventsPage";
+import SecurityPage from "./pages/account/SecurityPage";
 import ConfirmEmailChangePage from "./pages/account/ConfirmEmailChangePage";
 import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
@@ -95,9 +96,9 @@ const App = () => {
           <Route path="email" element={<EmailPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="mfa" element={<MfaPage />} />
+          <Route path="security" element={<SecurityPage />} />
           <Route path="security-events" element={<SecurityEventsPage />} />
         </Route>
-        <Route path="/account/security" element={<Navigate to="/account" replace />} />
         <Route path="/account/email/confirm" element={<ConfirmEmailChangePage />} />
         <Route path="/error/403" element={<Error403 />} />
         <Route path="/error/404" element={<Error404 />} />
