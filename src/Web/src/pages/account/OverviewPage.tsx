@@ -6,7 +6,7 @@ import type { ParsedProblemResult } from "../../api/problemDetails";
 import { mapErrorToProblem } from "../../account/errors";
 import InlineAlert from "../../components/account/InlineAlert";
 import AccountPageHeader from "../../components/account/AccountPageHeader";
-import { LockIcon, MailIcon, MonitorIcon, ShieldIcon, UserIcon } from "../../components/account/Icons";
+import { ACCOUNT_SELF_SERVICE_ITEMS } from "../../account/accountIcons";
 
 const statusCardClass = "rounded-xl border border-slate-800 bg-slate-950/50 p-4";
 const actionCardClass = "rounded-xl border border-slate-700 p-4 text-sm text-slate-100 transition hover:border-indigo-400";
@@ -92,30 +92,12 @@ export default function OverviewPage() {
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Self-service</h3>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <Link className={actionCardClass} to="/account/profile">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><UserIcon /></span>
-                <p className="font-medium">Profile</p>
-              </Link>
-              <Link className={actionCardClass} to="/account/password">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><LockIcon /></span>
-                <p className="font-medium">Password</p>
-              </Link>
-              <Link className={actionCardClass} to="/account/email">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><MailIcon /></span>
-                <p className="font-medium">Email</p>
-              </Link>
-              <Link className={actionCardClass} to="/account/mfa">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><ShieldIcon /></span>
-                <p className="font-medium">MFA</p>
-              </Link>
-              <Link className={actionCardClass} to="/account/sessions">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><MonitorIcon /></span>
-                <p className="font-medium">Sessions</p>
-              </Link>
-              <Link className={actionCardClass} to="/account/security-events">
-                <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><ShieldIcon /></span>
-                <p className="font-medium">Security events</p>
-              </Link>
+              {ACCOUNT_SELF_SERVICE_ITEMS.filter((item) => item.key !== "dashboard").map((item) => (
+                <Link key={item.key} className={actionCardClass} to={item.to}>
+                  <span className="mb-2 inline-flex rounded-lg bg-slate-800 p-2"><item.Icon /></span>
+                  <p className="font-medium">{item.label}</p>
+                </Link>
+              ))}
             </div>
           </div>
         </div>
