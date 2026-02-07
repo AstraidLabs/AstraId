@@ -4,7 +4,7 @@ import { confirmEmailChangeAccount } from "../../account/api";
 import { mapErrorToProblem } from "../../account/errors";
 import type { ParsedProblemResult } from "../../api/problemDetails";
 import InlineAlert from "../../components/account/InlineAlert";
-import PageHeader from "../../components/account/PageHeader";
+import AccountPageHeader from "../../components/account/AccountPageHeader";
 
 export default function ConfirmEmailChangePage() {
   const [params] = useSearchParams();
@@ -33,7 +33,7 @@ export default function ConfirmEmailChangePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Confirm email change" description="Complete your requested email change." />
+      <AccountPageHeader title="Confirm email change" description="Complete your requested email change." />
       {success ? <InlineAlert kind="success" message={success} /> : null}
       {problem?.kind === "problem" ? <InlineAlert kind="error" message={`${problem.detail ?? "Request failed."}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`} /> : null}
       {problem?.kind === "validation" ? <InlineAlert kind="error" message={Object.values(problem.fieldErrors).flat()[0] ?? "Validation failed."} /> : null}

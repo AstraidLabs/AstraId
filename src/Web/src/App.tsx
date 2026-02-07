@@ -88,8 +88,8 @@ const App = () => {
             </AccountGuard>
           }
         >
-          <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<OverviewPage />} />
+          <Route index element={<OverviewPage />} />
+          <Route path="overview" element={<Navigate to="/account" replace />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="password" element={<PasswordPage />} />
           <Route path="email" element={<EmailPage />} />
@@ -97,7 +97,7 @@ const App = () => {
           <Route path="mfa" element={<MfaPage />} />
           <Route path="security-events" element={<SecurityEventsPage />} />
         </Route>
-        <Route path="/account/security" element={<Navigate to="/account/overview" replace />} />
+        <Route path="/account/security" element={<Navigate to="/account" replace />} />
         <Route path="/account/email/confirm" element={<ConfirmEmailChangePage />} />
         <Route path="/error/403" element={<Error403 />} />
         <Route path="/error/404" element={<Error404 />} />
