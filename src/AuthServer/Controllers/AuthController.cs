@@ -25,6 +25,7 @@ public class AuthController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly AuthRateLimiter _rateLimiter;
     private readonly MfaChallengeStore _mfaChallengeStore;
+    private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly string _issuerName;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
@@ -46,6 +47,7 @@ public class AuthController : ControllerBase
         IEmailSender emailSender,
         AuthRateLimiter rateLimiter,
         MfaChallengeStore mfaChallengeStore,
+        UserSessionRevocationService sessionRevocationService,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -56,6 +58,7 @@ public class AuthController : ControllerBase
         _emailSender = emailSender;
         _rateLimiter = rateLimiter;
         _mfaChallengeStore = mfaChallengeStore;
+        _sessionRevocationService = sessionRevocationService;
         _issuerName = ResolveIssuerName(configuration);
     }
 
@@ -345,6 +348,13 @@ public class AuthController : ControllerBase
         }
 
         var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+        await _sessionRevocationService.RevokeAllForUserAsync(
+            user.Id,
+            null,
+            HttpContext,
+            new { reason = "mfa-enabled" },
+            HttpContext.RequestAborted);
+        await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -367,6 +377,13 @@ public class AuthController : ControllerBase
         }
 
         var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+        await _sessionRevocationService.RevokeAllForUserAsync(
+            user.Id,
+            null,
+            HttpContext,
+            new { reason = "mfa-enabled" },
+            HttpContext.RequestAborted);
+        await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -422,6 +439,13 @@ public class AuthController : ControllerBase
 
         await _userManager.ResetAuthenticatorKeyAsync(user);
         await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 0);
+        await _sessionRevocationService.RevokeAllForUserAsync(
+            user.Id,
+            null,
+            HttpContext,
+            new { reason = "mfa-disabled" },
+            HttpContext.RequestAborted);
+        await _signInManager.SignInAsync(user, isPersistent: false);
 
         return Ok(new AuthResponse(true, null, null));
     }

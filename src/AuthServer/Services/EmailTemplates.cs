@@ -39,4 +39,18 @@ public static class EmailTemplates
 
         return (subject, htmlBody, textBody);
     }
+
+    public static (string Subject, string HtmlBody, string TextBody) BuildChangeEmailEmail(string link)
+    {
+        var subject = "Confirm your new email";
+        var htmlBody = $"""
+                        <p>We received a request to change the email address on your account.</p>
+                        <p>To confirm this change, click the link below:</p>
+                        <p><a href="{link}">Confirm new email</a></p>
+                        <p>If you did not request this, you can safely ignore this email.</p>
+                        """;
+        var textBody = $"Confirm your new email: {link}";
+
+        return (subject, htmlBody, textBody);
+    }
 }

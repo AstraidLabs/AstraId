@@ -175,3 +175,53 @@ export const resolveReturnUrl = (returnUrl: string | null) => {
 
   return returnUrl;
 };
+
+
+export type SecurityOverviewResponse = {
+  emailConfirmed: boolean;
+  twoFactorEnabled: boolean;
+  recoveryCodesLeft: number;
+  hasAuthenticatorKey: boolean;
+  email?: string | null;
+  userName?: string | null;
+};
+
+export const changePassword = (payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  signOutOtherSessions: boolean;
+}) =>
+  authFetch<AuthResponse>("/account/password/change", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const requestEmailChange = (payload: {
+  newEmail: string;
+  returnUrl?: string | null;
+  currentPassword: string;
+}) =>
+  authFetch<AuthResponse>("/account/email/change-request", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const confirmEmailChange = (payload: {
+  userId: string;
+  newEmail: string;
+  token: string;
+}) =>
+  authFetch<AuthResponse>("/account/email/change-confirm", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const revokeOtherSessions = (payload: { currentPassword: string }) =>
+  authFetch<AuthResponse>("/account/sessions/revoke-others", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+export const getSecurityOverview = () =>
+  authFetch<SecurityOverviewResponse>("/account/security/overview");
