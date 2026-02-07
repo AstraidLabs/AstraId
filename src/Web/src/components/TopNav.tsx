@@ -14,7 +14,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 const TopNav = () => {
   const navigate = useNavigate();
-  const { session, refresh } = useAuthSession();
+  const { session, status, refresh } = useAuthSession();
+  const isAuthenticated = status === "authenticated";
   const isAdmin = session?.permissions?.includes("system.admin") ?? false;
   const adminUrl = getAdminEntryUrl();
   const adminIsExternal = isAbsoluteUrl(adminUrl);
@@ -39,16 +40,25 @@ const TopNav = () => {
             <NavLink to="/" className={linkClass}>
               Home
             </NavLink>
-            <NavLink to="/login" className={linkClass}>
-              Login
-            </NavLink>
-            <NavLink to="/register" className={linkClass}>
-              Register
-            </NavLink>
-            <NavLink to="/forgot-password" className={linkClass}>
-              Forgot password
-            </NavLink>
-            {isAdmin ? (
+            {status === "loading" ? (
+              <span className="rounded-full border border-slate-800 px-3 py-1 text-sm text-slate-500">
+                Checking session…
+              </span>
+            ) : null}
+            {status === "anonymous" ? (
+              <>
+                <NavLink to="/login" className={linkClass}>
+                  Login
+                </NavLink>
+                <NavLink to="/register" className={linkClass}>
+                  Register
+                </NavLink>
+                <NavLink to="/forgot-password" className={linkClass}>
+                  Forgot password
+                </NavLink>
+              </>
+            ) : null}
+            {isAuthenticated && isAdmin ? (
               adminIsExternal ? (
                 <a
                   href={adminUrl}
@@ -64,10 +74,17 @@ const TopNav = () => {
             ) : null}
           </nav>
           <div className="flex flex-wrap items-center gap-3">
-            {session && session.isAuthenticated ? (
+            {status === "loading" ? (
+              <span className="text-sm text-slate-500">Checking session…</span>
+            ) : isAuthenticated && session ? (
               <AccountDropdown session={session} onLogout={handleLogout} />
             ) : (
-              <span className="text-sm text-slate-500">Signed out</span>
+              <NavLink
+                to="/login"
+                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200 transition hover:border-slate-500 hover:text-white"
+              >
+                Sign in
+              </NavLink>
             )}
           </div>
         </div>

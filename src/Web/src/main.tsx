@@ -4,11 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { routerBase } from "./routing";
+import { AuthSessionProvider } from "./auth/useAuthSession";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter basename={routerBase === "/" ? undefined : routerBase}>
-      <App />
-    </BrowserRouter>
+    <AuthSessionProvider>
+      <BrowserRouter basename={routerBase === "/" ? undefined : routerBase}>
+        <App />
+      </BrowserRouter>
+    </AuthSessionProvider>
   </React.StrictMode>
 );
