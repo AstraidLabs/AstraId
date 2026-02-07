@@ -5,7 +5,7 @@ import { mapErrorToProblem } from "../../account/errors";
 import type { ParsedProblemResult } from "../../api/problemDetails";
 import FormField from "../../components/account/FormField";
 import InlineAlert from "../../components/account/InlineAlert";
-import PageHeader from "../../components/account/PageHeader";
+import AccountPageHeader from "../../components/account/AccountPageHeader";
 
 export default function PasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -45,10 +45,11 @@ export default function PasswordPage() {
 
   return (
     <div>
-      <PageHeader title="Password" description="Change your password and optionally sign out other sessions." />
-      <form className="space-y-3" onSubmit={onSubmit}>
+      <AccountPageHeader title="Password" description="Change your password and optionally sign out other sessions." />
+      <form className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/50 p-5" onSubmit={onSubmit}>
         {success ? <InlineAlert kind="success" message={success} /> : null}
         {problem?.kind === "problem" ? <InlineAlert kind="error" message={`${problem.detail ?? "Request failed."}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`} /> : null}
+        {problem?.kind === "validation" ? <InlineAlert kind="error" message={Object.values(problem.fieldErrors).flat()[0] ?? "Validation failed."} /> : null}
         <FormField label="Current password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} error={fieldErrors.currentPassword?.[0]} autoComplete="current-password" />
         <FormField label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} error={fieldErrors.newPassword?.[0]} autoComplete="new-password" />
         <FormField label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fieldErrors.confirmPassword?.[0]} autoComplete="new-password" />
