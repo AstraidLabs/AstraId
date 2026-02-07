@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import SignedInInfo from "../components/SignedInInfo";
+import { useAuthSession } from "../auth/useAuthSession";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
 import DiagnosticsPanel from "../components/DiagnosticsPanel";
@@ -8,6 +10,7 @@ import { activateAccount } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
 
 const ActivateAccount = () => {
+  const { status } = useAuthSession();
   const [params] = useSearchParams();
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
   const initialToken = useMemo(() => params.get("token") ?? "", [params]);
@@ -41,6 +44,15 @@ const ActivateAccount = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (status === "authenticated") {
+    return (
+      <SignedInInfo
+        title="Activate account"
+        message="You are already signed in. Account activation links are intended for email verification flows."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

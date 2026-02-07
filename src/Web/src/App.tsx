@@ -55,6 +55,7 @@ import SecurityIncidents from "./admin/pages/SecurityIncidents";
 import SecurityRevocation from "./admin/pages/SecurityRevocation";
 import SecurityDataProtection from "./admin/pages/SecurityDataProtection";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
+import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 
 const PublicLayout = () => (
   <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -74,10 +75,10 @@ const App = () => {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
         <Route path="/mfa" element={<MfaChallenge />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
+        <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
         <Route
