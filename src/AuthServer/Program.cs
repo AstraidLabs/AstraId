@@ -13,6 +13,7 @@ using AuthServer.Services.SigningKeys;
 using AuthServer.Services.Tokens;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Security;
+using AuthServer.Services.Notifications;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -110,6 +111,9 @@ builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddScoped<UserSessionRevocationService>();
 builder.Services.AddScoped<IUserSecurityEventLogger, UserSecurityEventLogger>();
 builder.Services.AddScoped<UserLifecycleService>();
+builder.Services.AddScoped<InactivityPolicyService>();
+builder.Services.AddScoped<EmailOutboxService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<LoginHistoryService>();
 builder.Services.AddScoped<PrivacyGovernanceService>();
 builder.Services.AddSingleton<AdminUiManifestService>();
@@ -133,6 +137,7 @@ builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
 builder.Services.Configure<AuthServerCertificateOptions>(builder.Configuration.GetSection(AuthServerCertificateOptions.SectionName));
 builder.Services.Configure<AuthServerDataProtectionOptions>(builder.Configuration.GetSection(AuthServerDataProtectionOptions.SectionName));
@@ -266,6 +271,7 @@ builder.Services.AddHostedService<SigningKeyRotationService>();
 builder.Services.AddHostedService<InactivityLifecycleWorker>();
 builder.Services.AddHostedService<RetentionCleanupService>();
 builder.Services.AddHostedService<DeletionExecutorService>();
+builder.Services.AddHostedService<EmailOutboxDispatcherService>();
 
 var app = builder.Build();
 
