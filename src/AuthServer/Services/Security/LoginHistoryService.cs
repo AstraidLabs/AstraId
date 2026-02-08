@@ -5,6 +5,7 @@ namespace AuthServer.Services.Security;
 
 public sealed class LoginHistoryService
 {
+    private const int EnteredIdentifierMaxLength = 256;
     private readonly ApplicationDbContext _dbContext;
 
     public LoginHistoryService(ApplicationDbContext dbContext)
@@ -18,7 +19,7 @@ public sealed class LoginHistoryService
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            EnteredIdentifier = string.IsNullOrWhiteSpace(enteredIdentifier) ? null : enteredIdentifier,
+            EnteredIdentifier = NormalizeEnteredIdentifier(enteredIdentifier),
             Success = success,
             FailureReasonCode = failureReasonCode,
             TimestampUtc = DateTime.UtcNow,
@@ -29,6 +30,18 @@ public sealed class LoginHistoryService
         });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string? NormalizeEnteredIdentifier(string? enteredIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(enteredIdentifier))
+        {
+            return null;
+        }
+
+        return enteredIdentifier.Length <= EnteredIdentifierMaxLength
+            ? enteredIdentifier
+            : enteredIdentifier[..EnteredIdentifierMaxLength];
     }
 
     public async Task<IReadOnlyCollection<LoginHistory>> GetRecentForUserAsync(Guid userId, int take, CancellationToken cancellationToken)
