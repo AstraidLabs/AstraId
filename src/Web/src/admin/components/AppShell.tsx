@@ -86,12 +86,13 @@ export default function AppShell({ children }: Props) {
                 { to: toAdminRoute("/security/revocation"), label: "Revocation" },
                 { to: toAdminRoute("/security/dataprotection"), label: "DataProtection" },
                 { to: toAdminRoute("/security/user-lifecycle"), label: "User Lifecycle" },
+                { to: toAdminRoute("/security/inactivity"), label: "Inactivity Policy" },
                 { to: toAdminRoute("/security/privacy"), label: "Privacy & GDPR" },
               ]}
             />
             <NavSection
               title="Diagnostics"
-              items={[{ to: toAdminRoute("/diagnostics/errors"), label: "Errors" }]}
+              items={[{ to: toAdminRoute("/diagnostics/errors"), label: "Errors" }, { to: toAdminRoute("/diagnostics/email-outbox"), label: "Email Outbox" }]}
             />
           </nav>
         </aside>

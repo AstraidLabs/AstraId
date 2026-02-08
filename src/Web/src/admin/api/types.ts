@@ -414,3 +414,35 @@ export type AdminDeletionRequest = {
   cancelUtc?: string | null;
   reason?: string | null;
 };
+
+export type AdminInactivityPolicy = {
+  id: string;
+  enabled: boolean;
+  warningAfterDays: number;
+  deactivateAfterDays: number;
+  deleteAfterDays: number;
+  warningRepeatDays?: number | null;
+  deleteMode: number;
+  protectAdmins: boolean;
+  protectedRoles: string;
+  updatedUtc: string;
+  updatedByUserId?: string | null;
+};
+
+export type AdminEmailOutboxMessage = {
+  id: string;
+  createdUtc: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  nextAttemptUtc: string;
+  lastAttemptUtc?: string | null;
+  userId?: string | null;
+  type: string;
+  subject: string;
+  toEmail: string;
+  toName?: string | null;
+  error?: string | null;
+  traceId?: string | null;
+  correlationId?: string | null;
+};

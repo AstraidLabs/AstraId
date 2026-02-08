@@ -3,6 +3,7 @@ using AuthServer.Models;
 using AuthServer.Services;
 using Company.Auth.Contracts;
 using AuthServer.Services.Security;
+using AuthServer.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
@@ -31,6 +32,7 @@ public class AuthController : ControllerBase
     private readonly IUserSecurityEventLogger _eventLogger;
     private readonly UserLifecycleService _userLifecycleService;
     private readonly LoginHistoryService _loginHistoryService;
+    private readonly NotificationService _notificationService;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
@@ -55,6 +57,7 @@ public class AuthController : ControllerBase
         IUserSecurityEventLogger eventLogger,
         UserLifecycleService userLifecycleService,
         LoginHistoryService loginHistoryService,
+        NotificationService notificationService,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -69,6 +72,7 @@ public class AuthController : ControllerBase
         _eventLogger = eventLogger;
         _userLifecycleService = userLifecycleService;
         _loginHistoryService = loginHistoryService;
+        _notificationService = notificationService;
         _issuerName = ResolveIssuerName(configuration);
     }
 
@@ -376,6 +380,14 @@ public class AuthController : ControllerBase
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
         await _eventLogger.LogAsync("MfaEnabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.QueueAsync(user.Id, NotificationType.MfaEnabled, user.Email!, user.UserName,
+                "Multi-factor authentication enabled",
+                "<p>Multi-factor authentication was enabled on your account.</p>",
+                "Multi-factor authentication was enabled on your account.",
+                HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+        }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -405,7 +417,15 @@ public class AuthController : ControllerBase
             new { reason = "mfa-enabled" },
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
-        await _eventLogger.LogAsync("MfaEnabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        await _eventLogger.LogAsync("RecoveryCodesRegenerated", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.QueueAsync(user.Id, NotificationType.RecoveryCodesRegenerated, user.Email!, user.UserName,
+                "Recovery codes regenerated",
+                "<p>Your MFA recovery codes were regenerated. Previous codes no longer work.</p>",
+                "Your MFA recovery codes were regenerated. Previous codes no longer work.",
+                HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+        }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
 
@@ -469,6 +489,14 @@ public class AuthController : ControllerBase
             HttpContext.RequestAborted);
         await _signInManager.SignInAsync(user, isPersistent: false);
         await _eventLogger.LogAsync("MfaDisabled", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.QueueAsync(user.Id, NotificationType.MfaDisabled, user.Email!, user.UserName,
+                "Multi-factor authentication disabled",
+                "<p>Multi-factor authentication was disabled on your account.</p>",
+                "Multi-factor authentication was disabled on your account.",
+                HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+        }
 
         return Ok(new AuthResponse(true, null, null));
     }
