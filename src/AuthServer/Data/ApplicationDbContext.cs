@@ -296,7 +296,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(message => message.Id);
             entity.HasIndex(message => new { message.Status, message.NextAttemptUtc });
             entity.HasIndex(message => new { message.UserId, message.CreatedUtc });
-            entity.HasIndex(message => message.IdempotencyKey).IsUnique().HasFilter(""IdempotencyKey" IS NOT NULL");
+            entity.HasIndex(message => message.IdempotencyKey).IsUnique().HasFilter("\"IdempotencyKey\" IS NOT NULL");
             entity.Property(message => message.Type).HasMaxLength(120);
             entity.Property(message => message.Subject).HasMaxLength(300);
             entity.Property(message => message.ToEmail).HasMaxLength(320);
