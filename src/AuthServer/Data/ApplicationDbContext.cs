@@ -29,6 +29,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<UserSecurityEvent> UserSecurityEvents => Set<UserSecurityEvent>();
     public DbSet<UserLifecyclePolicy> UserLifecyclePolicies => Set<UserLifecyclePolicy>();
     public DbSet<UserActivity> UserActivities => Set<UserActivity>();
+    public DbSet<DeletionRequest> DeletionRequests => Set<DeletionRequest>();
+    public DbSet<LoginHistory> LoginHistory => Set<LoginHistory>();
+    public DbSet<PrivacyPolicy> PrivacyPolicies => Set<PrivacyPolicy>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -242,6 +245,48 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .WithMany()
                 .HasForeignKey(activity => activity.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DeletionRequest>(entity =>
+        {
+            entity.HasKey(request => request.Id);
+            entity.HasIndex(request => new { request.UserId, request.RequestedUtc });
+            entity.Property(request => request.Reason).HasMaxLength(1000);
+            entity.HasOne(request => request.User)
+                .WithMany()
+                .HasForeignKey(request => request.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(request => request.ApprovedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<LoginHistory>(entity =>
+        {
+            entity.HasKey(entry => entry.Id);
+            entity.HasIndex(entry => entry.TimestampUtc);
+            entity.HasIndex(entry => new { entry.UserId, entry.TimestampUtc });
+            entity.Property(entry => entry.EnteredIdentifier).HasMaxLength(256);
+            entity.Property(entry => entry.FailureReasonCode).HasMaxLength(128);
+            entity.Property(entry => entry.Ip).HasMaxLength(64);
+            entity.Property(entry => entry.UserAgent).HasMaxLength(1024);
+            entity.Property(entry => entry.ClientId).HasMaxLength(200);
+            entity.Property(entry => entry.TraceId).HasMaxLength(128);
+            entity.HasOne(entry => entry.User)
+                .WithMany()
+                .HasForeignKey(entry => entry.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<PrivacyPolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedUtc);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(policy => policy.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

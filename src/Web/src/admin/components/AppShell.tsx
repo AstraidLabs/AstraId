@@ -86,6 +86,7 @@ export default function AppShell({ children }: Props) {
                 { to: toAdminRoute("/security/revocation"), label: "Revocation" },
                 { to: toAdminRoute("/security/dataprotection"), label: "DataProtection" },
                 { to: toAdminRoute("/security/user-lifecycle"), label: "User Lifecycle" },
+                { to: toAdminRoute("/security/privacy"), label: "Privacy & GDPR" },
               ]}
             />
             <NavSection

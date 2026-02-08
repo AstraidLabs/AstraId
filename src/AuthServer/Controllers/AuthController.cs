@@ -30,6 +30,7 @@ public class AuthController : ControllerBase
     private readonly string _issuerName;
     private readonly IUserSecurityEventLogger _eventLogger;
     private readonly UserLifecycleService _userLifecycleService;
+    private readonly LoginHistoryService _loginHistoryService;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
@@ -53,6 +54,7 @@ public class AuthController : ControllerBase
         UserSessionRevocationService sessionRevocationService,
         IUserSecurityEventLogger eventLogger,
         UserLifecycleService userLifecycleService,
+        LoginHistoryService loginHistoryService,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -66,6 +68,7 @@ public class AuthController : ControllerBase
         _sessionRevocationService = sessionRevocationService;
         _eventLogger = eventLogger;
         _userLifecycleService = userLifecycleService;
+        _loginHistoryService = loginHistoryService;
         _issuerName = ResolveIssuerName(configuration);
     }
 
@@ -111,6 +114,7 @@ public class AuthController : ControllerBase
         if (user is null)
         {
             await _eventLogger.LogAsync("LoginFailed", null, HttpContext, cancellationToken: HttpContext.RequestAborted);
+            await _loginHistoryService.RecordAsync(null, emailOrUsername, false, "unknown_user", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Sign-in failed",
@@ -163,6 +167,7 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
         {
             await _eventLogger.LogAsync("LoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+            await _loginHistoryService.RecordAsync(user.Id, emailOrUsername, false, "invalid_password", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Sign-in failed",
@@ -170,6 +175,7 @@ public class AuthController : ControllerBase
         }
 
         await _eventLogger.LogAsync("LoginSuccess", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        await _loginHistoryService.RecordAsync(user.Id, emailOrUsername, true, null, HttpContext, null, HttpContext.RequestAborted);
         await _userLifecycleService.TrackLoginAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         return Ok(new LoginResponse(true, redirectTo, null));
     }

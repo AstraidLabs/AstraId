@@ -16,6 +16,7 @@ import SessionsPage from "./pages/account/SessionsPage";
 import MfaPage from "./pages/account/MfaPage";
 import SecurityEventsPage from "./pages/account/SecurityEventsPage";
 import SecurityPage from "./pages/account/SecurityPage";
+import PrivacyPage from "./pages/account/PrivacyPage";
 import ConfirmEmailChangePage from "./pages/account/ConfirmEmailChangePage";
 import MfaChallenge from "./pages/MfaChallenge";
 import NotFound from "./pages/NotFound";
@@ -55,6 +56,7 @@ import SecurityIncidents from "./admin/pages/SecurityIncidents";
 import SecurityRevocation from "./admin/pages/SecurityRevocation";
 import SecurityDataProtection from "./admin/pages/SecurityDataProtection";
 import UserLifecyclePolicy from "./admin/pages/UserLifecyclePolicy";
+import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 
@@ -99,6 +101,7 @@ const App = () => {
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="activity" element={<SecurityEventsPage />} />
           </Route>
+          <Route path="privacy" element={<PrivacyPage />} />
         </Route>
         <Route path="/account/email/confirm" element={<ConfirmEmailChangePage />} />
         <Route path="/error/403" element={<Error403 />} />
@@ -148,6 +151,7 @@ const App = () => {
         <Route path="security/revocation" element={<SecurityRevocation />} />
         <Route path="security/dataprotection" element={<SecurityDataProtection />} />
         <Route path="security/user-lifecycle" element={<UserLifecyclePolicy />} />
+        <Route path="security/privacy" element={<SecurityPrivacy />} />
         <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
         <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route

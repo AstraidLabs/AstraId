@@ -6,6 +6,7 @@ using AuthServer.Data;
 using AuthServer.Services;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
+using AuthServer.Services.Security;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -29,6 +30,7 @@ public class AuthorizationController : ControllerBase
     private readonly TokenPolicyApplier _tokenPolicyApplier;
     private readonly RefreshTokenReuseDetectionService _refreshTokenReuseDetection;
     private readonly RefreshTokenReuseRemediationService _refreshTokenReuseRemediation;
+    private readonly LoginHistoryService _loginHistoryService;
     private readonly TokenIncidentService _incidentService;
     private readonly IOidcClientPolicyEnforcer _policyEnforcer;
     private readonly ILogger<AuthorizationController> _logger;
@@ -43,6 +45,7 @@ public class AuthorizationController : ControllerBase
         TokenPolicyApplier tokenPolicyApplier,
         RefreshTokenReuseDetectionService refreshTokenReuseDetection,
         RefreshTokenReuseRemediationService refreshTokenReuseRemediation,
+        LoginHistoryService loginHistoryService,
         TokenIncidentService incidentService,
         IOidcClientPolicyEnforcer policyEnforcer,
         ILogger<AuthorizationController> logger)
@@ -56,6 +59,7 @@ public class AuthorizationController : ControllerBase
         _tokenPolicyApplier = tokenPolicyApplier;
         _refreshTokenReuseDetection = refreshTokenReuseDetection;
         _refreshTokenReuseRemediation = refreshTokenReuseRemediation;
+        _loginHistoryService = loginHistoryService;
         _incidentService = incidentService;
         _policyEnforcer = policyEnforcer;
         _logger = logger;
@@ -174,6 +178,7 @@ public class AuthorizationController : ControllerBase
             var machinePrincipal = new ClaimsPrincipal(identity);
             machinePrincipal.SetScopes(request.GetScopes().Intersect(AllowedScopes));
             machinePrincipal.SetResources(AuthServerScopeRegistry.ApiResources);
+            await _loginHistoryService.RecordAsync(null, null, true, null, HttpContext, clientId, HttpContext.RequestAborted);
             return SignIn(machinePrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
@@ -230,6 +235,7 @@ public class AuthorizationController : ControllerBase
             policy,
             refreshAbsoluteExpiry: refreshAbsoluteExpiry);
 
+        await _loginHistoryService.RecordAsync(user.Id, user.Email ?? user.UserName, true, null, HttpContext, clientId, HttpContext.RequestAborted);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 

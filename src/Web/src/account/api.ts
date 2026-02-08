@@ -41,3 +41,31 @@ export const startMfaSetupAccount = () => authFetch<MfaSetupResponse>("/auth/mfa
 export const confirmMfaSetupAccount = (payload: { code: string }) => authFetch<MfaRecoveryCodesResponse>("/auth/mfa/setup/confirm", { method: "POST", body: JSON.stringify(payload) });
 export const regenerateRecoveryCodesAccount = () => authFetch<MfaRecoveryCodesResponse>("/auth/mfa/recovery-codes/regenerate", { method: "POST" });
 export const disableMfaAccount = (payload: { code: string }) => authFetch<AuthResponse>("/auth/mfa/disable", { method: "POST", body: JSON.stringify(payload) });
+
+
+export type LoginHistoryEntry = {
+  id: string;
+  timestampUtc: string;
+  success: boolean;
+  failureReasonCode?: string | null;
+  clientId?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  traceId?: string | null;
+};
+
+export type DeletionRequestStatus = {
+  id: string;
+  requestedUtc: string;
+  status: string;
+  cooldownUntilUtc: string;
+  executedUtc?: string | null;
+  cancelUtc?: string | null;
+  reason?: string | null;
+};
+
+export const getLoginHistory = (take = 20) => authFetch<LoginHistoryEntry[]>(`/account/security/login-history?take=${take}`);
+export const requestAccountDeletion = (payload: { reason?: string }) => authFetch<DeletionRequestStatus>("/account/deletion/request", { method: "POST", body: JSON.stringify(payload) });
+export const cancelAccountDeletion = () => authFetch<AuthResponse>("/account/deletion/cancel", { method: "POST" });
+export const exportMyData = () => fetch(`${(import.meta.env.VITE_AUTHSERVER_BASE_URL ?? "https://localhost:7001")}/account/export`, { credentials: "include" });
+export const revokeAllSessions = () => authFetch<AuthResponse>("/account/sessions/revoke-all", { method: "POST" });
