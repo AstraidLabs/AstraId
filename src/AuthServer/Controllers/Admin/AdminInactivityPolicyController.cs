@@ -45,7 +45,7 @@ public sealed class AdminInactivityPolicyController : ControllerBase
             }) { Title = "Invalid inactivity policy." }.ApplyDefaults(HttpContext));
         }
 
-        var actorUserId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsed) ? parsed : null;
+        Guid? actorUserId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsed) ? parsed : null;
         var updated = await _service.UpdateAsync(policy, actorUserId, cancellationToken);
         return Ok(updated);
     }
