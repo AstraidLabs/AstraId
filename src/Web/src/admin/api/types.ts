@@ -368,3 +368,22 @@ export type AdminRevocationResult = {
   tokensRevoked: number;
   authorizationsRevoked: number;
 };
+
+export type AdminUserLifecyclePolicy = {
+  id: string;
+  enabled: boolean;
+  deactivateAfterDays: number;
+  deleteAfterDays: number;
+  hardDeleteAfterDays?: number | null;
+  hardDeleteEnabled: boolean;
+  warnBeforeLogoutMinutes: number;
+  idleLogoutMinutes: number;
+  updatedUtc: string;
+  updatedByUserId?: string | null;
+};
+
+export type AdminUserLifecyclePreview = {
+  wouldDeactivate: number;
+  wouldAnonymize: number;
+  wouldHardDelete: number;
+};

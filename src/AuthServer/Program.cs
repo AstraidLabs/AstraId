@@ -12,6 +12,7 @@ using AuthServer.Services.Admin;
 using AuthServer.Services.SigningKeys;
 using AuthServer.Services.Tokens;
 using AuthServer.Services.Governance;
+using AuthServer.Services.Security;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -108,6 +109,7 @@ builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddScoped<UserSessionRevocationService>();
 builder.Services.AddScoped<IUserSecurityEventLogger, UserSecurityEventLogger>();
+builder.Services.AddScoped<UserLifecycleService>();
 builder.Services.AddSingleton<AdminUiManifestService>();
 builder.Services.AddScoped<ICorsPolicyProvider, ClientCorsPolicyProvider>();
 
@@ -259,6 +261,7 @@ builder.Services.AddHostedService<AuthBootstrapHostedService>();
 builder.Services.AddHostedService<GovernancePolicyInitializer>();
 builder.Services.AddHostedService<ErrorLogCleanupService>();
 builder.Services.AddHostedService<SigningKeyRotationService>();
+builder.Services.AddHostedService<InactivityLifecycleWorker>();
 
 var app = builder.Build();
 
@@ -301,6 +304,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
 
 app.UseAuthentication();
+app.UseMiddleware<UserActivityTrackingMiddleware>();
 app.UseAuthorization();
 app.UseStatusCodePages(async statusCodeContext =>
 {

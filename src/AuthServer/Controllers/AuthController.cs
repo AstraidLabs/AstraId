@@ -2,6 +2,7 @@ using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Services;
 using Company.Auth.Contracts;
+using AuthServer.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
@@ -28,6 +29,7 @@ public class AuthController : ControllerBase
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly string _issuerName;
     private readonly IUserSecurityEventLogger _eventLogger;
+    private readonly UserLifecycleService _userLifecycleService;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
@@ -50,6 +52,7 @@ public class AuthController : ControllerBase
         MfaChallengeStore mfaChallengeStore,
         UserSessionRevocationService sessionRevocationService,
         IUserSecurityEventLogger eventLogger,
+        UserLifecycleService userLifecycleService,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -62,6 +65,7 @@ public class AuthController : ControllerBase
         _mfaChallengeStore = mfaChallengeStore;
         _sessionRevocationService = sessionRevocationService;
         _eventLogger = eventLogger;
+        _userLifecycleService = userLifecycleService;
         _issuerName = ResolveIssuerName(configuration);
     }
 
@@ -113,7 +117,7 @@ public class AuthController : ControllerBase
                 "The email/username or password is incorrect.");
         }
 
-        if (!user.IsActive)
+        if (!user.IsActive || user.IsAnonymized)
         {
             return BuildAuthProblem(
                 StatusCodes.Status403Forbidden,
@@ -166,6 +170,7 @@ public class AuthController : ControllerBase
         }
 
         await _eventLogger.LogAsync("LoginSuccess", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        await _userLifecycleService.TrackLoginAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         return Ok(new LoginResponse(true, redirectTo, null));
     }
 
@@ -771,7 +776,7 @@ public class AuthController : ControllerBase
         }
 
         var user = await _userManager.GetUserAsync(User);
-        if (user is null)
+        if (user is null || !user.IsActive || user.IsAnonymized)
         {
             return Ok(new AuthSessionResponse(false, null, null, null, Array.Empty<string>(), Array.Empty<string>()));
         }

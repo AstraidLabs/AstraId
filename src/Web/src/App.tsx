@@ -54,6 +54,7 @@ import SecurityRotationPolicy from "./admin/pages/SecurityRotationPolicy";
 import SecurityIncidents from "./admin/pages/SecurityIncidents";
 import SecurityRevocation from "./admin/pages/SecurityRevocation";
 import SecurityDataProtection from "./admin/pages/SecurityDataProtection";
+import UserLifecyclePolicy from "./admin/pages/UserLifecyclePolicy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 
@@ -146,6 +147,7 @@ const App = () => {
         <Route path="security/incidents" element={<SecurityIncidents />} />
         <Route path="security/revocation" element={<SecurityRevocation />} />
         <Route path="security/dataprotection" element={<SecurityDataProtection />} />
+        <Route path="security/user-lifecycle" element={<UserLifecyclePolicy />} />
         <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
         <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route

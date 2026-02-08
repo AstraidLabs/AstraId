@@ -101,7 +101,7 @@ public class AuthorizationController : ControllerBase
         }
 
         var user = await _userManager.GetUserAsync(User);
-        if (user is null || !user.IsActive)
+        if (user is null || !user.IsActive || user.IsAnonymized)
         {
             _logger.LogWarning("Authorization request rejected because user is missing or inactive.");
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -178,7 +178,7 @@ public class AuthorizationController : ControllerBase
         }
 
         var user = await _userManager.GetUserAsync(authenticateResult.Principal);
-        if (user is null || !user.IsActive)
+        if (user is null || !user.IsActive || user.IsAnonymized)
         {
             _logger.LogWarning("Token request rejected because user is missing or inactive.");
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
