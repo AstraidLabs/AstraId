@@ -32,6 +32,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<DeletionRequest> DeletionRequests => Set<DeletionRequest>();
     public DbSet<LoginHistory> LoginHistory => Set<LoginHistory>();
     public DbSet<PrivacyPolicy> PrivacyPolicies => Set<PrivacyPolicy>();
+    public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
+    public DbSet<InactivityPolicy> InactivityPolicies => Set<InactivityPolicy>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -283,6 +285,37 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         {
             entity.HasKey(policy => policy.Id);
             entity.HasIndex(policy => policy.UpdatedUtc);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(policy => policy.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<EmailOutboxMessage>(entity =>
+        {
+            entity.HasKey(message => message.Id);
+            entity.HasIndex(message => new { message.Status, message.NextAttemptUtc });
+            entity.HasIndex(message => new { message.UserId, message.CreatedUtc });
+            entity.HasIndex(message => message.IdempotencyKey).IsUnique().HasFilter(""IdempotencyKey" IS NOT NULL");
+            entity.Property(message => message.Type).HasMaxLength(120);
+            entity.Property(message => message.Subject).HasMaxLength(300);
+            entity.Property(message => message.ToEmail).HasMaxLength(320);
+            entity.Property(message => message.ToName).HasMaxLength(200);
+            entity.Property(message => message.Error).HasMaxLength(4000);
+            entity.Property(message => message.TraceId).HasMaxLength(128);
+            entity.Property(message => message.CorrelationId).HasMaxLength(128);
+            entity.Property(message => message.IdempotencyKey).HasMaxLength(200);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(message => message.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<InactivityPolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedUtc);
+            entity.Property(policy => policy.ProtectedRoles).HasMaxLength(500);
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(policy => policy.UpdatedByUserId)

@@ -1,4 +1,5 @@
 using AuthServer.Data;
+using AuthServer.Services.Notifications;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
@@ -27,7 +28,7 @@ public sealed class InactivityLifecycleWorker : BackgroundService
                 _logger.LogError(ex, "User inactivity lifecycle worker failed.");
             }
 
-            await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+            await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
         }
     }
 
@@ -36,59 +37,85 @@ public sealed class InactivityLifecycleWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var lifecycle = scope.ServiceProvider.GetRequiredService<UserLifecycleService>();
+        var policyService = scope.ServiceProvider.GetRequiredService<InactivityPolicyService>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationService>();
 
-        var policy = await lifecycle.GetPolicyAsync(cancellationToken);
+        var policy = await policyService.GetAsync(cancellationToken);
         if (!policy.Enabled)
         {
             return;
         }
 
-        const int batchSize = 100;
         var now = DateTime.UtcNow;
-
-        var deactivateBefore = now.AddDays(-policy.DeactivateAfterDays);
-        var deactivateUsers = await db.UserActivities
-            .Where(activity => activity.LastSeenUtc <= deactivateBefore)
-            .Join(db.Users.Where(user => user.IsActive && !user.IsAnonymized), a => a.UserId, u => u.Id, (_, user) => user)
-            .Take(batchSize)
+        var activities = await db.UserActivities
+            .Join(db.Users.Where(u => !u.IsAnonymized), a => a.UserId, u => u.Id, (a, u) => new { Activity = a, User = u })
             .ToListAsync(cancellationToken);
 
-        foreach (var user in deactivateUsers)
+        foreach (var row in activities)
         {
-            await lifecycle.DeactivateAsync(user, null, cancellationToken);
-        }
-
-        var anonymizeBefore = now.AddDays(-policy.DeleteAfterDays);
-        var anonymizeByInactivity = db.UserActivities
-            .Where(activity => activity.LastSeenUtc <= anonymizeBefore)
-            .Join(db.Users.Where(user => !user.IsAnonymized), a => a.UserId, u => u.Id, (_, user) => user);
-
-        var requestedDeleteBefore = now.AddDays(-policy.DeleteAfterDays);
-        var anonymizeByRequest = db.Users.Where(user => !user.IsAnonymized && user.RequestedDeletionUtc != null && user.RequestedDeletionUtc <= requestedDeleteBefore);
-
-        var anonymizeUsers = await anonymizeByInactivity
-            .Union(anonymizeByRequest)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
-
-        foreach (var user in anonymizeUsers)
-        {
-            await lifecycle.AnonymizeAsync(user, null, cancellationToken);
-        }
-
-        if (policy.HardDeleteEnabled && policy.HardDeleteAfterDays is > 0)
-        {
-            var hardDeleteBefore = now.AddDays(-policy.HardDeleteAfterDays.Value);
-            var hardDeleteUsers = await db.UserActivities
-                .Where(activity => activity.LastSeenUtc <= hardDeleteBefore)
-                .Join(db.Users.Where(user => user.IsAnonymized), a => a.UserId, u => u.Id, (_, user) => user)
-                .Take(batchSize)
-                .ToListAsync(cancellationToken);
-
-            foreach (var user in hardDeleteUsers)
+            if (await policyService.IsProtectedAsync(row.User, policy))
             {
-                await lifecycle.HardDeleteAsync(user, null, cancellationToken);
+                continue;
+            }
+
+            var inactiveDays = (now - row.Activity.LastSeenUtc).TotalDays;
+            if (inactiveDays >= policy.WarningAfterDays)
+            {
+                var canSendRepeat = !row.User.LastInactivityWarningSentUtc.HasValue
+                    || !policy.WarningRepeatDays.HasValue
+                    || row.User.LastInactivityWarningSentUtc.Value <= now.AddDays(-policy.WarningRepeatDays.Value);
+                if (canSendRepeat && !string.IsNullOrWhiteSpace(row.User.Email))
+                {
+                    await notifications.QueueAsync(row.User.Id, NotificationType.InactivityWarning, row.User.Email!, row.User.UserName,
+                        "We miss you at AstraId",
+                        "<p>You haven't logged in for a while. Please sign in to keep your account active.</p>",
+                        "You haven't logged in for a while. Please sign in to keep your account active.",
+                        null, null, $"inactive-warning:{row.User.Id}:{now:yyyyMMdd}", cancellationToken);
+                    row.User.LastInactivityWarningSentUtc = now;
+                }
+            }
+
+            if (inactiveDays >= policy.DeactivateAfterDays && row.User.IsActive)
+            {
+                await lifecycle.DeactivateAsync(row.User, null, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(row.User.Email))
+                {
+                    await notifications.QueueAsync(row.User.Id, NotificationType.InactivityDeactivated, row.User.Email!, row.User.UserName,
+                        "Your account was deactivated due to inactivity",
+                        "<p>Your account has been deactivated after prolonged inactivity. Contact support to reactivate.</p>",
+                        "Your account has been deactivated after prolonged inactivity. Contact support to reactivate.",
+                        null, null, $"inactive-deactivated:{row.User.Id}", cancellationToken);
+                }
+            }
+
+            if (inactiveDays >= policy.DeleteAfterDays)
+            {
+                row.User.ScheduledDeletionUtc ??= now;
+                if (!string.IsNullOrWhiteSpace(row.User.Email))
+                {
+                    await notifications.QueueAsync(row.User.Id, NotificationType.InactivityDeletionScheduled, row.User.Email!, row.User.UserName,
+                        "Account deletion is scheduled",
+                        "<p>Your account is scheduled for deletion due to inactivity according to policy.</p>",
+                        "Your account is scheduled for deletion due to inactivity according to policy.",
+                        null, null, $"inactive-delete-scheduled:{row.User.Id}", cancellationToken);
+                }
+
+                if (policy.DeleteMode == InactivityDeleteMode.Anonymize)
+                {
+                    await lifecycle.AnonymizeAsync(row.User, null, cancellationToken);
+                }
+                else
+                {
+                    if (!row.User.IsAnonymized)
+                    {
+                        await lifecycle.AnonymizeAsync(row.User, null, cancellationToken);
+                    }
+
+                    await lifecycle.HardDeleteAsync(row.User, null, cancellationToken);
+                }
             }
         }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 }

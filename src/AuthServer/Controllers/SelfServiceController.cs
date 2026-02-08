@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Services;
+using AuthServer.Services.Notifications;
 using AuthServer.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -24,6 +25,7 @@ public sealed class SelfServiceController : ControllerBase
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly IUserSecurityEventLogger _eventLogger;
     private readonly UserLifecycleService _lifecycleService;
+    private readonly NotificationService _notificationService;
 
     public SelfServiceController(
         UserManager<ApplicationUser> userManager,
@@ -32,7 +34,8 @@ public sealed class SelfServiceController : ControllerBase
         IEmailSender emailSender,
         UserSessionRevocationService sessionRevocationService,
         IUserSecurityEventLogger eventLogger,
-        UserLifecycleService lifecycleService)
+        UserLifecycleService lifecycleService,
+        NotificationService notificationService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -41,6 +44,7 @@ public sealed class SelfServiceController : ControllerBase
         _sessionRevocationService = sessionRevocationService;
         _eventLogger = eventLogger;
         _lifecycleService = lifecycleService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -98,6 +102,10 @@ public sealed class SelfServiceController : ControllerBase
         await _userManager.UpdateSecurityStampAsync(user);
         await _lifecycleService.TrackPasswordChangeAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         await _eventLogger.LogAsync("PasswordChanged", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.NotifyPasswordChangedAsync(user, HttpContext.TraceIdentifier, HttpContext.RequestAborted);
+        }
         return Ok(new AuthResponse(true, null, null, "Password updated."));
     }
 
@@ -122,6 +130,14 @@ public sealed class SelfServiceController : ControllerBase
         var link = _uiUrlBuilder.BuildChangeEmailUrl(user.Id, request.NewEmail, encodedToken, "/account/security/email");
         var (subject, htmlBody, textBody) = EmailTemplates.BuildChangeEmailEmail(link);
         await _emailSender.SendAsync(new EmailMessage(request.NewEmail, user.UserName, subject, htmlBody, textBody), HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.QueueAsync(user.Id, NotificationType.EmailChangeRequestedOld, user.Email!, user.UserName,
+                "Email change requested",
+                $"<p>A request was made to change your account email to {request.NewEmail}. If this was not you, secure your account.</p>",
+                $"A request was made to change your account email to {request.NewEmail}. If this was not you, secure your account.",
+                HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+        }
 
         return Ok(new AuthResponse(true, null, null, "Confirmation sent to your new email."));
     }
@@ -144,6 +160,11 @@ public sealed class SelfServiceController : ControllerBase
         await _userManager.UpdateSecurityStampAsync(user);
         await _sessionRevocationService.RevokeAllForUserAsync(user.Id, "account.sessions.revoked", HttpContext, new { reason = "email-change" }, HttpContext.RequestAborted);
         await _eventLogger.LogAsync("EmailChanged", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        await _notificationService.QueueAsync(user.Id, NotificationType.EmailChangedNew, request.NewEmail, user.UserName,
+            "Your email was changed",
+            "<p>This email address is now associated with your AstraId account.</p>",
+            "This email address is now associated with your AstraId account.",
+            HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
 
         return Ok(new AuthResponse(true, null, null, "Email updated."));
     }
@@ -158,6 +179,10 @@ public sealed class SelfServiceController : ControllerBase
         await _userManager.UpdateSecurityStampAsync(user);
         await _signInManager.SignOutAsync();
         await _eventLogger.LogAsync("SignOutAllSessions", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.NotifySessionsRevokedAsync(user, "manual", HttpContext.TraceIdentifier, HttpContext.RequestAborted);
+        }
         return Ok(new SignOutAllSessionsResponse(true, "All sessions were signed out."));
     }
 

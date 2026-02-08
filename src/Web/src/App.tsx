@@ -56,6 +56,8 @@ import SecurityIncidents from "./admin/pages/SecurityIncidents";
 import SecurityRevocation from "./admin/pages/SecurityRevocation";
 import SecurityDataProtection from "./admin/pages/SecurityDataProtection";
 import UserLifecyclePolicy from "./admin/pages/UserLifecyclePolicy";
+import InactivityPolicy from "./admin/pages/InactivityPolicy";
+import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
@@ -144,6 +146,7 @@ const App = () => {
         <Route path="audit" element={<AuditList />} />
         <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
         <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
+        <Route path="diagnostics/email-outbox" element={<EmailOutbox />} />
         <Route path="security/keys" element={<SigningKeys />} />
         <Route path="security/rotation" element={<SecurityRotationPolicy />} />
         <Route path="security/tokens" element={<TokenPolicies />} />
@@ -151,6 +154,7 @@ const App = () => {
         <Route path="security/revocation" element={<SecurityRevocation />} />
         <Route path="security/dataprotection" element={<SecurityDataProtection />} />
         <Route path="security/user-lifecycle" element={<UserLifecyclePolicy />} />
+        <Route path="security/inactivity" element={<InactivityPolicy />} />
         <Route path="security/privacy" element={<SecurityPrivacy />} />
         <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
         <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />

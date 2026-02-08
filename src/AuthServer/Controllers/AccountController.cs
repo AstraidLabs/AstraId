@@ -4,6 +4,7 @@ using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Services;
+using AuthServer.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ public sealed class AccountController : ControllerBase
     private readonly AuthRateLimiter _rateLimiter;
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly ApplicationDbContext _dbContext;
+    private readonly NotificationService _notificationService;
 
     private static readonly TimeSpan AccountWindow = TimeSpan.FromMinutes(5);
     private const int AccountMaxAttempts = 5;
@@ -36,7 +38,8 @@ public sealed class AccountController : ControllerBase
         IEmailSender emailSender,
         AuthRateLimiter rateLimiter,
         UserSessionRevocationService sessionRevocationService,
-        ApplicationDbContext dbContext)
+        ApplicationDbContext dbContext,
+        NotificationService notificationService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -46,6 +49,7 @@ public sealed class AccountController : ControllerBase
         _rateLimiter = rateLimiter;
         _sessionRevocationService = sessionRevocationService;
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     [HttpPost("password/change")]
@@ -134,6 +138,11 @@ public sealed class AccountController : ControllerBase
             user.Id.ToString(),
             new { signOutOtherSessions = request.SignOutOtherSessions });
 
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.NotifyPasswordChangedAsync(user, HttpContext.TraceIdentifier, HttpContext.RequestAborted);
+        }
+
         return Ok(new AuthResponse(true, null, null, "Password updated."));
     }
 
@@ -202,6 +211,21 @@ public sealed class AccountController : ControllerBase
         await _emailSender.SendAsync(
             new EmailMessage(newEmail!, user.UserName, subject, htmlBody, textBody),
             HttpContext.RequestAborted);
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.QueueAsync(user.Id, NotificationType.EmailChangeRequestedOld, user.Email!, user.UserName,
+                "Email change requested",
+                $"<p>A request was made to change your account email to {MaskEmail(newEmail!)}. If this was not you, secure your account.</p>",
+                $"A request was made to change your account email to {MaskEmail(newEmail!)}. If this was not you, secure your account.",
+                HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+        }
+
+        await _notificationService.QueueAsync(user.Id, NotificationType.EmailChangeRequestedNew, newEmail!, user.UserName,
+            "Confirm your new email address",
+            "<p>A confirmation link has been sent for this email change request.</p>",
+            "A confirmation link has been sent for this email change request.",
+            HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
 
         await AddAuditAsync(
             user.Id,
@@ -276,6 +300,12 @@ public sealed class AccountController : ControllerBase
             user.Id.ToString(),
             new { newEmail = MaskEmail(request.NewEmail) });
 
+        await _notificationService.QueueAsync(user.Id, NotificationType.EmailChangedNew, request.NewEmail, user.UserName,
+            "Your email was changed",
+            "<p>This email address is now associated with your AstraId account.</p>",
+            "This email address is now associated with your AstraId account.",
+            HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
+
         return Ok(new AuthResponse(true, _uiUrlBuilder.BuildLoginUrl(string.Empty), null, "Email updated."));
     }
 
@@ -322,6 +352,11 @@ public sealed class AccountController : ControllerBase
             HttpContext.RequestAborted);
         await _userManager.UpdateSecurityStampAsync(user);
         await _signInManager.SignInAsync(user, isPersistent: false);
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            await _notificationService.NotifySessionsRevokedAsync(user, "manual", HttpContext.TraceIdentifier, HttpContext.RequestAborted);
+        }
 
         return Ok(new AuthResponse(true, null, null, "Other sessions were signed out."));
     }
