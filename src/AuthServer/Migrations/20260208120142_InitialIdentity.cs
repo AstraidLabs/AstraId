@@ -50,6 +50,10 @@ namespace AuthServer.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    IsAnonymized = table.Column<bool>(type: "boolean", nullable: false),
+                    DeactivatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    AnonymizedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RequestedDeletionUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -68,23 +72,6 @@ namespace AuthServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUsers", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AuditLogs",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Action = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    TargetType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    TargetId = table.Column<string>(type: "text", nullable: true),
-                    DataJson = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -116,31 +103,6 @@ namespace AuthServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ConsumedRefreshTokens", x => x.TokenId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ErrorLogs",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Path = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
-                    Method = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    StatusCode = table.Column<int>(type: "integer", nullable: false),
-                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Detail = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    ExceptionType = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    StackTrace = table.Column<string>(type: "text", nullable: true),
-                    InnerException = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
-                    DataJson = table.Column<string>(type: "text", nullable: true),
-                    UserAgent = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    RemoteIp = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ErrorLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -268,25 +230,6 @@ namespace AuthServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "TokenIncidents",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Type = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Severity = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    ClientId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    DetailJson = table.Column<string>(type: "text", nullable: true),
-                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TokenIncidents", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "TokenPolicies",
                 columns: table => new
                 {
@@ -328,24 +271,6 @@ namespace AuthServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_TokenPolicyOverrides", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "UserSecurityEvents",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    EventType = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    IpAddress = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
-                    UserAgent = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
-                    ClientId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_UserSecurityEvents", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -478,6 +403,162 @@ namespace AuthServer.Migrations
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Action = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TargetType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TargetId = table.Column<string>(type: "text", nullable: true),
+                    DataJson = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AuditLogs_AspNetUsers_ActorUserId",
+                        column: x => x.ActorUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ErrorLogs",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Path = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
+                    Method = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    StatusCode = table.Column<int>(type: "integer", nullable: false),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Detail = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    ExceptionType = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    StackTrace = table.Column<string>(type: "text", nullable: true),
+                    InnerException = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    DataJson = table.Column<string>(type: "text", nullable: true),
+                    UserAgent = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    RemoteIp = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ErrorLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ErrorLogs_AspNetUsers_ActorUserId",
+                        column: x => x.ActorUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TokenIncidents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Type = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Severity = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    ClientId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    DetailJson = table.Column<string>(type: "text", nullable: true),
+                    ActorUserId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenIncidents", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TokenIncidents_AspNetUsers_ActorUserId",
+                        column: x => x.ActorUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_TokenIncidents_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserActivities",
+                columns: table => new
+                {
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LastSeenUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    LastLoginUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    LastPasswordChangeUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserActivities", x => x.UserId);
+                    table.ForeignKey(
+                        name: "FK_UserActivities_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserLifecyclePolicies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Enabled = table.Column<bool>(type: "boolean", nullable: false),
+                    DeactivateAfterDays = table.Column<int>(type: "integer", nullable: false),
+                    DeleteAfterDays = table.Column<int>(type: "integer", nullable: false),
+                    HardDeleteAfterDays = table.Column<int>(type: "integer", nullable: true),
+                    HardDeleteEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    WarnBeforeLogoutMinutes = table.Column<int>(type: "integer", nullable: false),
+                    IdleLogoutMinutes = table.Column<int>(type: "integer", nullable: false),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedByUserId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserLifecyclePolicies", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_UserLifecyclePolicies_AspNetUsers_UpdatedByUserId",
+                        column: x => x.UpdatedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserSecurityEvents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    TimestampUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EventType = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
+                    IpAddress = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    UserAgent = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
+                    ClientId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    TraceId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserSecurityEvents", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_UserSecurityEvents_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -635,6 +716,11 @@ namespace AuthServer.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_ActorUserId",
+                table: "AuditLogs",
+                column: "ActorUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AuditLogs_TimestampUtc",
                 table: "AuditLogs",
                 column: "TimestampUtc");
@@ -648,6 +734,11 @@ namespace AuthServer.Migrations
                 name: "IX_EndpointPermissions_PermissionId",
                 table: "EndpointPermissions",
                 column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ErrorLogs_ActorUserId",
+                table: "ErrorLogs",
+                column: "ActorUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ErrorLogs_TimestampUtc",
@@ -726,6 +817,11 @@ namespace AuthServer.Migrations
                 column: "Status");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TokenIncidents_ActorUserId",
+                table: "TokenIncidents",
+                column: "ActorUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TokenIncidents_Severity",
                 table: "TokenIncidents",
                 column: "Severity");
@@ -741,6 +837,11 @@ namespace AuthServer.Migrations
                 column: "Type");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TokenIncidents_UserId",
+                table: "TokenIncidents",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TokenPolicies_UpdatedUtc",
                 table: "TokenPolicies",
                 column: "UpdatedUtc");
@@ -749,6 +850,16 @@ namespace AuthServer.Migrations
                 name: "IX_TokenPolicyOverrides_UpdatedUtc",
                 table: "TokenPolicyOverrides",
                 column: "UpdatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserActivities_LastSeenUtc",
+                table: "UserActivities",
+                column: "LastSeenUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserLifecyclePolicies_UpdatedByUserId",
+                table: "UserLifecyclePolicies",
+                column: "UpdatedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserSecurityEvents_UserId_TimestampUtc",
@@ -817,10 +928,13 @@ namespace AuthServer.Migrations
                 name: "TokenPolicyOverrides");
 
             migrationBuilder.DropTable(
-                name: "UserSecurityEvents");
+                name: "UserActivities");
 
             migrationBuilder.DropTable(
-                name: "AspNetUsers");
+                name: "UserLifecyclePolicies");
+
+            migrationBuilder.DropTable(
+                name: "UserSecurityEvents");
 
             migrationBuilder.DropTable(
                 name: "ApiEndpoints");
@@ -833,6 +947,9 @@ namespace AuthServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "Permissions");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUsers");
 
             migrationBuilder.DropTable(
                 name: "ApiResources");

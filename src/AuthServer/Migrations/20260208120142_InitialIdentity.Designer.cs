@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260207152459_InitialIdentity")]
+    [Migration("20260208120142_InitialIdentity")]
     partial class InitialIdentity
     {
         /// <inheritdoc />
@@ -120,9 +120,15 @@ namespace AuthServer.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("AnonymizedUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeactivatedUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -132,6 +138,9 @@ namespace AuthServer.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAnonymized")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("LockoutEnabled")
@@ -156,6 +165,9 @@ namespace AuthServer.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RequestedDeletionUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
@@ -208,6 +220,8 @@ namespace AuthServer.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
 
                     b.HasIndex("TimestampUtc");
 
@@ -345,6 +359,8 @@ namespace AuthServer.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
 
                     b.HasIndex("TimestampUtc");
 
@@ -586,11 +602,15 @@ namespace AuthServer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ActorUserId");
+
                     b.HasIndex("Severity");
 
                     b.HasIndex("TimestampUtc");
 
                     b.HasIndex("Type");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("TokenIncidents");
                 });
@@ -685,6 +705,70 @@ namespace AuthServer.Migrations
                     b.HasIndex("UpdatedUtc");
 
                     b.ToTable("TokenPolicyOverrides");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.UserActivity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LastLoginUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastPasswordChangeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("LastSeenUtc");
+
+                    b.ToTable("UserActivities");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.UserLifecyclePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DeactivateAfterDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DeleteAfterDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("HardDeleteAfterDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HardDeleteEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("IdleLogoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WarnBeforeLogoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("UserLifecyclePolicies");
                 });
 
             modelBuilder.Entity("AuthServer.Data.UserSecurityEvent", b =>
@@ -1076,6 +1160,14 @@ namespace AuthServer.Migrations
                     b.Navigation("ApiResource");
                 });
 
+            modelBuilder.Entity("AuthServer.Data.AuditLog", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("AuthServer.Data.EndpointPermission", b =>
                 {
                     b.HasOne("AuthServer.Data.ApiEndpoint", "Endpoint")
@@ -1095,6 +1187,14 @@ namespace AuthServer.Migrations
                     b.Navigation("Permission");
                 });
 
+            modelBuilder.Entity("AuthServer.Data.ErrorLog", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("AuthServer.Data.RolePermission", b =>
                 {
                     b.HasOne("AuthServer.Data.Permission", "Permission")
@@ -1112,6 +1212,44 @@ namespace AuthServer.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.TokenIncident", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("AuthServer.Data.UserActivity", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuthServer.Data.UserLifecyclePolicy", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("AuthServer.Data.UserSecurityEvent", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
