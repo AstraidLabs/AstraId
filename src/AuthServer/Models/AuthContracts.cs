@@ -87,3 +87,23 @@ public sealed record UserSecurityEventResponse(
     string? UserAgent,
     string? ClientId,
     string? TraceId);
+
+
+public sealed record LoginHistoryResponse(
+    Guid Id,
+    DateTime TimestampUtc,
+    bool Success,
+    string? FailureReasonCode,
+    string? ClientId,
+    string? Ip,
+    string? UserAgent,
+    string? TraceId);
+
+public sealed record DeletionRequestResponse(
+    Guid Id,
+    DateTime RequestedUtc,
+    string Status,
+    DateTime CooldownUntilUtc,
+    DateTime? ExecutedUtc,
+    DateTime? CancelUtc,
+    string? Reason);

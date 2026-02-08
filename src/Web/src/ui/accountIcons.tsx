@@ -88,6 +88,9 @@ export type AccountIconKey =
   | "sessions"
   | "activity"
   | "admin"
+  | "privacy"
+  | "export"
+  | "delete"
   | "logout";
 
 export const accountIcons: Record<AccountIconKey, AccountIcon> = {
@@ -99,6 +102,9 @@ export const accountIcons: Record<AccountIconKey, AccountIcon> = {
   sessions: MonitorIcon,
   activity: ActivityIcon,
   admin: SettingsIcon,
+  privacy: ShieldIcon,
+  export: ActivityIcon,
+  delete: KeyIcon,
   logout: LogoutIcon
 };
 
@@ -109,7 +115,10 @@ export const accountMenuItems = [
   { key: "email", label: "Change email", to: "/account/security/email", icon: accountIcons.email },
   { key: "password", label: "Change password", to: "/account/security/password", icon: accountIcons.password },
   { key: "sessions", label: "Sign out everywhere", to: "/account/security/sessions", icon: accountIcons.sessions },
-  { key: "activity", label: "Recent logins", to: "/account/security/activity", icon: accountIcons.activity }
+  { key: "activity", label: "Recent logins", to: "/account/security/activity", icon: accountIcons.activity },
+  { key: "privacy", label: "Privacy", to: "/account/privacy", icon: accountIcons.privacy },
+  { key: "export", label: "Export my data", to: "/account/privacy", icon: accountIcons.export },
+  { key: "delete", label: "Request deletion", to: "/account/privacy", icon: accountIcons.delete }
 ] as const;
 
 export const securityItems = [

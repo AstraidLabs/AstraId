@@ -295,3 +295,24 @@ Používané proměnné:
 - **Issuer musí být absolutní URL** a v produkci HTTPS, jinak aplikace spadne při startu.
 - **Email konfigurace**: v produkci musí být vyplněné `Email:FromEmail`, `Email:Smtp:Host`, `Email:Smtp:Port` (jinak start selže).
 - **CORS/cookies**: AuthServer používá cookie `SameSite=None` a `Secure` (HTTPS); pokud UI běží separátně, povolte origin v `Cors:AllowedOrigins` a používejte HTTPS na AuthServeru.
+
+## GDPR privacy and retention
+
+AuthServer now includes GDPR self-service and governance endpoints:
+
+- `GET /account/export` – authenticated data export (JSON).
+- `POST /account/deletion/request` – submit deletion request with cooldown.
+- `POST /account/deletion/cancel` – cancel during cooldown.
+- `POST /account/sessions/revoke-all` – revoke all sessions/tokens.
+- `GET/PUT /admin/api/security/privacy-policy` – manage retention and deletion policy.
+- `GET /admin/api/security/deletion-requests` and `POST /admin/api/security/deletion-requests/{id}/{approve|execute|cancel}` – govern deletion requests.
+
+Retention/deletion automation:
+
+- `RetentionCleanupService` runs daily and applies configured retention windows.
+- `DeletionExecutorService` runs every 30 minutes and executes matured deletion requests.
+
+Security notes:
+
+- Export and login history flows intentionally omit secrets (password hashes, MFA shared secrets, recovery codes, private key material).
+- User-linked logs use nullable relationships so anonymization preserves diagnostics and audit integrity.

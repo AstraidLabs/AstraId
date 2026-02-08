@@ -387,3 +387,30 @@ export type AdminUserLifecyclePreview = {
   wouldAnonymize: number;
   wouldHardDelete: number;
 };
+
+export type AdminPrivacyPolicy = {
+  id: string;
+  loginHistoryRetentionDays: number;
+  errorLogRetentionDays: number;
+  tokenRetentionDays: number;
+  auditLogRetentionDays: number;
+  deletionCooldownDays: number;
+  anonymizeInsteadOfHardDelete: boolean;
+  requireMfaForDeletionRequest: boolean;
+  requireRecentReauthForExport: boolean;
+  updatedUtc: string;
+  updatedByUserId?: string | null;
+};
+
+export type AdminDeletionRequest = {
+  id: string;
+  userId: string;
+  email?: string | null;
+  userName?: string | null;
+  status: string;
+  requestedUtc: string;
+  cooldownUntilUtc: string;
+  executedUtc?: string | null;
+  cancelUtc?: string | null;
+  reason?: string | null;
+};

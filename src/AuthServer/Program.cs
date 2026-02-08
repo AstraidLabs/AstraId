@@ -110,6 +110,8 @@ builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddScoped<UserSessionRevocationService>();
 builder.Services.AddScoped<IUserSecurityEventLogger, UserSecurityEventLogger>();
 builder.Services.AddScoped<UserLifecycleService>();
+builder.Services.AddScoped<LoginHistoryService>();
+builder.Services.AddScoped<PrivacyGovernanceService>();
 builder.Services.AddSingleton<AdminUiManifestService>();
 builder.Services.AddScoped<ICorsPolicyProvider, ClientCorsPolicyProvider>();
 
@@ -262,6 +264,8 @@ builder.Services.AddHostedService<GovernancePolicyInitializer>();
 builder.Services.AddHostedService<ErrorLogCleanupService>();
 builder.Services.AddHostedService<SigningKeyRotationService>();
 builder.Services.AddHostedService<InactivityLifecycleWorker>();
+builder.Services.AddHostedService<RetentionCleanupService>();
+builder.Services.AddHostedService<DeletionExecutorService>();
 
 var app = builder.Build();
 
