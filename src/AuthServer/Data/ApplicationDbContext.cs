@@ -27,6 +27,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<TokenPolicyOverride> TokenPolicyOverrides => Set<TokenPolicyOverride>();
     public DbSet<ConsumedRefreshToken> ConsumedRefreshTokens => Set<ConsumedRefreshToken>();
     public DbSet<UserSecurityEvent> UserSecurityEvents => Set<UserSecurityEvent>();
+    public DbSet<UserLifecyclePolicy> UserLifecyclePolicies => Set<UserLifecyclePolicy>();
+    public DbSet<UserActivity> UserActivities => Set<UserActivity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -192,6 +194,54 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(evt => evt.UserAgent).HasMaxLength(1024);
             entity.Property(evt => evt.ClientId).HasMaxLength(200);
             entity.Property(evt => evt.TraceId).HasMaxLength(128);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(evt => evt.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<AuditLog>()
+            .HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(log => log.ActorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<ErrorLog>()
+            .HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(log => log.ActorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<TokenIncident>()
+            .HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(incident => incident.ActorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<TokenIncident>()
+            .HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(incident => incident.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<UserLifecyclePolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.Property(policy => policy.UpdatedUtc);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(policy => policy.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<UserActivity>(entity =>
+        {
+            entity.HasKey(activity => activity.UserId);
+            entity.HasIndex(activity => activity.LastSeenUtc);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(activity => activity.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

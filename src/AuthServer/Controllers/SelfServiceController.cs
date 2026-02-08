@@ -1,6 +1,7 @@
 using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Services;
+using AuthServer.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +23,7 @@ public sealed class SelfServiceController : ControllerBase
     private readonly IEmailSender _emailSender;
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly IUserSecurityEventLogger _eventLogger;
+    private readonly UserLifecycleService _lifecycleService;
 
     public SelfServiceController(
         UserManager<ApplicationUser> userManager,
@@ -29,7 +31,8 @@ public sealed class SelfServiceController : ControllerBase
         UiUrlBuilder uiUrlBuilder,
         IEmailSender emailSender,
         UserSessionRevocationService sessionRevocationService,
-        IUserSecurityEventLogger eventLogger)
+        IUserSecurityEventLogger eventLogger,
+        UserLifecycleService lifecycleService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -37,6 +40,7 @@ public sealed class SelfServiceController : ControllerBase
         _emailSender = emailSender;
         _sessionRevocationService = sessionRevocationService;
         _eventLogger = eventLogger;
+        _lifecycleService = lifecycleService;
     }
 
     [HttpGet]
@@ -92,6 +96,7 @@ public sealed class SelfServiceController : ControllerBase
         }
 
         await _userManager.UpdateSecurityStampAsync(user);
+        await _lifecycleService.TrackPasswordChangeAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         await _eventLogger.LogAsync("PasswordChanged", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return Ok(new AuthResponse(true, null, null, "Password updated."));
     }
