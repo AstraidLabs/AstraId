@@ -28,13 +28,27 @@ public sealed class EmailOutboxService
         return message;
     }
 
-    public async Task<List<EmailOutboxMessage>> GetPendingDueAsync(int batchSize, CancellationToken cancellationToken)
+    public async Task<List<EmailOutboxMessage>> ClaimPendingDueAsync(int batchSize, TimeSpan claimLease, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
+        var claimUntilUtc = now.Add(claimLease <= TimeSpan.Zero ? TimeSpan.FromMinutes(5) : claimLease);
+        var pendingStatus = (int)EmailOutboxStatus.Pending;
+
         return await _dbContext.EmailOutboxMessages
-            .Where(x => x.Status == EmailOutboxStatus.Pending && x.NextAttemptUtc <= now)
-            .OrderBy(x => x.NextAttemptUtc)
-            .Take(batchSize)
+            .FromSqlInterpolated($@"
+WITH due_messages AS (
+    SELECT \"Id\"
+    FROM \"EmailOutboxMessages\"
+    WHERE \"Status\" = {pendingStatus} AND \"NextAttemptUtc\" <= {now}
+    ORDER BY \"NextAttemptUtc\"
+    FOR UPDATE SKIP LOCKED
+    LIMIT {batchSize}
+)
+UPDATE \"EmailOutboxMessages\" AS m
+SET \"NextAttemptUtc\" = {claimUntilUtc}
+FROM due_messages
+WHERE m.\"Id\" = due_messages.\"Id\"
+RETURNING m.*")
             .ToListAsync(cancellationToken);
     }
 }

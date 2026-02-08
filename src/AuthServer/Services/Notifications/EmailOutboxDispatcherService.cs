@@ -40,7 +40,10 @@ public sealed class EmailOutboxDispatcherService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var sender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
         var outbox = scope.ServiceProvider.GetRequiredService<EmailOutboxService>();
-        var pending = await outbox.GetPendingDueAsync(Math.Max(1, _options.Value.DispatcherBatchSize), cancellationToken);
+        var pending = await outbox.ClaimPendingDueAsync(
+            Math.Max(1, _options.Value.DispatcherBatchSize),
+            TimeSpan.FromSeconds(Math.Max(5, _options.Value.DispatcherIntervalSeconds) * 6),
+            cancellationToken);
 
         foreach (var message in pending)
         {

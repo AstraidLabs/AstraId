@@ -32,11 +32,14 @@ public sealed class NotificationService
         => QueueAsync(user.Id, NotificationType.PasswordChanged, user.Email!, user.UserName,
             "Your password was changed",
             "<p>Your account password was changed successfully. If this was not you, contact support immediately.</p>",
-            "Your account password was changed successfully. If this was not you, contact support immediately.", traceId, null, $"pwd:{user.Id}:{DateTime.UtcNow:yyyyMMddHHmm}", cancellationToken);
+            "Your account password was changed successfully. If this was not you, contact support immediately.", traceId, null, BuildPasswordChangedIdempotencyKey(user.Id), cancellationToken);
 
     public Task NotifySessionsRevokedAsync(ApplicationUser user, string reason, string? traceId, CancellationToken cancellationToken)
         => QueueAsync(user.Id, NotificationType.SessionsRevoked, user.Email!, user.UserName,
             "All sessions were revoked",
             $"<p>All active sessions were revoked ({reason}). If this was not you, change your password immediately.</p>",
             $"All active sessions were revoked ({reason}). If this was not you, change your password immediately.", traceId, null, null, cancellationToken);
+
+    private static string BuildPasswordChangedIdempotencyKey(Guid userId)
+        => $"pwd:{userId:N}:{Guid.NewGuid():N}";
 }
