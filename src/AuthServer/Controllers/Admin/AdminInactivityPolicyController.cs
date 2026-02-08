@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
