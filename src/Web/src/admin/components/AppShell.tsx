@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { hasAnyPermission, GDPR_PERMISSIONS } from "../../auth/adminAccess";
+import { useAuthSession } from "../../auth/useAuthSession";
 import { toAdminRoute } from "../../routing";
 
 type Props = {
@@ -40,6 +42,9 @@ function NavSection({ title, items }: NavSectionProps) {
 }
 
 export default function AppShell({ children }: Props) {
+  const { session } = useAuthSession();
+  const showGdpr = hasAnyPermission(GDPR_PERMISSIONS, session?.permissions);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="flex min-h-screen">
@@ -87,7 +92,7 @@ export default function AppShell({ children }: Props) {
                 { to: toAdminRoute("/security/dataprotection"), label: "DataProtection" },
                 { to: toAdminRoute("/security/user-lifecycle"), label: "User Lifecycle" },
                 { to: toAdminRoute("/security/inactivity"), label: "Inactivity Policy" },
-                { to: toAdminRoute("/security/privacy"), label: "Privacy & GDPR" },
+                ...(showGdpr ? [{ to: toAdminRoute("/security/privacy"), label: "Privacy & GDPR" }] : []),
               ]}
             />
             <NavSection

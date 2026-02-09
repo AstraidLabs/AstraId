@@ -13,6 +13,6 @@ public static class AdminAccessEvaluator
         }
 
         return user.IsInRole("Admin") ||
-               user.HasClaim(AuthConstants.ClaimTypes.Permission, "system.admin");
+               user.HasClaim(AuthConstants.ClaimTypes.Permission, AuthConstants.Permissions.SystemAdmin);
     }
 }
