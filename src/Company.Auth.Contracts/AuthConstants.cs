@@ -29,6 +29,12 @@ public static class AuthConstants
     {
         public const string SystemAdmin = "system.admin";
 
+        public static class Governance
+        {
+            public const string UserLifecycleManage = "governance.user-lifecycle.manage";
+            public const string InactivityPolicyManage = "governance.inactivity.manage";
+        }
+
         public static class Gdpr
         {
             public const string Read = "gdpr.read";

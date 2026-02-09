@@ -15,6 +15,18 @@ public static class AuthServerDefinitions
         },
         new PermissionDefinition
         {
+            Key = AuthConstants.Permissions.Governance.UserLifecycleManage,
+            Description = "Manage user lifecycle policies and manual lifecycle actions.",
+            Group = "Governance"
+        },
+        new PermissionDefinition
+        {
+            Key = AuthConstants.Permissions.Governance.InactivityPolicyManage,
+            Description = "Manage inactivity policy settings.",
+            Group = "Governance"
+        },
+        new PermissionDefinition
+        {
             Key = AuthConstants.Permissions.Gdpr.Read,
             Description = "View GDPR policy and deletion request status.",
             Group = "GDPR"

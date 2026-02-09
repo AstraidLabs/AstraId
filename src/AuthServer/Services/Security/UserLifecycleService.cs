@@ -46,6 +46,7 @@ public sealed class UserLifecycleService
         policy.UpdatedUtc = DateTime.UtcNow;
         policy.UpdatedByUserId = actorUserId;
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await AddAuditAsync(actorUserId, "user.lifecycle.policy.updated", policy.Id, policy, cancellationToken);
         return policy;
     }
 

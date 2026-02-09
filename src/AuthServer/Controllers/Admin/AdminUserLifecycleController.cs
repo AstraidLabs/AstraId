@@ -2,6 +2,7 @@ using System.Security.Claims;
 using AuthServer.Data;
 using AuthServer.Services.Security;
 using AuthServer.Services;
+using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,17 +16,19 @@ public sealed class AdminUserLifecycleController : ControllerBase
 {
     private readonly UserLifecycleService _service;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IPermissionService _permissionService;
 
-    public AdminUserLifecycleController(UserLifecycleService service, ApplicationDbContext dbContext)
+    public AdminUserLifecycleController(UserLifecycleService service, ApplicationDbContext dbContext, IPermissionService permissionService)
     {
         _service = service;
         _dbContext = dbContext;
+        _permissionService = permissionService;
     }
 
     [HttpGet("user-lifecycle-policy")]
     public async Task<IActionResult> GetPolicy(CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         var policy = await _service.GetPolicyAsync(cancellationToken);
         return Ok(policy);
     }
@@ -33,7 +36,7 @@ public sealed class AdminUserLifecycleController : ControllerBase
     [HttpPut("user-lifecycle-policy")]
     public async Task<IActionResult> UpdatePolicy([FromBody] UserLifecyclePolicy policy, CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         var errors = ValidatePolicy(policy);
         if (errors.Count > 0)
         {
@@ -50,7 +53,7 @@ public sealed class AdminUserLifecycleController : ControllerBase
     [HttpGet("user-lifecycle/preview")]
     public async Task<IActionResult> Preview([FromQuery] int days, CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         if (days < 0)
         {
             return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
@@ -66,7 +69,7 @@ public sealed class AdminUserLifecycleController : ControllerBase
     [HttpPost("users/{id:guid}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
         if (user is null) return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         await _service.DeactivateAsync(user, GetActorUserId(), cancellationToken);
@@ -76,7 +79,7 @@ public sealed class AdminUserLifecycleController : ControllerBase
     [HttpPost("users/{id:guid}/anonymize")]
     public async Task<IActionResult> Anonymize(Guid id, CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
         if (user is null) return NotFound(new ProblemDetails { Title = "User not found." }.ApplyDefaults(HttpContext));
         await _service.AnonymizeAsync(user, GetActorUserId(), cancellationToken);
@@ -86,7 +89,7 @@ public sealed class AdminUserLifecycleController : ControllerBase
     [HttpPost("users/{id:guid}/hard-delete")]
     public async Task<IActionResult> HardDelete(Guid id, [FromQuery] bool confirm, CancellationToken cancellationToken)
     {
-        if (!HasSystemAdmin()) return Forbid();
+        if (!await HasPermissionAsync(AuthConstants.Permissions.Governance.UserLifecycleManage, cancellationToken)) return Forbid();
         if (!confirm)
         {
             return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
@@ -110,8 +113,17 @@ public sealed class AdminUserLifecycleController : ControllerBase
         return NoContent();
     }
 
-    private bool HasSystemAdmin()
-        => User.HasClaim(Company.Auth.Contracts.AuthConstants.ClaimTypes.Permission, "system.admin");
+    private async Task<bool> HasPermissionAsync(string permission, CancellationToken cancellationToken)
+    {
+        var userId = GetActorUserId();
+        if (!userId.HasValue)
+        {
+            return false;
+        }
+
+        var userPermissions = await _permissionService.GetPermissionsForUserAsync(userId.Value, cancellationToken);
+        return userPermissions.Contains(AuthConstants.Permissions.SystemAdmin) || userPermissions.Contains(permission);
+    }
 
     private Guid? GetActorUserId()
         => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
