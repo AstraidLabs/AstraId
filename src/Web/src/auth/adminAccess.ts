@@ -1,5 +1,10 @@
 export const ADMIN_PERMISSION = "system.admin";
 
+export const GOVERNANCE_PERMISSIONS = {
+  userLifecycleManage: "governance.user-lifecycle.manage",
+  inactivityManage: "governance.inactivity.manage",
+} as const;
+
 export const GDPR_PERMISSIONS = [
   "gdpr.read",
   "gdpr.export",
