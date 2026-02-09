@@ -24,4 +24,17 @@ public static class AuthConstants
         public const string Permission = "permission";
         public const string Tenant = "tenant";
     }
+
+    public static class Permissions
+    {
+        public const string SystemAdmin = "system.admin";
+
+        public static class Gdpr
+        {
+            public const string Read = "gdpr.read";
+            public const string Export = "gdpr.export";
+            public const string Erase = "gdpr.erase";
+            public const string RetentionManage = "gdpr.retention.manage";
+        }
+    }
 }

@@ -127,7 +127,7 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context =>
         {
             var hasPermissionClaim = context.User.HasClaim(claim => claim.Type == AuthConstants.ClaimTypes.Permission);
-            return !hasPermissionClaim || context.User.HasClaim(AuthConstants.ClaimTypes.Permission, "system.admin");
+            return !hasPermissionClaim || context.User.HasClaim(AuthConstants.ClaimTypes.Permission, AuthConstants.Permissions.SystemAdmin);
         });
     });
 });

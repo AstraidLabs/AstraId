@@ -217,7 +217,7 @@ public sealed class AdminRolesController : ControllerBase
         if (string.Equals(role.Name, "Admin", StringComparison.OrdinalIgnoreCase))
         {
             var systemAdminId = await _dbContext.Permissions
-                .Where(permission => permission.Key == "system.admin")
+                .Where(permission => permission.Key == Company.Auth.Contracts.AuthConstants.Permissions.SystemAdmin)
                 .Select(permission => permission.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 

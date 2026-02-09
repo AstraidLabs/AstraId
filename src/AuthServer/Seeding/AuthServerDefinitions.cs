@@ -9,9 +9,33 @@ public static class AuthServerDefinitions
     [
         new PermissionDefinition
         {
-            Key = "system.admin",
+            Key = AuthConstants.Permissions.SystemAdmin,
             Description = "System administration access.",
             Group = "System"
+        },
+        new PermissionDefinition
+        {
+            Key = AuthConstants.Permissions.Gdpr.Read,
+            Description = "View GDPR policy and deletion request status.",
+            Group = "GDPR"
+        },
+        new PermissionDefinition
+        {
+            Key = AuthConstants.Permissions.Gdpr.Export,
+            Description = "Export personal data in GDPR workflows.",
+            Group = "GDPR"
+        },
+        new PermissionDefinition
+        {
+            Key = AuthConstants.Permissions.Gdpr.Erase,
+            Description = "Approve and execute GDPR erasure workflows.",
+            Group = "GDPR"
+        },
+        new PermissionDefinition
+        {
+            Key = AuthConstants.Permissions.Gdpr.RetentionManage,
+            Description = "Manage GDPR retention and privacy policy settings.",
+            Group = "GDPR"
         }
     ];
 
