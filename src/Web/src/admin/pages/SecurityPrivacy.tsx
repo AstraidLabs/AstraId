@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppError, apiRequest } from "../api/http";
 import type { AdminDeletionRequest, AdminPrivacyPolicy } from "../api/types";
-import { GDPR_PERMISSIONS, hasAnyPermission } from "../../auth/adminAccess";
+import { ADMIN_PERMISSION, GDPR_PERMISSIONS, hasAnyPermission } from "../../auth/adminAccess";
 import { useAuthSession } from "../../auth/useAuthSession";
 
 export default function SecurityPrivacy() {
@@ -11,7 +11,7 @@ export default function SecurityPrivacy() {
   const [error, setError] = useState<string | null>(null);
 
   const canRead = useMemo(
-    () => hasAnyPermission(["gdpr.read"], session?.permissions),
+    () => hasAnyPermission(["gdpr.read", ADMIN_PERMISSION], session?.permissions),
     [session?.permissions]
   );
   const canManageRetention = useMemo(
