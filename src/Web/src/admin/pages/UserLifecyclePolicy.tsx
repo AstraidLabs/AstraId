@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminUserLifecyclePolicy, AdminUserLifecyclePreview } from "../api/types";
 import { pushToast } from "../components/toast";
 
@@ -20,9 +20,19 @@ export default function UserLifecyclePolicy() {
   const [preview, setPreview] = useState<AdminUserLifecyclePreview | null>(null);
   const [days, setDays] = useState(90);
   const [targetUserId, setTargetUserId] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiRequest<AdminUserLifecyclePolicy>("/admin/api/security/user-lifecycle-policy").then(setPolicy);
+    apiRequest<AdminUserLifecyclePolicy>("/admin/api/security/user-lifecycle-policy")
+      .then(setPolicy)
+      .catch((err) => {
+        if (err instanceof AppError && err.status === 403) {
+          setError("Insufficient permissions to manage user lifecycle policy.");
+          return;
+        }
+
+        throw err;
+      });
   }, []);
 
   const save = async () => {
@@ -46,6 +56,10 @@ export default function UserLifecyclePolicy() {
     const next = await apiRequest<AdminUserLifecyclePreview>(`/admin/api/security/user-lifecycle/preview?days=${days}`);
     setPreview(next);
   };
+
+  if (error) {
+    return <div className="rounded-xl border border-rose-800 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">{error}</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6">

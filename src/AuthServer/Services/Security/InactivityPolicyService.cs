@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuthServer.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,7 @@ public sealed class InactivityPolicyService
         policy.UpdatedUtc = DateTime.UtcNow;
         policy.UpdatedByUserId = actorUserId;
         await _db.SaveChangesAsync(cancellationToken);
+        await AddAuditAsync(actorUserId, "inactivity.policy.updated", "InactivityPolicy", policy.Id.ToString(), policy, cancellationToken);
         return policy;
     }
 
@@ -58,5 +60,21 @@ public sealed class InactivityPolicyService
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return roles.Any(protectedRoles.Contains);
+    }
+
+    private async Task AddAuditAsync(Guid? actorUserId, string action, string targetType, string? targetId, object? data, CancellationToken cancellationToken)
+    {
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TimestampUtc = DateTime.UtcNow,
+            ActorUserId = actorUserId,
+            Action = action,
+            TargetType = targetType,
+            TargetId = targetId,
+            DataJson = data is null ? null : JsonSerializer.Serialize(data)
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 }

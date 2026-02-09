@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiRequest } from "../api/http";
+import { AppError, apiRequest } from "../api/http";
 import type { AdminInactivityPolicy } from "../api/types";
 import { pushToast } from "../components/toast";
 
@@ -18,9 +18,19 @@ const defaults: AdminInactivityPolicy = {
 
 export default function InactivityPolicy() {
   const [policy, setPolicy] = useState<AdminInactivityPolicy>(defaults);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiRequest<AdminInactivityPolicy>("/admin/api/security/inactivity-policy").then(setPolicy);
+    apiRequest<AdminInactivityPolicy>("/admin/api/security/inactivity-policy")
+      .then(setPolicy)
+      .catch((err) => {
+        if (err instanceof AppError && err.status === 403) {
+          setError("Insufficient permissions to manage inactivity policy.");
+          return;
+        }
+
+        throw err;
+      });
   }, []);
 
   const save = async () => {
@@ -31,6 +41,10 @@ export default function InactivityPolicy() {
     setPolicy(updated);
     pushToast({ tone: "success", message: "Inactivity policy updated." });
   };
+
+  if (error) {
+    return <div className="rounded-xl border border-rose-800 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">{error}</div>;
+  }
 
   return <div className="flex flex-col gap-4"><h1 className="text-2xl font-semibold text-white">Inactivity Policy</h1>
     <label className="text-sm">Warning after days<input type="number" className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2" value={policy.warningAfterDays} onChange={(e) => setPolicy((p) => ({ ...p, warningAfterDays: Number(e.target.value) }))} /></label>
