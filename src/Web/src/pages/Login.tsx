@@ -97,11 +97,11 @@ const Login = () => {
             </p>
             <Link
               to="/"
-              aria-label={t("login.homeAria")}
+              aria-label={t("auth.backToHomeAria")}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
               <Home className="h-4 w-4" aria-hidden="true" />
-              {t("login.home")}
+              {t("auth.backToHome")}
             </Link>
           </div>
 
