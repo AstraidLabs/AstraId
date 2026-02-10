@@ -29,7 +29,7 @@ const TopNav = () => {
   };
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
+    <div className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
       <Container>
         <div className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
           <div>
@@ -86,7 +86,7 @@ const TopNav = () => {
           </div>
         </div>
       </Container>
-    </header>
+    </div>
   );
 };
 

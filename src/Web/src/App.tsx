@@ -1,6 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
-import TopNav from "./components/TopNav";
-import Container from "./components/Container";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -62,24 +60,14 @@ import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 import AuthLayout from "./layouts/AuthLayout";
-
-const PublicLayout = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100">
-    <TopNav />
-    <Container>
-      <main className="py-10">
-        <Outlet />
-      </main>
-    </Container>
-  </div>
-);
+import AppLayout from "./layouts/AppLayout";
 
 const adminRootPath = adminRoutePrefix || "/";
 
 const App = () => {
   return (
     <Routes>
-      <Route element={<PublicLayout />}>
+      <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/mfa" element={<MfaChallenge />} />
         <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
