@@ -1,5 +1,4 @@
 import { Outlet } from "react-router-dom";
-import Container from "../components/Container";
 import useDocumentMeta from "../hooks/useDocumentMeta";
 
 const AuthLayout = () => {
@@ -13,14 +12,15 @@ const AuthLayout = () => {
       <div className="auth-space-stars" aria-hidden="true" />
       <div className="auth-space-stars auth-space-stars--slow" aria-hidden="true" />
       <div className="auth-space-glow" aria-hidden="true" />
-      <Container>
-        <main className="relative z-10 flex min-h-screen items-center justify-center py-10" aria-labelledby="auth-layout-title">
-          <h1 id="auth-layout-title" className="sr-only">AstraId authentication</h1>
-          <div className="auth-card-shell w-full rounded-3xl border border-slate-700/40 bg-slate-950/55 p-1 backdrop-blur-sm">
-            <Outlet />
-          </div>
-        </main>
-      </Container>
+      <main
+        className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6"
+        aria-labelledby="auth-layout-title"
+      >
+        <h1 id="auth-layout-title" className="sr-only">AstraId authentication</h1>
+        <section aria-label="Authentication form" className="w-full max-w-md">
+          <Outlet />
+        </section>
+      </main>
     </div>
   );
 };
