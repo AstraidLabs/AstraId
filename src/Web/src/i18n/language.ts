@@ -1,5 +1,6 @@
 export const SUPPORTED_LOCALES = ["en", "cs", "de", "pl", "sk"] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+export const DEFAULT_LOCALE: SupportedLocale = "en";
 
 export const LOCALE_STORAGE_KEY = "astraid.locale";
 const LEGACY_LANGUAGE_STORAGE_KEY = "astraid.lang";
@@ -21,14 +22,14 @@ const neutralMap: Record<string, SupportedLocale> = {
 };
 
 export const normalizeLocale = (input?: string | null): SupportedLocale => {
-  if (!input) return "en";
+  if (!input) return DEFAULT_LOCALE;
   const normalized = input.trim().toLowerCase();
 
   const direct = SUPPORTED_LOCALES.find((locale) => locale === normalized);
   if (direct) return direct;
 
   const neutral = normalized.split("-")[0];
-  return neutralMap[neutral] ?? "en";
+  return neutralMap[neutral] ?? DEFAULT_LOCALE;
 };
 
 export const toLanguageTag = (locale: SupportedLocale): string => localeToTagMap[locale];
@@ -63,7 +64,7 @@ export const getPreferredLocale = (): SupportedLocale => {
     return normalizeLocale(navigator.language);
   }
 
-  return "en";
+  return DEFAULT_LOCALE;
 };
 
 export const getPreferredLanguageTag = (): string => toLanguageTag(getPreferredLocale());

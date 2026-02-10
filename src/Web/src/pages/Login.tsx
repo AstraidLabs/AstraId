@@ -16,12 +16,12 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
-import LanguageSelect from "../components/LanguageSelect";
+import LanguagePillPopover from "../components/LanguagePillPopover";
 import useDocumentMeta from "../hooks/useDocumentMeta";
 import { useLanguage } from "../i18n/LanguageProvider";
 
 const Login = () => {
-  const { t } = useLanguage();
+  const { locale, setLocale, t } = useLanguage();
 
   useDocumentMeta({
     title: t("login.metaTitle"),
@@ -186,7 +186,7 @@ const Login = () => {
             </div>
           </div>
 
-          <LanguageSelect />
+          <LanguagePillPopover value={locale} onChange={setLocale} />
 
           <button
             type="submit"
