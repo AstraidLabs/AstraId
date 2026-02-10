@@ -69,3 +69,11 @@ export const CheckIcon = (props: IconProps) => (
     <path d="m4 12 5 5L20 6" />
   </Icon>
 );
+
+export const HomeIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3 10.5 12 3l9 7.5" />
+    <path d="M5 9.8V21h14V9.8" />
+    <path d="M9 21v-6h6v6" />
+  </Icon>
+);

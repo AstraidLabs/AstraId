@@ -7,6 +7,18 @@ type Props = {
   compact?: boolean;
 };
 
+const getLanguageIcon = (tag: string) => {
+  const language = tag.toLowerCase();
+
+  if (language.startsWith("cs")) return "🇨🇿";
+  if (language.startsWith("sk")) return "🇸🇰";
+  if (language.startsWith("en")) return "🇬🇧";
+  if (language.startsWith("de")) return "🇩🇪";
+  if (language.startsWith("fr")) return "🇫🇷";
+
+  return "🌐";
+};
+
 export default function LanguageSelector({ authenticated = false, compact = false }: Props) {
   const [value, setValue] = useState(getPreferredLanguageTag());
 
@@ -32,7 +44,7 @@ export default function LanguageSelector({ authenticated = false, compact = fals
         onChange={(event) => void onChange(event.target.value)}
       >
         {SUPPORTED_LANGUAGE_TAGS.map((tag) => (
-          <option key={tag} value={tag}>{tag}</option>
+          <option key={tag} value={tag}>{`${getLanguageIcon(tag)} ${tag}`}</option>
         ))}
       </select>
     </label>

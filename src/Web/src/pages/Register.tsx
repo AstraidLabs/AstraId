@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
+import { CheckIcon, EyeIcon, EyeOffIcon, HomeIcon, LockIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -7,6 +7,7 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { register, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import LanguageSelector from "../components/LanguageSelector";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -58,6 +59,17 @@ const Register = () => {
     <main className="mx-auto w-full max-w-md">
       <Card title="Create account" description="Set up your AstraId account.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+          <div className="-mb-1 flex justify-end">
+            <Link
+              to="/"
+              aria-label="Go to home"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+            >
+              <HomeIcon className="h-4 w-4" aria-hidden="true" />
+              Home
+            </Link>
+          </div>
+
           {error ? (
             <div className="flex flex-col gap-3" role="alert" aria-live="polite">
               <Alert variant="error">{error.detail ?? error.message}</Alert>
