@@ -3,13 +3,13 @@ import { getPreferredLocale, normalizeLocale, setPreferredLocale, toLanguageTag,
 
 type TranslationKey =
   | "language.label"
+  | "auth.backToHome"
+  | "auth.backToHomeAria"
   | "login.metaTitle"
   | "login.metaDescription"
   | "login.cardTitle"
   | "login.cardDescription"
   | "login.secureAccess"
-  | "login.home"
-  | "login.homeAria"
   | "login.emailOrUsername"
   | "login.password"
   | "login.forgotPassword"
@@ -23,8 +23,6 @@ type TranslationKey =
   | "register.cardTitle"
   | "register.cardDescription"
   | "register.enterpriseOnboarding"
-  | "register.home"
-  | "register.homeAria"
   | "register.email"
   | "register.password"
   | "register.confirmPassword"
@@ -41,13 +39,13 @@ type TranslationSet = Record<TranslationKey, string>;
 
 const en: TranslationSet = {
   "language.label": "Language",
+  "auth.backToHome": "Back to home",
+  "auth.backToHomeAria": "Back to home",
   "login.metaTitle": "AstraId | Sign in",
   "login.metaDescription": "Sign in to AstraId to securely access your account and enterprise identity features.",
   "login.cardTitle": "Sign in",
   "login.cardDescription": "Access your AstraId account securely.",
   "login.secureAccess": "Secure access",
-  "login.home": "Home",
-  "login.homeAria": "Go to home",
   "login.emailOrUsername": "Email or username",
   "login.password": "Password",
   "login.forgotPassword": "Forgot password?",
@@ -61,8 +59,6 @@ const en: TranslationSet = {
   "register.cardTitle": "Create account",
   "register.cardDescription": "Set up your AstraId account.",
   "register.enterpriseOnboarding": "Enterprise onboarding",
-  "register.home": "Home",
-  "register.homeAria": "Go to home",
   "register.email": "Email",
   "register.password": "Password",
   "register.confirmPassword": "Confirm password",
@@ -81,6 +77,8 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   cs: {
     ...en,
     "language.label": "Jazyk",
+    "auth.backToHome": "Zpět na hlavní stránku",
+    "auth.backToHomeAria": "Zpět na hlavní stránku",
     "login.cardTitle": "Přihlášení",
     "login.submit": "Přihlásit se",
     "register.cardTitle": "Vytvořit účet",
@@ -89,6 +87,8 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   de: {
     ...en,
     "language.label": "Sprache",
+    "auth.backToHome": "Zur Startseite",
+    "auth.backToHomeAria": "Zur Startseite",
     "login.cardTitle": "Anmelden",
     "login.submit": "Anmelden",
     "register.cardTitle": "Konto erstellen",
@@ -97,6 +97,8 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   pl: {
     ...en,
     "language.label": "Język",
+    "auth.backToHome": "Powrót do strony głównej",
+    "auth.backToHomeAria": "Powrót do strony głównej",
     "login.cardTitle": "Zaloguj się",
     "login.submit": "Zaloguj się",
     "register.cardTitle": "Utwórz konto",
@@ -105,6 +107,8 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   sk: {
     ...en,
     "language.label": "Jazyk",
+    "auth.backToHome": "Späť na hlavnú stránku",
+    "auth.backToHomeAria": "Späť na hlavnú stránku",
     "login.cardTitle": "Prihlásenie",
     "login.submit": "Prihlásiť sa",
     "register.cardTitle": "Vytvoriť účet",
