@@ -16,13 +16,16 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
-import LanguageSelector from "../components/LanguageSelector";
+import LanguageSelect from "../components/LanguageSelect";
 import useDocumentMeta from "../hooks/useDocumentMeta";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const Login = () => {
+  const { t } = useLanguage();
+
   useDocumentMeta({
-    title: "AstraId | Sign in",
-    description: "Sign in to AstraId to securely access your account and enterprise identity features."
+    title: t("login.metaTitle"),
+    description: t("login.metaDescription")
   });
 
   const navigate = useNavigate();
@@ -85,20 +88,20 @@ const Login = () => {
 
   return (
     <main className="mx-auto w-full max-w-md">
-      <Card title="Sign in" titleAs="h1" description="Access your AstraId account securely.">
+      <Card title={t("login.cardTitle")} titleAs="h1" description={t("login.cardDescription")}>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
           <div className="-mb-1 flex items-center justify-between gap-2">
             <p className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em] text-indigo-300">
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Secure access
+              {t("login.secureAccess")}
             </p>
             <Link
               to="/"
-              aria-label="Go to home"
+              aria-label={t("login.homeAria")}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
               <Home className="h-4 w-4" aria-hidden="true" />
-              Home
+              {t("login.home")}
             </Link>
           </div>
 
@@ -116,7 +119,7 @@ const Login = () => {
 
           <div>
             <label htmlFor="login-identity" className="text-sm text-slate-200">
-              Email or username
+              {t("login.emailOrUsername")}
             </label>
             <div className="relative mt-2">
               <Mail
@@ -143,13 +146,13 @@ const Login = () => {
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
               <label htmlFor="login-password" className="text-sm text-slate-200">
-                Password
+                {t("login.password")}
               </label>
               <Link
                 className="text-xs text-indigo-300 transition hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 to="/forgot-password"
               >
-                Forgot password?
+                {t("login.forgotPassword")}
               </Link>
             </div>
             <div className="relative">
@@ -172,7 +175,7 @@ const Login = () => {
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 rounded p-1 text-slate-300 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                 aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
@@ -183,7 +186,7 @@ const Login = () => {
             </div>
           </div>
 
-          <LanguageSelector />
+          <LanguageSelect />
 
           <button
             type="submit"
@@ -191,7 +194,7 @@ const Login = () => {
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            {isSubmitting ? "Signing in..." : "Sign in"}
+            {isSubmitting ? t("login.submitting") : t("login.submit")}
           </button>
 
           <Link
@@ -199,7 +202,7 @@ const Login = () => {
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             <UserPlus className="h-4 w-4" aria-hidden="true" />
-            Create account
+            {t("login.createAccount")}
           </Link>
         </form>
       </Card>
