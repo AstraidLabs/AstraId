@@ -1,46 +1,12 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execSync } from "node:child_process";
+import { evaluateCoverage } from "./i18n-parser.mjs";
 
 const root = resolve(process.cwd());
 const srcRoot = resolve(root, "src");
 const providerPath = resolve(srcRoot, "i18n/LanguageProvider.tsx");
 const provider = readFileSync(providerPath, "utf8");
-
-const getCanonicalKeys = (text) => [...new Set([...text.matchAll(/\|\s*"([^"]+)"/g)].map((match) => match[1]))];
-
-const parseLocaleMap = (text, locale) => {
-  const blockRegex = locale === "en"
-    ? /const en: TranslationSet = \{([\s\S]*?)\n\};/
-    : new RegExp(`${locale}: \\{([\\s\\S]*?)\\n  \\},`);
-  const match = text.match(blockRegex);
-  if (!match) return {};
-
-  const entries = [...match[1].matchAll(/"([^"]+)":\s*"((?:\\.|[^"\\])*)"/g)];
-  const map = {};
-  for (const [, key, value] of entries) {
-    map[key] = value.replace(/\\"/g, '"').replace(/\\n/g, "\n");
-  }
-  return map;
-};
-
-const evaluateCoverage = (text) => {
-  const canonicalKeys = getCanonicalKeys(text);
-  const locales = ["en", "cs", "de", "pl", "sk"];
-  const localeMaps = Object.fromEntries(locales.map((locale) => [locale, parseLocaleMap(text, locale)]));
-  const en = localeMaps.en;
-  const coverage = locales.map((locale) => {
-    const map = localeMaps[locale];
-    const missing = canonicalKeys.filter((key) => map[key] === undefined);
-    const empty = canonicalKeys.filter((key) => (map[key] ?? "").trim() === "");
-    const untranslated = locale === "en"
-      ? []
-      : canonicalKeys.filter((key) => map[key] !== undefined && map[key] === en[key]);
-    return { locale, missing, empty, untranslated };
-  });
-
-  return { canonicalKeys, coverage };
-};
 
 const listFiles = (dir) => {
   const items = readdirSync(dir, { withFileTypes: true });
