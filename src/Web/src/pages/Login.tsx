@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { EyeIcon, EyeOffIcon, HomeIcon, LockIcon, LoginIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Home,
+  Lock,
+  Mail,
+  ShieldCheck,
+  UserPlus
+} from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -76,15 +85,19 @@ const Login = () => {
 
   return (
     <main className="mx-auto w-full max-w-md">
-      <Card title="Sign in" description="Access your AstraId account securely.">
+      <Card title="Sign in" titleAs="h1" description="Access your AstraId account securely.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-          <div className="-mb-1 flex justify-end">
+          <div className="-mb-1 flex items-center justify-between gap-2">
+            <p className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em] text-indigo-300">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Secure access
+            </p>
             <Link
               to="/"
               aria-label="Go to home"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
             >
-              <HomeIcon className="h-4 w-4" aria-hidden="true" />
+              <Home className="h-4 w-4" aria-hidden="true" />
               Home
             </Link>
           </div>
@@ -106,7 +119,7 @@ const Login = () => {
               Email or username
             </label>
             <div className="relative mt-2">
-              <MailIcon
+              <Mail
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
                 aria-hidden="true"
               />
@@ -140,7 +153,7 @@ const Login = () => {
               </Link>
             </div>
             <div className="relative">
-              <LockIcon
+              <Lock
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
                 aria-hidden="true"
               />
@@ -162,7 +175,7 @@ const Login = () => {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
               >
-                {showPassword ? <EyeOffIcon className="h-4 w-4" aria-hidden="true" /> : <EyeIcon className="h-4 w-4" aria-hidden="true" />}
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
               </button>
             </div>
             <div id="login-password-error">
@@ -177,7 +190,7 @@ const Login = () => {
             disabled={isSubmitting}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <LoginIcon className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
 
@@ -185,7 +198,7 @@ const Login = () => {
             to="/register"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
-            <UserPlusIcon className="h-4 w-4" aria-hidden="true" />
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
             Create account
           </Link>
         </form>
