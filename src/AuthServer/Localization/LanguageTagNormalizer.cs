@@ -26,7 +26,13 @@ public static class LanguageTagNormalizer
             return true;
         }
 
-        var neutral = candidate.Split('-', StringSplitOptions.RemoveEmptyEntries)[0];
+        var segments = candidate.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return false;
+        }
+
+        var neutral = segments[0];
         if (SupportedCultures.NeutralMap.TryGetValue(neutral, out var mapped))
         {
             normalized = mapped;
