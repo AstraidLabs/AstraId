@@ -9,7 +9,8 @@
     "build": "vite build",
     "build:public": "VITE_BASE=/ VITE_OUT_DIR=dist-public VITE_ROUTER_BASE=/ vite build",
     "build:admin": "VITE_BASE=/admin/ VITE_OUT_DIR=dist-admin VITE_ROUTER_BASE=/admin vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n:check": "node ./scripts/i18n-check.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",

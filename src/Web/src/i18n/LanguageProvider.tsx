@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getPreferredLocale, normalizeLocale, setPreferredLocale, toLanguageTag, type SupportedLocale } from "./language";
+import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, getPreferredLocale, normalizeLocale, setPreferredLocale, toLanguageTag, type SupportedLocale } from "./language";
 
 type TranslationKey =
   | "language.label"
@@ -79,40 +79,140 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.label": "Jazyk",
     "auth.backToHome": "Zpět na hlavní stránku",
     "auth.backToHomeAria": "Zpět na hlavní stránku",
+    "login.metaTitle": "AstraId | Přihlášení",
+    "login.metaDescription": "Přihlaste se do AstraId a získejte bezpečný přístup ke svému účtu a podnikovým funkcím identity.",
     "login.cardTitle": "Přihlášení",
+    "login.cardDescription": "Bezpečný přístup k vašemu účtu AstraId.",
+    "login.secureAccess": "Bezpečný přístup",
+    "login.emailOrUsername": "E-mail nebo uživatelské jméno",
+    "login.password": "Heslo",
+    "login.forgotPassword": "Zapomenuté heslo?",
+    "login.hidePassword": "Skrýt heslo",
+    "login.showPassword": "Zobrazit heslo",
     "login.submit": "Přihlásit se",
+    "login.submitting": "Přihlašování...",
+    "login.createAccount": "Vytvořit účet",
+    "register.metaTitle": "AstraId | Vytvoření účtu",
+    "register.metaDescription": "Vytvořte si nový účet AstraId se zabezpečenou registrací a ochranou na podnikové úrovni.",
     "register.cardTitle": "Vytvořit účet",
-    "register.submit": "Vytvořit účet"
+    "register.cardDescription": "Nastavte svůj účet AstraId.",
+    "register.enterpriseOnboarding": "Podnikové zřízení",
+    "register.email": "E-mail",
+    "register.password": "Heslo",
+    "register.confirmPassword": "Potvrzení hesla",
+    "register.passwordHint": "Použijte alespoň 8 znaků v kombinaci písmen a číslic.",
+    "register.hidePassword": "Skrýt heslo",
+    "register.showPassword": "Zobrazit heslo",
+    "register.hideConfirmedPassword": "Skrýt potvrzené heslo",
+    "register.showConfirmedPassword": "Zobrazit potvrzené heslo",
+    "register.submit": "Vytvořit účet",
+    "register.submitting": "Vytváření účtu...",
+    "register.signIn": "Už máte účet? Přihlaste se"
   },
   de: {
     ...en,
     "language.label": "Sprache",
     "auth.backToHome": "Zur Startseite",
     "auth.backToHomeAria": "Zur Startseite",
+    "login.metaTitle": "AstraId | Anmelden",
+    "login.metaDescription": "Melden Sie sich bei AstraId an, um sicher auf Ihr Konto und auf unternehmensweite Identitätsfunktionen zuzugreifen.",
     "login.cardTitle": "Anmelden",
+    "login.cardDescription": "Sicherer Zugriff auf Ihr AstraId-Konto.",
+    "login.secureAccess": "Sicherer Zugriff",
+    "login.emailOrUsername": "E-Mail oder Benutzername",
+    "login.password": "Passwort",
+    "login.forgotPassword": "Passwort vergessen?",
+    "login.hidePassword": "Passwort ausblenden",
+    "login.showPassword": "Passwort anzeigen",
     "login.submit": "Anmelden",
+    "login.submitting": "Anmeldung läuft...",
+    "login.createAccount": "Konto erstellen",
+    "register.metaTitle": "AstraId | Konto erstellen",
+    "register.metaDescription": "Erstellen Sie ein neues AstraId-Konto mit sicherer Registrierung und Schutz auf Unternehmensniveau.",
     "register.cardTitle": "Konto erstellen",
-    "register.submit": "Konto erstellen"
+    "register.cardDescription": "Richten Sie Ihr AstraId-Konto ein.",
+    "register.enterpriseOnboarding": "Unternehmens-Onboarding",
+    "register.email": "E-Mail",
+    "register.password": "Passwort",
+    "register.confirmPassword": "Passwort bestätigen",
+    "register.passwordHint": "Verwenden Sie mindestens 8 Zeichen mit einer Kombination aus Buchstaben und Zahlen.",
+    "register.hidePassword": "Passwort ausblenden",
+    "register.showPassword": "Passwort anzeigen",
+    "register.hideConfirmedPassword": "Bestätigtes Passwort ausblenden",
+    "register.showConfirmedPassword": "Bestätigtes Passwort anzeigen",
+    "register.submit": "Konto erstellen",
+    "register.submitting": "Konto wird erstellt...",
+    "register.signIn": "Sie haben bereits ein Konto? Anmelden"
   },
   pl: {
     ...en,
     "language.label": "Język",
     "auth.backToHome": "Powrót do strony głównej",
     "auth.backToHomeAria": "Powrót do strony głównej",
+    "login.metaTitle": "AstraId | Zaloguj się",
+    "login.metaDescription": "Zaloguj się do AstraId, aby bezpiecznie uzyskać dostęp do konta i firmowych funkcji tożsamości.",
     "login.cardTitle": "Zaloguj się",
+    "login.cardDescription": "Bezpieczny dostęp do konta AstraId.",
+    "login.secureAccess": "Bezpieczny dostęp",
+    "login.emailOrUsername": "E-mail lub nazwa użytkownika",
+    "login.password": "Hasło",
+    "login.forgotPassword": "Nie pamiętasz hasła?",
+    "login.hidePassword": "Ukryj hasło",
+    "login.showPassword": "Pokaż hasło",
     "login.submit": "Zaloguj się",
+    "login.submitting": "Logowanie...",
+    "login.createAccount": "Utwórz konto",
+    "register.metaTitle": "AstraId | Utwórz konto",
+    "register.metaDescription": "Utwórz nowe konto AstraId z bezpieczną rejestracją i ochroną klasy korporacyjnej.",
     "register.cardTitle": "Utwórz konto",
-    "register.submit": "Utwórz konto"
+    "register.cardDescription": "Skonfiguruj swoje konto AstraId.",
+    "register.enterpriseOnboarding": "Wdrożenie korporacyjne",
+    "register.email": "E-mail",
+    "register.password": "Hasło",
+    "register.confirmPassword": "Potwierdź hasło",
+    "register.passwordHint": "Użyj co najmniej 8 znaków, łącząc litery i cyfry.",
+    "register.hidePassword": "Ukryj hasło",
+    "register.showPassword": "Pokaż hasło",
+    "register.hideConfirmedPassword": "Ukryj potwierdzone hasło",
+    "register.showConfirmedPassword": "Pokaż potwierdzone hasło",
+    "register.submit": "Utwórz konto",
+    "register.submitting": "Tworzenie konta...",
+    "register.signIn": "Masz już konto? Zaloguj się"
   },
   sk: {
     ...en,
     "language.label": "Jazyk",
     "auth.backToHome": "Späť na hlavnú stránku",
     "auth.backToHomeAria": "Späť na hlavnú stránku",
+    "login.metaTitle": "AstraId | Prihlásenie",
+    "login.metaDescription": "Prihláste sa do AstraId a získajte bezpečný prístup k svojmu účtu a podnikovým funkciám identity.",
     "login.cardTitle": "Prihlásenie",
+    "login.cardDescription": "Bezpečný prístup k vášmu účtu AstraId.",
+    "login.secureAccess": "Bezpečný prístup",
+    "login.emailOrUsername": "E-mail alebo používateľské meno",
+    "login.password": "Heslo",
+    "login.forgotPassword": "Zabudnuté heslo?",
+    "login.hidePassword": "Skryť heslo",
+    "login.showPassword": "Zobraziť heslo",
     "login.submit": "Prihlásiť sa",
+    "login.submitting": "Prihlasovanie...",
+    "login.createAccount": "Vytvoriť účet",
+    "register.metaTitle": "AstraId | Vytvorenie účtu",
+    "register.metaDescription": "Vytvorte si nový účet AstraId so zabezpečenou registráciou a ochranou na podnikovej úrovni.",
     "register.cardTitle": "Vytvoriť účet",
-    "register.submit": "Vytvoriť účet"
+    "register.cardDescription": "Nastavte si účet AstraId.",
+    "register.enterpriseOnboarding": "Podnikové zavedenie",
+    "register.email": "E-mail",
+    "register.password": "Heslo",
+    "register.confirmPassword": "Potvrdenie hesla",
+    "register.passwordHint": "Použite aspoň 8 znakov v kombinácii písmen a číslic.",
+    "register.hidePassword": "Skryť heslo",
+    "register.showPassword": "Zobraziť heslo",
+    "register.hideConfirmedPassword": "Skryť potvrdené heslo",
+    "register.showConfirmedPassword": "Zobraziť potvrdené heslo",
+    "register.submit": "Vytvoriť účet",
+    "register.submitting": "Vytváranie účtu...",
+    "register.signIn": "Už máte účet? Prihláste sa"
   }
 };
 
@@ -138,7 +238,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== null && event.key !== "astraid.locale" && event.key !== "astraid.lang") {
+      if (event.key !== null && event.key !== LOCALE_STORAGE_KEY && event.key !== "astraid.lang") {
         return;
       }
       setLocaleState(normalizeLocale(event.newValue));
@@ -151,7 +251,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<LanguageContextValue>(() => ({
     locale,
     setLocale,
-    t: (key) => translations[locale][key] ?? en[key]
+    t: (key) => translations[locale][key] ?? translations[DEFAULT_LOCALE][key]
   }), [locale, setLocale]);
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
