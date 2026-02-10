@@ -1,54 +1,69 @@
-export const SUPPORTED_LANGUAGE_TAGS = ["en-US", "cs-CZ", "sk-SK", "pl-PL", "de-DE"] as const;
-export type SupportedLanguageTag = (typeof SUPPORTED_LANGUAGE_TAGS)[number];
+export const SUPPORTED_LOCALES = ["en", "cs", "de", "pl", "sk"] as const;
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
-export const LANGUAGE_STORAGE_KEY = "astraid.lang";
+export const LOCALE_STORAGE_KEY = "astraid.locale";
+const LEGACY_LANGUAGE_STORAGE_KEY = "astraid.lang";
 
-const neutralMap: Record<string, SupportedLanguageTag> = {
+const localeToTagMap: Record<SupportedLocale, string> = {
   en: "en-US",
   cs: "cs-CZ",
-  sk: "sk-SK",
+  de: "de-DE",
   pl: "pl-PL",
-  de: "de-DE"
+  sk: "sk-SK"
 };
 
-export const normalizeLanguageTag = (input?: string | null): SupportedLanguageTag => {
-  if (!input) return "en-US";
-  const normalized = input.trim();
-  const direct = SUPPORTED_LANGUAGE_TAGS.find((tag) => tag.toLowerCase() === normalized.toLowerCase());
+const neutralMap: Record<string, SupportedLocale> = {
+  en: "en",
+  cs: "cs",
+  de: "de",
+  pl: "pl",
+  sk: "sk"
+};
+
+export const normalizeLocale = (input?: string | null): SupportedLocale => {
+  if (!input) return "en";
+  const normalized = input.trim().toLowerCase();
+
+  const direct = SUPPORTED_LOCALES.find((locale) => locale === normalized);
   if (direct) return direct;
 
-  const neutral = normalized.split("-")[0]?.toLowerCase();
-  return neutralMap[neutral] ?? "en-US";
+  const neutral = normalized.split("-")[0];
+  return neutralMap[neutral] ?? "en";
 };
 
-export const getStoredLanguageTag = (): SupportedLanguageTag | null => {
+export const toLanguageTag = (locale: SupportedLocale): string => localeToTagMap[locale];
+
+export const getStoredLocale = (): SupportedLocale | null => {
   try {
-    const value = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return value ? normalizeLanguageTag(value) : null;
+    const value = localStorage.getItem(LOCALE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_LANGUAGE_STORAGE_KEY);
+    return value ? normalizeLocale(value) : null;
   } catch {
     return null;
   }
 };
 
-export const setPreferredLanguageTag = (tag: string) => {
-  const normalized = normalizeLanguageTag(tag);
+export const setPreferredLocale = (locale: string): SupportedLocale => {
+  const normalized = normalizeLocale(locale);
   try {
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+    localStorage.setItem(LOCALE_STORAGE_KEY, normalized);
+    localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
   } catch {
     // ignore
   }
   return normalized;
 };
 
-export const getPreferredLanguageTag = (): SupportedLanguageTag => {
-  const stored = getStoredLanguageTag();
+export const getPreferredLocale = (): SupportedLocale => {
+  const stored = getStoredLocale();
   if (stored) return stored;
 
   if (typeof navigator !== "undefined") {
-    const fromLanguages = (navigator.languages ?? []).map((entry) => normalizeLanguageTag(entry));
+    const fromLanguages = (navigator.languages ?? []).map((entry) => normalizeLocale(entry));
     if (fromLanguages.length > 0) return fromLanguages[0];
-    return normalizeLanguageTag(navigator.language);
+    return normalizeLocale(navigator.language);
   }
 
-  return "en-US";
+  return "en";
 };
+
+export const getPreferredLanguageTag = (): string => toLanguageTag(getPreferredLocale());
