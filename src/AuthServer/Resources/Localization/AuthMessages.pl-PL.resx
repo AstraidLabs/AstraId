@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value></resheader>
+  <data name="Auth.Login.Failed" xml:space="preserve"><value>Logowanie nie powiodło się</value></data>
+  <data name="Auth.Login.Failed.Detail" xml:space="preserve"><value>Nieprawidłowy e-mail/nazwa użytkownika lub hasło.</value></data>
+  <data name="Auth.Login.LockedOut" xml:space="preserve"><value>Konto zablokowane</value></data>
+  <data name="Auth.Login.LockedOut.Detail" xml:space="preserve"><value>Twoje konto zostało tymczasowo zablokowane z powodu zbyt wielu prób. Spróbuj ponownie później lub zresetuj hasło.</value></data>
+  <data name="Auth.Login.EmailNotVerified" xml:space="preserve"><value>E-mail niezweryfikowany</value></data>
+  <data name="Auth.Login.EmailNotVerified.Detail" xml:space="preserve"><value>Zweryfikuj adres e-mail przed zalogowaniem. Jeśli nie otrzymałeś wiadomości, poproś o nowy link weryfikacyjny.</value></data>
+  <data name="Auth.Login.Unavailable" xml:space="preserve"><value>Logowanie niedostępne</value></data>
+  <data name="Auth.Login.Unavailable.Detail" xml:space="preserve"><value>Logowanie jest tymczasowo niedostępne. Spróbuj ponownie później.</value></data>
+  <data name="Auth.Register.Invalid" xml:space="preserve"><value>Rejestracja nie powiodła się</value></data>
+  <data name="Auth.Register.Invalid.Detail" xml:space="preserve"><value>Rejestracja nie powiodła się.</value></data>
+  <data name="Auth.Reset.InvalidLink" xml:space="preserve"><value>Nieprawidłowy link resetujący</value></data>
+  <data name="Auth.Reset.InvalidLink.Detail" xml:space="preserve"><value>Link resetujący hasło jest nieprawidłowy lub wygasł. Poproś o nowy.</value></data>
+  <data name="Auth.Reset.Forgot.Generic" xml:space="preserve"><value>Jeśli konto dla tego adresu istnieje, wkrótce otrzymasz link do resetu hasła.</value></data>
+  <data name="Auth.Activation.InvalidLink" xml:space="preserve"><value>Nieprawidłowy link weryfikacyjny</value></data>
+  <data name="Auth.Activation.InvalidLink.Detail" xml:space="preserve"><value>Ten link weryfikacyjny jest nieprawidłowy lub wygasł. Poproś o nowy.</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts" xml:space="preserve"><value>Zbyt wiele prób</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts.Detail" xml:space="preserve"><value>Zbyt wiele prób. Spróbuj ponownie później.</value></data>
+  <data name="Common.Validation.Required" xml:space="preserve"><value>To pole jest wymagane.</value></data>
+  <data name="Common.Validation.InvalidRequest" xml:space="preserve"><value>Wystąpiły błędy walidacji.</value></data>
+  <data name="Common.Validation.CheckInput" xml:space="preserve"><value>Sprawdź wprowadzone wartości i spróbuj ponownie.</value></data>
+  <data name="Account.Preferences.Language.Invalid" xml:space="preserve"><value>Nieobsługiwany język.</value></data>
+  <data name="Account.Password.Updated" xml:space="preserve"><value>Hasło zostało zaktualizowane.</value></data>
+  <data name="Account.Email.Updated" xml:space="preserve"><value>E-mail został zaktualizowany.</value></data>
+  <data name="Account.Sessions.Revoked" xml:space="preserve"><value>Pozostałe sesje zostały wylogowane.</value></data>
+  <data name="Common.Error.Title" xml:space="preserve"><value>Operacja nie powiodła się</value></data>
+  <data name="Common.Error.Detail" xml:space="preserve"><value>Nie udało się ukończyć operacji.</value></data>
+  <data name="Oidc.Authorize.InvalidRequest" xml:space="preserve"><value>Żądanie autoryzacji jest nieprawidłowe.</value></data>
+  <data name="Oidc.Token.InvalidRequest" xml:space="preserve"><value>Żądanie tokenu jest nieprawidłowe.</value></data>
+  <data name="Oidc.Token.RefreshReused" xml:space="preserve"><value>Token odświeżania został już użyty.</value></data>
+  <data name="Oidc.Token.RefreshExpired" xml:space="preserve"><value>Token odświeżania wygasł.</value></data>
+</root>

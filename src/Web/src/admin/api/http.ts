@@ -1,6 +1,7 @@
 import { AUTH_SERVER_BASE_URL } from "../../api/authServer";
 import { AppError, parseErrorResponse } from "../../api/errors";
 import { pushToast } from "../components/toast";
+import { getPreferredLanguageTag } from "../../i18n/language";
 
 const ADMIN_API_BASE_URL =
   import.meta.env.VITE_ADMIN_API_BASE_URL ?? AUTH_SERVER_BASE_URL;
@@ -20,6 +21,7 @@ export async function apiRequest<T>(
     ...requestOptions,
     headers: {
       "Content-Type": "application/json",
+      "Accept-Language": getPreferredLanguageTag(),
       ...(requestOptions.headers ?? {}),
     },
   });

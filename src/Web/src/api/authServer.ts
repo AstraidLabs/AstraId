@@ -1,4 +1,5 @@
 import { parseErrorResponse } from "./errors";
+import { getPreferredLanguageTag } from "../i18n/language";
 
 export const AUTH_SERVER_BASE_URL =
   import.meta.env.VITE_AUTHSERVER_BASE_URL ?? "https://localhost:7001";
@@ -40,6 +41,7 @@ export const authFetch = async <T>(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      "Accept-Language": getPreferredLanguageTag(),
       ...(options.headers ?? {})
     },
     ...options
@@ -225,3 +227,18 @@ export const revokeOtherSessions = (payload: { currentPassword: string }) =>
 
 export const getSecurityOverview = () =>
   authFetch<SecurityOverviewResponse>("/account/security/overview");
+
+
+export type LanguagePreferenceResponse = {
+  preferredLanguage?: string | null;
+  effectiveLanguage: string;
+};
+
+export const getLanguagePreference = () =>
+  authFetch<LanguagePreferenceResponse>("/account/preferences");
+
+export const setLanguagePreference = (language: string) =>
+  authFetch<LanguagePreferenceResponse>("/account/preferences/language", {
+    method: "PUT",
+    body: JSON.stringify({ language })
+  });

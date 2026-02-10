@@ -1,4 +1,5 @@
 import { authFetch, type AuthResponse, type MfaRecoveryCodesResponse, type MfaSetupResponse, type MfaStatus } from "../api/authServer";
+import { getPreferredLanguageTag } from "../i18n/language";
 
 export type MeSummary = {
   userId: string;
@@ -67,5 +68,5 @@ export type DeletionRequestStatus = {
 export const getLoginHistory = (take = 20) => authFetch<LoginHistoryEntry[]>(`/account/security/login-history?take=${take}`);
 export const requestAccountDeletion = (payload: { reason?: string }) => authFetch<DeletionRequestStatus>("/account/deletion/request", { method: "POST", body: JSON.stringify(payload) });
 export const cancelAccountDeletion = () => authFetch<AuthResponse>("/account/deletion/cancel", { method: "POST" });
-export const exportMyData = () => fetch(`${(import.meta.env.VITE_AUTHSERVER_BASE_URL ?? "https://localhost:7001")}/account/export`, { credentials: "include" });
+export const exportMyData = () => fetch(`${(import.meta.env.VITE_AUTHSERVER_BASE_URL ?? "https://localhost:7001")}/account/export`, { credentials: "include", headers: { "Accept-Language": getPreferredLanguageTag() } });
 export const revokeAllSessions = () => authFetch<AuthResponse>("/account/sessions/revoke-all", { method: "POST" });

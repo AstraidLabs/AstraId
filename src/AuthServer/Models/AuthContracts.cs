@@ -107,3 +107,8 @@ public sealed record DeletionRequestResponse(
     DateTime? ExecutedUtc,
     DateTime? CancelUtc,
     string? Reason);
+
+
+public sealed record LanguagePreferenceResponse(string? PreferredLanguage, string EffectiveLanguage);
+
+public sealed record UpdateLanguagePreferenceRequest(string Language);

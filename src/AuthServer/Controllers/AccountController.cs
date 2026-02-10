@@ -5,6 +5,8 @@ using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Services;
 using AuthServer.Services.Notifications;
+using AuthServer.Localization;
+using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +28,7 @@ public sealed class AccountController : ControllerBase
     private readonly UserSessionRevocationService _sessionRevocationService;
     private readonly ApplicationDbContext _dbContext;
     private readonly NotificationService _notificationService;
+    private readonly IStringLocalizer<AuthMessages> _localizer;
 
     private static readonly TimeSpan AccountWindow = TimeSpan.FromMinutes(5);
     private const int AccountMaxAttempts = 5;
@@ -39,7 +42,8 @@ public sealed class AccountController : ControllerBase
         AuthRateLimiter rateLimiter,
         UserSessionRevocationService sessionRevocationService,
         ApplicationDbContext dbContext,
-        NotificationService notificationService)
+        NotificationService notificationService,
+        IStringLocalizer<AuthMessages> localizer)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -50,6 +54,7 @@ public sealed class AccountController : ControllerBase
         _sessionRevocationService = sessionRevocationService;
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _localizer = localizer;
     }
 
     [HttpPost("password/change")]
@@ -143,7 +148,7 @@ public sealed class AccountController : ControllerBase
             await _notificationService.NotifyPasswordChangedAsync(user, HttpContext.TraceIdentifier, HttpContext.RequestAborted);
         }
 
-        return Ok(new AuthResponse(true, null, null, "Password updated."));
+        return Ok(new AuthResponse(true, null, null, L("Account.Password.Updated", "Password updated.")));
     }
 
     [HttpPost("email/change-request")]
@@ -306,7 +311,7 @@ public sealed class AccountController : ControllerBase
             "This email address is now associated with your AstraId account.",
             HttpContext.TraceIdentifier, null, null, HttpContext.RequestAborted);
 
-        return Ok(new AuthResponse(true, _uiUrlBuilder.BuildLoginUrl(string.Empty), null, "Email updated."));
+        return Ok(new AuthResponse(true, _uiUrlBuilder.BuildLoginUrl(string.Empty), null, L("Account.Email.Updated", "Email updated.")));
     }
 
     [HttpPost("sessions/revoke-others")]
@@ -358,7 +363,7 @@ public sealed class AccountController : ControllerBase
             await _notificationService.NotifySessionsRevokedAsync(user, "manual", HttpContext.TraceIdentifier, HttpContext.RequestAborted);
         }
 
-        return Ok(new AuthResponse(true, null, null, "Other sessions were signed out."));
+        return Ok(new AuthResponse(true, null, null, L("Account.Sessions.Revoked", "Other sessions were signed out.")));
     }
 
     [HttpGet("security/overview")]
@@ -380,6 +385,55 @@ public sealed class AccountController : ControllerBase
             !string.IsNullOrWhiteSpace(key),
             user.Email,
             user.UserName));
+    }
+
+    [HttpGet("preferences")]
+    public async Task<IActionResult> GetPreferences()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        var preferred = string.IsNullOrWhiteSpace(user.PreferredLanguage)
+            ? null
+            : LanguageTagNormalizer.Normalize(user.PreferredLanguage);
+        var effective = preferred ?? CultureInfo.CurrentUICulture.Name;
+
+        return Ok(new LanguagePreferenceResponse(preferred, effective));
+    }
+
+    [HttpPut("preferences/language")]
+    public async Task<IActionResult> SetPreferredLanguage([FromBody] UpdateLanguagePreferenceRequest request)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!LanguageTagNormalizer.TryNormalize(request.Language, out var normalized))
+        {
+            return BuildValidationProblem(
+                L("Common.Validation.InvalidRequest", "Invalid request."),
+                new Dictionary<string, string[]>
+                {
+                    ["language"] = [L("Account.Preferences.Language.Invalid", "Unsupported language selection.")]
+                });
+        }
+
+        user.PreferredLanguage = normalized;
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            return BuildAuthProblem(
+                StatusCodes.Status500InternalServerError,
+                L("Common.Error.Title", "Operation failed"),
+                L("Common.Error.Detail", "The operation could not be completed."));
+        }
+
+        return Ok(new LanguagePreferenceResponse(user.PreferredLanguage, user.PreferredLanguage));
     }
 
     private async Task AddAuditAsync(Guid actorUserId, string action, string targetType, string targetId, object payload)
@@ -418,8 +472,8 @@ public sealed class AccountController : ControllerBase
 
         return BuildAuthProblem(
             StatusCodes.Status429TooManyRequests,
-            "Too many attempts",
-            "Too many attempts. Please try again later.");
+            L("Auth.RateLimit.TooManyAttempts", "Too many attempts"),
+            L("Auth.RateLimit.TooManyAttempts.Detail", "Too many attempts. Please try again later."));
     }
 
     private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
@@ -448,6 +502,12 @@ public sealed class AccountController : ControllerBase
         }.ApplyDefaults(HttpContext);
 
         return UnprocessableEntity(details);
+    }
+
+    private string L(string key, string fallback)
+    {
+        var value = _localizer[key];
+        return value.ResourceNotFound ? fallback : value.Value;
     }
 
     private static string EncodeToken(string token)

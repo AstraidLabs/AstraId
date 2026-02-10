@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value></resheader>
+  <data name="Auth.Login.Failed" xml:space="preserve"><value>Přihlášení se nezdařilo</value></data>
+  <data name="Auth.Login.Failed.Detail" xml:space="preserve"><value>E-mail/uživatelské jméno nebo heslo je nesprávné.</value></data>
+  <data name="Auth.Login.LockedOut" xml:space="preserve"><value>Účet je uzamčen</value></data>
+  <data name="Auth.Login.LockedOut.Detail" xml:space="preserve"><value>Váš účet je dočasně uzamčen kvůli příliš mnoha pokusům. Zkuste to později nebo obnovte heslo.</value></data>
+  <data name="Auth.Login.EmailNotVerified" xml:space="preserve"><value>E-mail není ověřen</value></data>
+  <data name="Auth.Login.EmailNotVerified.Detail" xml:space="preserve"><value>Před přihlášením ověřte svůj e-mail. Pokud jste zprávu neobdrželi, můžete požádat o nový ověřovací odkaz.</value></data>
+  <data name="Auth.Login.Unavailable" xml:space="preserve"><value>Přihlášení není dostupné</value></data>
+  <data name="Auth.Login.Unavailable.Detail" xml:space="preserve"><value>Přihlášení je dočasně nedostupné. Zkuste to prosím později.</value></data>
+  <data name="Auth.Register.Invalid" xml:space="preserve"><value>Registrace se nezdařila</value></data>
+  <data name="Auth.Register.Invalid.Detail" xml:space="preserve"><value>Registrace se nezdařila.</value></data>
+  <data name="Auth.Reset.InvalidLink" xml:space="preserve"><value>Neplatný odkaz pro obnovení</value></data>
+  <data name="Auth.Reset.InvalidLink.Detail" xml:space="preserve"><value>Odkaz pro obnovení hesla je neplatný nebo vypršel. Požádejte o nový.</value></data>
+  <data name="Auth.Reset.Forgot.Generic" xml:space="preserve"><value>Pokud účet pro tento e-mail existuje, brzy obdržíte odkaz pro obnovení hesla.</value></data>
+  <data name="Auth.Activation.InvalidLink" xml:space="preserve"><value>Neplatný ověřovací odkaz</value></data>
+  <data name="Auth.Activation.InvalidLink.Detail" xml:space="preserve"><value>Tento ověřovací odkaz je neplatný nebo vypršel. Požádejte o nový.</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts" xml:space="preserve"><value>Příliš mnoho pokusů</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts.Detail" xml:space="preserve"><value>Příliš mnoho pokusů. Zkuste to prosím později.</value></data>
+  <data name="Common.Validation.Required" xml:space="preserve"><value>Toto pole je povinné.</value></data>
+  <data name="Common.Validation.InvalidRequest" xml:space="preserve"><value>Některé validační údaje nejsou správné.</value></data>
+  <data name="Common.Validation.CheckInput" xml:space="preserve"><value>Zkontrolujte zadané hodnoty a zkuste to znovu.</value></data>
+  <data name="Account.Preferences.Language.Invalid" xml:space="preserve"><value>Nepodporovaný jazyk.</value></data>
+  <data name="Account.Password.Updated" xml:space="preserve"><value>Heslo bylo změněno.</value></data>
+  <data name="Account.Email.Updated" xml:space="preserve"><value>E-mail byl změněn.</value></data>
+  <data name="Account.Sessions.Revoked" xml:space="preserve"><value>Ostatní relace byly odhlášeny.</value></data>
+  <data name="Common.Error.Title" xml:space="preserve"><value>Operace selhala</value></data>
+  <data name="Common.Error.Detail" xml:space="preserve"><value>Operaci se nepodařilo dokončit.</value></data>
+  <data name="Oidc.Authorize.InvalidRequest" xml:space="preserve"><value>Autorizační požadavek je neplatný.</value></data>
+  <data name="Oidc.Token.InvalidRequest" xml:space="preserve"><value>Token požadavek je neplatný.</value></data>
+  <data name="Oidc.Token.RefreshReused" xml:space="preserve"><value>Obnovovací token už byl použit.</value></data>
+  <data name="Oidc.Token.RefreshExpired" xml:space="preserve"><value>Obnovovací token vypršel.</value></data>
+</root>

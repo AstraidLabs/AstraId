@@ -39,6 +39,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(user => user.PreferredLanguage).HasMaxLength(16);
+        });
+
         builder.Entity<Permission>(entity =>
         {
             entity.HasKey(permission => permission.Id);

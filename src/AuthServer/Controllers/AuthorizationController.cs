@@ -7,6 +7,8 @@ using AuthServer.Services;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
 using AuthServer.Services.Security;
+using AuthServer.Localization;
+using Microsoft.Extensions.Localization;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +36,7 @@ public class AuthorizationController : ControllerBase
     private readonly TokenIncidentService _incidentService;
     private readonly IOidcClientPolicyEnforcer _policyEnforcer;
     private readonly ILogger<AuthorizationController> _logger;
+    private readonly IStringLocalizer<AuthMessages> _localizer;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
@@ -48,7 +51,8 @@ public class AuthorizationController : ControllerBase
         LoginHistoryService loginHistoryService,
         TokenIncidentService incidentService,
         IOidcClientPolicyEnforcer policyEnforcer,
-        ILogger<AuthorizationController> logger)
+        ILogger<AuthorizationController> logger,
+        IStringLocalizer<AuthMessages> localizer)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -63,6 +67,7 @@ public class AuthorizationController : ControllerBase
         _incidentService = incidentService;
         _policyEnforcer = policyEnforcer;
         _logger = logger;
+        _localizer = localizer;
     }
 
     [HttpGet("~/connect/authorize")]
@@ -72,7 +77,7 @@ public class AuthorizationController : ControllerBase
         if (request is null)
         {
             _logger.LogWarning("Authorization request missing OpenIddict request data.");
-            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "The authorization request is invalid."));
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Authorize.InvalidRequest", "The authorization request is invalid.")));
         }
 
         if (!await _clientStateService.IsClientEnabledAsync(request.ClientId, HttpContext.RequestAborted))
@@ -128,7 +133,7 @@ public class AuthorizationController : ControllerBase
         if (request is null)
         {
             _logger.LogWarning("Token request missing OpenIddict request data.");
-            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "The token request is invalid."));
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Token.InvalidRequest", "The token request is invalid.")));
         }
 
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType())
@@ -214,7 +219,7 @@ public class AuthorizationController : ControllerBase
                     authenticateResult.Principal,
                     clientId,
                     HttpContext.RequestAborted);
-                return Forbid(CreateInvalidGrant("The refresh token has already been used."),
+                return Forbid(CreateInvalidGrant(L("Oidc.Token.RefreshReused", "The refresh token has already been used.")),
                     OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }
         }
@@ -225,7 +230,7 @@ public class AuthorizationController : ControllerBase
 
         if (refreshAbsoluteExpiry is not null && refreshAbsoluteExpiry <= DateTimeOffset.UtcNow)
         {
-            return Forbid(CreateInvalidGrant("The refresh token has expired."),
+            return Forbid(CreateInvalidGrant(L("Oidc.Token.RefreshExpired", "The refresh token has expired.")),
                 OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
@@ -299,6 +304,12 @@ public class AuthorizationController : ControllerBase
             claim.SetDestinations(ClaimDestinations.GetDestinations(claim, principal));
         }
         return await Task.FromResult(principal);
+    }
+
+    private string L(string key, string fallback)
+    {
+        var value = _localizer[key];
+        return value.ResourceNotFound ? fallback : value.Value;
     }
 
     private static AuthenticationProperties CreateClientDisabledProperties()

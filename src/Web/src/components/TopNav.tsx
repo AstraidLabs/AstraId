@@ -5,6 +5,7 @@ import { useAuthSession } from "../auth/useAuthSession";
 import { isAuthenticatedSession } from "../auth/sessionState";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import AccountDropdown from "./AccountDropdown";
+import LanguageSelector from "./LanguageSelector";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-3 py-1 text-sm transition ${
@@ -75,8 +76,13 @@ const TopNav = () => {
             {status === "loading" ? (
               <span className="text-sm text-slate-500">Checking session…</span>
             ) : isAuthenticated && session ? (
-              <AccountDropdown session={session} onLogout={handleLogout} />
-            ) : null}
+              <>
+                <LanguageSelector authenticated compact />
+                <AccountDropdown session={session} onLogout={handleLogout} />
+              </>
+            ) : (
+              <LanguageSelector compact />
+            )}
           </div>
         </div>
       </Container>
