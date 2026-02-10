@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { hasAnyPermission, GDPR_PERMISSIONS, GOVERNANCE_PERMISSIONS } from "../../auth/adminAccess";
+import {
+  ADMIN_PERMISSION,
+  hasAnyPermission,
+  GDPR_PERMISSIONS,
+  GOVERNANCE_PERMISSIONS,
+} from "../../auth/adminAccess";
 import { useAuthSession } from "../../auth/useAuthSession";
 import { toAdminRoute } from "../../routing";
 
@@ -44,8 +49,14 @@ function NavSection({ title, items }: NavSectionProps) {
 export default function AppShell({ children }: Props) {
   const { session } = useAuthSession();
   const showGdpr = hasAnyPermission(GDPR_PERMISSIONS, session?.permissions);
-  const showUserLifecycle = hasAnyPermission([GOVERNANCE_PERMISSIONS.userLifecycleManage], session?.permissions);
-  const showInactivityPolicy = hasAnyPermission([GOVERNANCE_PERMISSIONS.inactivityManage], session?.permissions);
+  const showUserLifecycle = hasAnyPermission(
+    [ADMIN_PERMISSION, GOVERNANCE_PERMISSIONS.userLifecycleManage],
+    session?.permissions
+  );
+  const showInactivityPolicy = hasAnyPermission(
+    [ADMIN_PERMISSION, GOVERNANCE_PERMISSIONS.inactivityManage],
+    session?.permissions
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
