@@ -14,8 +14,9 @@ const AuthLayout = () => {
       <div className="auth-space-stars auth-space-stars--slow" aria-hidden="true" />
       <div className="auth-space-glow" aria-hidden="true" />
       <Container>
-        <main className="relative z-10 flex min-h-screen items-center justify-center py-10">
-          <div className="w-full rounded-3xl border border-slate-700/40 bg-slate-950/55 p-1 backdrop-blur-sm">
+        <main className="relative z-10 flex min-h-screen items-center justify-center py-10" aria-labelledby="auth-layout-title">
+          <h1 id="auth-layout-title" className="sr-only">AstraId authentication</h1>
+          <div className="auth-card-shell w-full rounded-3xl border border-slate-700/40 bg-slate-950/55 p-1 backdrop-blur-sm">
             <Outlet />
           </div>
         </main>

@@ -60,14 +60,14 @@ import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 import AuthLayout from "./layouts/AuthLayout";
-import AppLayout from "./layouts/AppLayout";
+import GlobalLayout from "./layouts/GlobalLayout";
 
 const adminRootPath = adminRoutePrefix || "/";
 
 const App = () => {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      <Route element={<GlobalLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/mfa" element={<MfaChallenge />} />
         <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />

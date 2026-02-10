@@ -3,7 +3,7 @@ import Container from "../components/Container";
 import TopNav from "../components/TopNav";
 import useDocumentMeta from "../hooks/useDocumentMeta";
 
-const AppLayout = () => {
+const GlobalLayout = () => {
   useDocumentMeta({
     title: "AstraId | Secure Identity",
     description: "AstraId secure identity portal for sign-in, account management, and access control."
@@ -30,4 +30,4 @@ const AppLayout = () => {
   );
 };
 
-export default AppLayout;
+export default GlobalLayout;
