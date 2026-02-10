@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EyeIcon, EyeOffIcon, HomeIcon, LockIcon, LoginIcon, MailIcon } from "../ui/authIcons";
+import { EyeIcon, EyeOffIcon, HomeIcon, LockIcon, LoginIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -8,8 +8,14 @@ import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
 import LanguageSelector from "../components/LanguageSelector";
+import useDocumentMeta from "../hooks/useDocumentMeta";
 
 const Login = () => {
+  useDocumentMeta({
+    title: "AstraId | Sign in",
+    description: "Sign in to AstraId to securely access your account and enterprise identity features."
+  });
+
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnUrl = params.get("returnUrl");
@@ -174,6 +180,14 @@ const Login = () => {
             <LoginIcon className="h-4 w-4" aria-hidden="true" />
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
+
+          <Link
+            to="/register"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            <UserPlusIcon className="h-4 w-4" aria-hidden="true" />
+            Create account
+          </Link>
         </form>
       </Card>
     </main>

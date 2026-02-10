@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckIcon, EyeIcon, EyeOffIcon, HomeIcon, LockIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
+import { CheckIcon, EyeIcon, EyeOffIcon, HomeIcon, LockIcon, LoginIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -8,8 +8,14 @@ import FieldError from "../components/FieldError";
 import { register, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
 import LanguageSelector from "../components/LanguageSelector";
+import useDocumentMeta from "../hooks/useDocumentMeta";
 
 const Register = () => {
+  useDocumentMeta({
+    title: "AstraId | Create account",
+    description: "Create a new AstraId account with secure registration and enterprise-grade protection."
+  });
+
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnUrl = params.get("returnUrl");
@@ -183,12 +189,13 @@ const Register = () => {
 
           <LanguageSelector />
 
-          <div className="text-xs text-slate-400">
-            Already have an account?{" "}
-            <Link className="hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" to="/login">
-              Sign in
-            </Link>
-          </div>
+          <Link
+            to="/login"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            <LoginIcon className="h-4 w-4" aria-hidden="true" />
+            Already have an account? Sign in
+          </Link>
         </form>
       </Card>
     </main>
