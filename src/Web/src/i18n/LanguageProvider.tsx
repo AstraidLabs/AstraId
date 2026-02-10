@@ -3,6 +3,10 @@ import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, getPreferredLocale, normalizeLocale
 
 type TranslationKey =
   | "language.label"
+  | "language.popoverAria"
+  | "language.listAria"
+  | "language.searchPlaceholder"
+  | "language.noResults"
   | "auth.backToHome"
   | "auth.backToHomeAria"
   | "login.metaTitle"
@@ -39,6 +43,10 @@ type TranslationSet = Record<TranslationKey, string>;
 
 const en: TranslationSet = {
   "language.label": "Language",
+  "language.popoverAria": "Select language",
+  "language.listAria": "Supported languages",
+  "language.searchPlaceholder": "Search language",
+  "language.noResults": "No matching languages",
   "auth.backToHome": "Back to home",
   "auth.backToHomeAria": "Back to home",
   "login.metaTitle": "AstraId | Sign in",
@@ -77,6 +85,10 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   cs: {
     ...en,
     "language.label": "Jazyk",
+    "language.popoverAria": "Vyberte jazyk",
+    "language.listAria": "Podporované jazyky",
+    "language.searchPlaceholder": "Hledat jazyk",
+    "language.noResults": "Žádné odpovídající jazyky",
     "auth.backToHome": "Zpět na hlavní stránku",
     "auth.backToHomeAria": "Zpět na hlavní stránku",
     "login.metaTitle": "AstraId | Přihlášení",
@@ -112,6 +124,10 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   de: {
     ...en,
     "language.label": "Sprache",
+    "language.popoverAria": "Sprache auswählen",
+    "language.listAria": "Unterstützte Sprachen",
+    "language.searchPlaceholder": "Sprache suchen",
+    "language.noResults": "Keine passenden Sprachen",
     "auth.backToHome": "Zur Startseite",
     "auth.backToHomeAria": "Zur Startseite",
     "login.metaTitle": "AstraId | Anmelden",
@@ -147,6 +163,10 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   pl: {
     ...en,
     "language.label": "Język",
+    "language.popoverAria": "Wybierz język",
+    "language.listAria": "Obsługiwane języki",
+    "language.searchPlaceholder": "Szukaj języka",
+    "language.noResults": "Brak pasujących języków",
     "auth.backToHome": "Powrót do strony głównej",
     "auth.backToHomeAria": "Powrót do strony głównej",
     "login.metaTitle": "AstraId | Zaloguj się",
@@ -182,6 +202,10 @@ const translations: Record<SupportedLocale, TranslationSet> = {
   sk: {
     ...en,
     "language.label": "Jazyk",
+    "language.popoverAria": "Vyberte jazyk",
+    "language.listAria": "Podporované jazyky",
+    "language.searchPlaceholder": "Vyhľadať jazyk",
+    "language.noResults": "Žiadne zodpovedajúce jazyky",
     "auth.backToHome": "Späť na hlavnú stránku",
     "auth.backToHomeAria": "Späť na hlavnú stránku",
     "login.metaTitle": "AstraId | Prihlásenie",
