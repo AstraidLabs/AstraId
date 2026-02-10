@@ -309,17 +309,6 @@ var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Val
 ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
-app.UseRequestLocalization();
-app.Use(async (context, next) =>
-{
-    context.Response.OnStarting(() =>
-    {
-        context.Response.Headers.ContentLanguage = CultureInfo.CurrentUICulture.Name;
-        return Task.CompletedTask;
-    });
-
-    await next();
-});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 var uiOptions = app.Services.GetRequiredService<IOptions<AuthServerUiOptions>>().Value;
@@ -355,6 +344,17 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
 
 app.UseAuthentication();
+app.UseRequestLocalization();
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers.ContentLanguage = CultureInfo.CurrentUICulture.Name;
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 app.UseMiddleware<UserActivityTrackingMiddleware>();
 app.UseAuthorization();
 app.UseStatusCodePages(async statusCodeContext =>
