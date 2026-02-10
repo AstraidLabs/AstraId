@@ -169,6 +169,8 @@ const Register = () => {
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
 
+          <LanguageSelector />
+
           <div className="text-xs text-slate-400">
             Already have an account?{" "}
             <Link className="hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" to="/login">

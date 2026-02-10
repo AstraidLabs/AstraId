@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Claims;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
+using AuthServer.Localization;
 using AuthServer.Seeding;
 using AuthServer.Services;
 using AuthServer.Services.Diagnostics;
@@ -22,6 +24,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
@@ -54,20 +58,46 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/access-denied";
 });
 
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
         {
+            var localizer = context.HttpContext.RequestServices.GetRequiredService<IStringLocalizer<AuthMessages>>();
             var problemDetails = new ValidationProblemDetails(context.ModelState)
             {
-                Status = StatusCodes.Status422UnprocessableEntity
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = localizer["Common.Validation.InvalidRequest", "One or more validation errors occurred."],
+                Detail = localizer["Common.Validation.CheckInput", "Please check the submitted values and try again."]
             }.ApplyDefaults(context.HttpContext);
 
             return new UnprocessableEntityObjectResult(problemDetails);
         };
     });
 builder.Services.AddRazorPages();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.DefaultRequestCulture = new RequestCulture(SupportedCultures.Default);
+    options.SupportedCultures = SupportedCultures.All;
+    options.SupportedUICultures = SupportedCultures.All;
+
+    var providers = new List<IRequestCultureProvider>
+    {
+        new UserPreferredLanguageRequestCultureProvider()
+    };
+
+    if (builder.Environment.IsDevelopment())
+    {
+        providers.Add(new QueryStringRequestCultureProvider());
+    }
+
+    providers.Add(new NormalizedAcceptLanguageRequestCultureProvider());
+
+    options.RequestCultureProviders = providers;
+});
+
 builder.Services.AddMemoryCache();
 var dataProtectionBuilder = builder.Services.AddDataProtection();
 
@@ -279,6 +309,17 @@ var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Val
 ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
+app.UseRequestLocalization();
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers.ContentLanguage = CultureInfo.CurrentUICulture.Name;
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 var uiOptions = app.Services.GetRequiredService<IOptions<AuthServerUiOptions>>().Value;

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value></resheader>
+  <data name="Auth.Login.Failed" xml:space="preserve"><value>Prihlásenie zlyhalo</value></data>
+  <data name="Auth.Login.Failed.Detail" xml:space="preserve"><value>E-mail/používateľské meno alebo heslo je nesprávne.</value></data>
+  <data name="Auth.Login.LockedOut" xml:space="preserve"><value>Účet je uzamknutý</value></data>
+  <data name="Auth.Login.LockedOut.Detail" xml:space="preserve"><value>Váš účet je dočasne uzamknutý kvôli príliš veľa pokusom. Skúste to neskôr alebo obnovte heslo.</value></data>
+  <data name="Auth.Login.EmailNotVerified" xml:space="preserve"><value>E-mail nie je overený</value></data>
+  <data name="Auth.Login.EmailNotVerified.Detail" xml:space="preserve"><value>Pred prihlásením overte svoj e-mail. Ak ste správu nedostali, požiadajte o nový overovací odkaz.</value></data>
+  <data name="Auth.Login.Unavailable" xml:space="preserve"><value>Prihlásenie nie je dostupné</value></data>
+  <data name="Auth.Login.Unavailable.Detail" xml:space="preserve"><value>Prihlásenie je dočasne nedostupné. Skúste to neskôr.</value></data>
+  <data name="Auth.Register.Invalid" xml:space="preserve"><value>Registrácia zlyhala</value></data>
+  <data name="Auth.Register.Invalid.Detail" xml:space="preserve"><value>Registrácia zlyhala.</value></data>
+  <data name="Auth.Reset.InvalidLink" xml:space="preserve"><value>Neplatný odkaz na obnovenie</value></data>
+  <data name="Auth.Reset.InvalidLink.Detail" xml:space="preserve"><value>Odkaz na obnovenie hesla je neplatný alebo vypršal. Požiadajte o nový.</value></data>
+  <data name="Auth.Reset.Forgot.Generic" xml:space="preserve"><value>Ak účet pre tento e-mail existuje, čoskoro dostanete odkaz na obnovenie hesla.</value></data>
+  <data name="Auth.Activation.InvalidLink" xml:space="preserve"><value>Neplatný overovací odkaz</value></data>
+  <data name="Auth.Activation.InvalidLink.Detail" xml:space="preserve"><value>Tento overovací odkaz je neplatný alebo vypršal. Požiadajte o nový.</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts" xml:space="preserve"><value>Príliš veľa pokusov</value></data>
+  <data name="Auth.RateLimit.TooManyAttempts.Detail" xml:space="preserve"><value>Príliš veľa pokusov. Skúste to neskôr.</value></data>
+  <data name="Common.Validation.Required" xml:space="preserve"><value>Toto pole je povinné.</value></data>
+  <data name="Common.Validation.InvalidRequest" xml:space="preserve"><value>Niektoré validačné údaje sú neplatné.</value></data>
+  <data name="Common.Validation.CheckInput" xml:space="preserve"><value>Skontrolujte zadané hodnoty a skúste to znova.</value></data>
+  <data name="Account.Preferences.Language.Invalid" xml:space="preserve"><value>Nepodporovaný jazyk.</value></data>
+  <data name="Account.Password.Updated" xml:space="preserve"><value>Heslo bolo zmenené.</value></data>
+  <data name="Account.Email.Updated" xml:space="preserve"><value>E-mail bol zmenený.</value></data>
+  <data name="Account.Sessions.Revoked" xml:space="preserve"><value>Ostatné relácie boli odhlásené.</value></data>
+  <data name="Common.Error.Title" xml:space="preserve"><value>Operácia zlyhala</value></data>
+  <data name="Common.Error.Detail" xml:space="preserve"><value>Operáciu nebolo možné dokončiť.</value></data>
+  <data name="Oidc.Authorize.InvalidRequest" xml:space="preserve"><value>Autorizačná požiadavka je neplatná.</value></data>
+  <data name="Oidc.Token.InvalidRequest" xml:space="preserve"><value>Požiadavka na token je neplatná.</value></data>
+  <data name="Oidc.Token.RefreshReused" xml:space="preserve"><value>Obnovovací token už bol použitý.</value></data>
+  <data name="Oidc.Token.RefreshExpired" xml:space="preserve"><value>Obnovovací token vypršal.</value></data>
+</root>

@@ -7,6 +7,7 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import LanguageSelector from "../components/LanguageSelector";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -151,6 +152,8 @@ const Login = () => {
               <FieldError message={fieldErrors.password?.[0]} />
             </div>
           </div>
+
+          <LanguageSelector />
 
           <button
             type="submit"

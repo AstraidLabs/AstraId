@@ -4,6 +4,8 @@ using AuthServer.Services;
 using Company.Auth.Contracts;
 using AuthServer.Services.Security;
 using AuthServer.Services.Notifications;
+using AuthServer.Localization;
+using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +35,7 @@ public class AuthController : ControllerBase
     private readonly UserLifecycleService _userLifecycleService;
     private readonly LoginHistoryService _loginHistoryService;
     private readonly NotificationService _notificationService;
+    private readonly IStringLocalizer<AuthMessages> _localizer;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(10);
@@ -58,7 +61,8 @@ public class AuthController : ControllerBase
         UserLifecycleService userLifecycleService,
         LoginHistoryService loginHistoryService,
         NotificationService notificationService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IStringLocalizer<AuthMessages> localizer)
     {
         _signInManager = signInManager;
         _userManager = userManager;
@@ -74,6 +78,7 @@ public class AuthController : ControllerBase
         _loginHistoryService = loginHistoryService;
         _notificationService = notificationService;
         _issuerName = ResolveIssuerName(configuration);
+        _localizer = localizer;
     }
 
     [HttpPost("login")]
@@ -121,16 +126,16 @@ public class AuthController : ControllerBase
             await _loginHistoryService.RecordAsync(null, emailOrUsername, false, "unknown_user", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Sign-in failed",
-                "The email/username or password is incorrect.");
+                L("Auth.Login.Failed", "Sign-in failed"),
+                L("Auth.Login.Failed.Detail", "The email/username or password is incorrect."));
         }
 
         if (!user.IsActive || user.IsAnonymized)
         {
             return BuildAuthProblem(
                 StatusCodes.Status403Forbidden,
-                "Sign-in unavailable",
-                "Sign-in is temporarily unavailable. Please try again later.");
+                L("Auth.Login.Unavailable", "Sign-in unavailable"),
+                L("Auth.Login.Unavailable.Detail", "Sign-in is temporarily unavailable. Please try again later."));
         }
 
         var result = await _signInManager.PasswordSignInAsync(user.UserName!, request.Password, false, true);
@@ -148,8 +153,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status423Locked,
-                "Account locked",
-                "Your account is temporarily locked due to too many failed attempts. Please try again later or reset your password.");
+                L("Auth.Login.LockedOut", "Account locked"),
+                L("Auth.Login.LockedOut.Detail", "Your account is temporarily locked due to too many failed attempts. Please try again later or reset your password."));
         }
 
         if (result.IsNotAllowed)
@@ -158,14 +163,14 @@ public class AuthController : ControllerBase
             {
                 return BuildAuthProblem(
                     StatusCodes.Status403Forbidden,
-                    "Email not verified",
-                    "Please verify your email address before signing in. If you didn't receive the email, you can request a new verification link.");
+                    L("Auth.Login.EmailNotVerified", "Email not verified"),
+                    L("Auth.Login.EmailNotVerified.Detail", "Please verify your email address before signing in. If you didn't receive the email, you can request a new verification link."));
             }
 
             return BuildAuthProblem(
                 StatusCodes.Status403Forbidden,
-                "Sign-in unavailable",
-                "Sign-in is temporarily unavailable. Please try again later.");
+                L("Auth.Login.Unavailable", "Sign-in unavailable"),
+                L("Auth.Login.Unavailable.Detail", "Sign-in is temporarily unavailable. Please try again later."));
         }
 
         if (!result.Succeeded)
@@ -174,8 +179,8 @@ public class AuthController : ControllerBase
             await _loginHistoryService.RecordAsync(user.Id, emailOrUsername, false, "invalid_password", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Sign-in failed",
-                "The email/username or password is incorrect.");
+                L("Auth.Login.Failed", "Sign-in failed"),
+                L("Auth.Login.Failed.Detail", "The email/username or password is incorrect."));
         }
 
         await _eventLogger.LogAsync("LoginSuccess", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
@@ -557,7 +562,7 @@ public class AuthController : ControllerBase
                 var existingEncodedToken = EncodeToken(existingConfirmationToken);
                 var existingActivationLink = _uiUrlBuilder.BuildActivationUrl(existing.Email!, existingEncodedToken);
                 var (existingSubject, existingHtmlBody, existingTextBody) =
-                    EmailTemplates.BuildActivationEmail(existingActivationLink);
+                    EmailTemplates.BuildActivationEmail(existingActivationLink, ResolveEmailCulture(existing));
                 await _emailSender.SendAsync(
                     new EmailMessage(
                         existing.Email!,
@@ -576,7 +581,8 @@ public class AuthController : ControllerBase
             UserName = email,
             Email = email,
             EmailConfirmed = false,
-            IsActive = true
+            IsActive = true,
+            PreferredLanguage = LanguageTagNormalizer.Normalize(CultureInfo.CurrentUICulture.Name)
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);
@@ -587,17 +593,17 @@ public class AuthController : ControllerBase
                 .Where(description => !string.IsNullOrWhiteSpace(description))
                 .ToArray();
             return BuildValidationProblem(
-                "Registration failed",
+                L("Auth.Register.Invalid", "Registration failed"),
                 new Dictionary<string, string[]>
                 {
-                    ["password"] = passwordErrors.Length > 0 ? passwordErrors : ["Registration failed."]
+                    ["password"] = passwordErrors.Length > 0 ? passwordErrors : [L("Auth.Register.Invalid.Detail", "Registration failed.")]
                 });
         }
 
         var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         var encodedToken = EncodeToken(confirmationToken);
         var activationLink = _uiUrlBuilder.BuildActivationUrl(user.Email!, encodedToken);
-        var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+        var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink, ResolveEmailCulture(user));
         await _emailSender.SendAsync(
             new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
             HttpContext.RequestAborted);
@@ -631,13 +637,13 @@ public class AuthController : ControllerBase
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
             var encodedToken = EncodeToken(resetToken);
             var resetLink = _uiUrlBuilder.BuildResetPasswordUrl(user.Email!, encodedToken);
-            var (subject, htmlBody, textBody) = EmailTemplates.BuildResetPasswordEmail(resetLink);
+            var (subject, htmlBody, textBody) = EmailTemplates.BuildResetPasswordEmail(resetLink, ResolveEmailCulture(user));
             await _emailSender.SendAsync(
                 new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
                 HttpContext.RequestAborted);
         }
 
-        return Ok(new AuthResponse(true, null, null, "If an account exists for this email, you’ll receive a password reset link shortly."));
+        return Ok(new AuthResponse(true, null, null, L("Auth.Reset.Forgot.Generic", "If an account exists for this email, you’ll receive a password reset link shortly.")));
     }
 
     [HttpPost("reset-password")]
@@ -689,8 +695,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Invalid reset link",
-                "This password reset link is invalid or has expired. Please request a new one.");
+                L("Auth.Reset.InvalidLink", "Invalid reset link"),
+                L("Auth.Reset.InvalidLink.Detail", "This password reset link is invalid or has expired. Please request a new one."));
         }
 
         var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
@@ -698,8 +704,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Invalid reset link",
-                "This password reset link is invalid or has expired. Please request a new one.");
+                L("Auth.Reset.InvalidLink", "Invalid reset link"),
+                L("Auth.Reset.InvalidLink.Detail", "This password reset link is invalid or has expired. Please request a new one."));
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -731,7 +737,7 @@ public class AuthController : ControllerBase
             var confirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             var encodedToken = EncodeToken(confirmationToken);
             var activationLink = _uiUrlBuilder.BuildActivationUrl(user.Email!, encodedToken);
-            var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink);
+            var (subject, htmlBody, textBody) = EmailTemplates.BuildActivationEmail(activationLink, ResolveEmailCulture(user));
             await _emailSender.SendAsync(
                 new EmailMessage(user.Email!, user.UserName, subject, htmlBody, textBody),
                 HttpContext.RequestAborted);
@@ -766,8 +772,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Invalid verification link",
-                "This verification link is invalid or has expired. Please request a new one.");
+                L("Auth.Activation.InvalidLink", "Invalid verification link"),
+                L("Auth.Activation.InvalidLink.Detail", "This verification link is invalid or has expired. Please request a new one."));
         }
 
         var decodedToken = DecodeToken(request.Token);
@@ -775,8 +781,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Invalid verification link",
-                "This verification link is invalid or has expired. Please request a new one.");
+                L("Auth.Activation.InvalidLink", "Invalid verification link"),
+                L("Auth.Activation.InvalidLink.Detail", "This verification link is invalid or has expired. Please request a new one."));
         }
 
         var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
@@ -784,8 +790,8 @@ public class AuthController : ControllerBase
         {
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
-                "Invalid verification link",
-                "This verification link is invalid or has expired. Please request a new one.");
+                L("Auth.Activation.InvalidLink", "Invalid verification link"),
+                L("Auth.Activation.InvalidLink.Detail", "This verification link is invalid or has expired. Please request a new one."));
         }
 
         return Ok(new AuthResponse(true, null, null));
@@ -858,8 +864,8 @@ public class AuthController : ControllerBase
 
         return BuildAuthProblem(
             StatusCodes.Status429TooManyRequests,
-            "Too many attempts",
-            "Too many attempts. Please try again later.");
+            L("Auth.RateLimit.TooManyAttempts", "Too many attempts"),
+            L("Auth.RateLimit.TooManyAttempts.Detail", "Too many attempts. Please try again later."));
     }
 
     private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
@@ -897,6 +903,22 @@ public class AuthController : ControllerBase
             : _uiUrlBuilder.BuildLoginUrl(returnUrl);
 
         return new AuthResponse(true, redirectTo, null);
+    }
+
+    private string ResolveEmailCulture(ApplicationUser? user)
+    {
+        if (!string.IsNullOrWhiteSpace(user?.PreferredLanguage))
+        {
+            return LanguageTagNormalizer.Normalize(user.PreferredLanguage);
+        }
+
+        return LanguageTagNormalizer.Normalize(CultureInfo.CurrentUICulture.Name);
+    }
+
+    private string L(string key, string fallback)
+    {
+        var value = _localizer[key];
+        return value.ResourceNotFound ? fallback : value.Value;
     }
 
     private static string NormalizeCode(string code)
