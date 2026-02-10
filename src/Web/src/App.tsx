@@ -69,10 +69,6 @@ const App = () => {
     <Routes>
       <Route element={<GlobalLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/mfa" element={<MfaChallenge />} />
-        <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/activate" element={<ActivateAccount />} />
         <Route
           path="/account"
           element={
@@ -99,6 +95,10 @@ const App = () => {
         <Route path="*" element={<NotFound />} />
       </Route>
       <Route element={<AuthLayout />}>
+        <Route path="/mfa" element={<MfaChallenge />} />
+        <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/activate" element={<ActivateAccount />} />
         <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
         <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
       </Route>
