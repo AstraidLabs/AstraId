@@ -61,6 +61,7 @@ import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
+import AuthLayout from "./layouts/AuthLayout";
 
 const PublicLayout = () => (
   <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -80,9 +81,7 @@ const App = () => {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
         <Route path="/mfa" element={<MfaChallenge />} />
-        <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
         <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
@@ -110,6 +109,10 @@ const App = () => {
         <Route path="/error/404" element={<Error404 />} />
         <Route path="/error/500" element={<Error500 />} />
         <Route path="*" element={<NotFound />} />
+      </Route>
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
+        <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
       </Route>
       <Route
         path={adminRoutePattern}
