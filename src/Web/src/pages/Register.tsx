@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { CheckIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserPlusIcon } from "../ui/authIcons";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Eye,
+  EyeOff,
+  Home,
+  Lock,
+  LogIn,
+  Mail,
+  ShieldPlus
+} from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -7,8 +17,15 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { register, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import LanguageSelector from "../components/LanguageSelector";
+import useDocumentMeta from "../hooks/useDocumentMeta";
 
 const Register = () => {
+  useDocumentMeta({
+    title: "AstraId | Create account",
+    description: "Create a new AstraId account with secure registration and enterprise-grade protection."
+  });
+
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnUrl = params.get("returnUrl");
@@ -56,8 +73,23 @@ const Register = () => {
 
   return (
     <main className="mx-auto w-full max-w-md">
-      <Card title="Create account" description="Set up your AstraId account.">
+      <Card title="Create account" titleAs="h1" description="Set up your AstraId account.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+          <div className="-mb-1 flex items-center justify-between gap-2">
+            <p className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em] text-indigo-300">
+              <ShieldPlus className="h-3.5 w-3.5" aria-hidden="true" />
+              Enterprise onboarding
+            </p>
+            <Link
+              to="/"
+              aria-label="Go to home"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+            >
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Home
+            </Link>
+          </div>
+
           {error ? (
             <div className="flex flex-col gap-3" role="alert" aria-live="polite">
               <Alert variant="error">{error.detail ?? error.message}</Alert>
@@ -75,7 +107,7 @@ const Register = () => {
               Email
             </label>
             <div className="relative mt-2">
-              <MailIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               <input
                 id="register-email"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-10 pr-3 text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
@@ -98,7 +130,7 @@ const Register = () => {
               Password
             </label>
             <div className="relative mt-2">
-              <LockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               <input
                 id="register-password"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-10 pr-11 text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
@@ -117,7 +149,7 @@ const Register = () => {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
               >
-                {showPassword ? <EyeOffIcon className="h-4 w-4" aria-hidden="true" /> : <EyeIcon className="h-4 w-4" aria-hidden="true" />}
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
               </button>
             </div>
             <p id="register-password-hint" className="mt-2 text-xs text-slate-400">
@@ -133,7 +165,7 @@ const Register = () => {
               Confirm password
             </label>
             <div className="relative mt-2">
-              <CheckIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+              <BadgeCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               <input
                 id="register-confirm-password"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-10 pr-11 text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
@@ -152,7 +184,7 @@ const Register = () => {
                 aria-label={showConfirmPassword ? "Hide confirmed password" : "Show confirmed password"}
                 aria-pressed={showConfirmPassword}
               >
-                {showConfirmPassword ? <EyeOffIcon className="h-4 w-4" aria-hidden="true" /> : <EyeIcon className="h-4 w-4" aria-hidden="true" />}
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
               </button>
             </div>
             <div id="register-confirm-password-error">
@@ -165,16 +197,19 @@ const Register = () => {
             disabled={isSubmitting}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <UserPlusIcon className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
 
-          <div className="text-xs text-slate-400">
-            Already have an account?{" "}
-            <Link className="hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" to="/login">
-              Sign in
-            </Link>
-          </div>
+          <LanguageSelector />
+
+          <Link
+            to="/login"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            <LogIn className="h-4 w-4" aria-hidden="true" />
+            Already have an account? Sign in
+          </Link>
         </form>
       </Card>
     </main>

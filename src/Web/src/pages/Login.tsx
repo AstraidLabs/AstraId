@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { EyeIcon, EyeOffIcon, LockIcon, LoginIcon, MailIcon } from "../ui/authIcons";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Home,
+  Lock,
+  Mail,
+  ShieldCheck,
+  UserPlus
+} from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
@@ -7,8 +16,15 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { login, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import LanguageSelector from "../components/LanguageSelector";
+import useDocumentMeta from "../hooks/useDocumentMeta";
 
 const Login = () => {
+  useDocumentMeta({
+    title: "AstraId | Sign in",
+    description: "Sign in to AstraId to securely access your account and enterprise identity features."
+  });
+
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnUrl = params.get("returnUrl");
@@ -69,8 +85,23 @@ const Login = () => {
 
   return (
     <main className="mx-auto w-full max-w-md">
-      <Card title="Sign in" description="Access your AstraId account securely.">
+      <Card title="Sign in" titleAs="h1" description="Access your AstraId account securely.">
         <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+          <div className="-mb-1 flex items-center justify-between gap-2">
+            <p className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em] text-indigo-300">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Secure access
+            </p>
+            <Link
+              to="/"
+              aria-label="Go to home"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+            >
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Home
+            </Link>
+          </div>
+
           {error ? (
             <div className="flex flex-col gap-3" role="alert" aria-live="polite">
               <Alert variant="error">{error.detail ?? error.message}</Alert>
@@ -88,7 +119,7 @@ const Login = () => {
               Email or username
             </label>
             <div className="relative mt-2">
-              <MailIcon
+              <Mail
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
                 aria-hidden="true"
               />
@@ -122,7 +153,7 @@ const Login = () => {
               </Link>
             </div>
             <div className="relative">
-              <LockIcon
+              <Lock
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
                 aria-hidden="true"
               />
@@ -144,7 +175,7 @@ const Login = () => {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
               >
-                {showPassword ? <EyeOffIcon className="h-4 w-4" aria-hidden="true" /> : <EyeIcon className="h-4 w-4" aria-hidden="true" />}
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
               </button>
             </div>
             <div id="login-password-error">
@@ -152,14 +183,24 @@ const Login = () => {
             </div>
           </div>
 
+          <LanguageSelector />
+
           <button
             type="submit"
             disabled={isSubmitting}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <LoginIcon className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
+
+          <Link
+            to="/register"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            Create account
+          </Link>
         </form>
       </Card>
     </main>

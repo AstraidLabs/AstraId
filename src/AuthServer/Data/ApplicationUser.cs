@@ -11,4 +11,5 @@ public class ApplicationUser : IdentityUser<Guid>
     public DateTime? RequestedDeletionUtc { get; set; }
     public DateTime? LastInactivityWarningSentUtc { get; set; }
     public DateTime? ScheduledDeletionUtc { get; set; }
+    public string? PreferredLanguage { get; set; }
 }

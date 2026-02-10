@@ -1,3 +1,4 @@
+import { getPreferredLanguageTag } from "../i18n/language";
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "https://localhost:7002";
 
@@ -20,6 +21,7 @@ export const apiFetch = async <T>(
     ...rest,
     headers: {
       Accept: "application/json",
+      "Accept-Language": getPreferredLanguageTag(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers ?? {})
     }

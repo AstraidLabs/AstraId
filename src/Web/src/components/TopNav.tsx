@@ -5,6 +5,7 @@ import { useAuthSession } from "../auth/useAuthSession";
 import { isAuthenticatedSession } from "../auth/sessionState";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import AccountDropdown from "./AccountDropdown";
+import LanguageSelector from "./LanguageSelector";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-3 py-1 text-sm transition ${
@@ -28,7 +29,7 @@ const TopNav = () => {
   };
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
+    <div className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
       <Container>
         <div className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
           <div>
@@ -75,12 +76,17 @@ const TopNav = () => {
             {status === "loading" ? (
               <span className="text-sm text-slate-500">Checking session…</span>
             ) : isAuthenticated && session ? (
-              <AccountDropdown session={session} onLogout={handleLogout} />
-            ) : null}
+              <>
+                <LanguageSelector authenticated compact />
+                <AccountDropdown session={session} onLogout={handleLogout} />
+              </>
+            ) : (
+              <LanguageSelector compact />
+            )}
           </div>
         </div>
       </Container>
-    </header>
+    </div>
   );
 };
 

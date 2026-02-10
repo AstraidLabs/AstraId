@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
+using AuthServer.Localization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Services;
 
@@ -20,9 +22,31 @@ public static class ProblemDetailsDefaults
         [StatusCodes.Status503ServiceUnavailable] = "The service is temporarily unavailable. Please try again later."
     };
 
-    public static string? GetDefaultDetail(int statusCode)
+    public static string? GetDefaultDetail(int statusCode, string? cultureTag = null)
     {
-        return DefaultDetails.TryGetValue(statusCode, out var detail) ? detail : null;
+        var defaultDetail = DefaultDetails.TryGetValue(statusCode, out var detail) ? detail : null;
+        if (defaultDetail is null)
+        {
+            return null;
+        }
+
+        var c = LanguageTagNormalizer.Normalize(cultureTag);
+        return (statusCode, c) switch
+        {
+            (StatusCodes.Status400BadRequest, "cs-CZ") => "Zkontrolujte zadané údaje a zkuste to znovu.",
+            (StatusCodes.Status400BadRequest, "sk-SK") => "Skontrolujte zadané údaje a skúste to znova.",
+            (StatusCodes.Status400BadRequest, "pl-PL") => "Sprawdź wprowadzone dane i spróbuj ponownie.",
+            (StatusCodes.Status400BadRequest, "de-DE") => "Bitte prüfen Sie die eingegebenen Daten und versuchen Sie es erneut.",
+            (StatusCodes.Status422UnprocessableEntity, "cs-CZ") => "Některá pole jsou neplatná. Zkontrolujte je a zkuste to znovu.",
+            (StatusCodes.Status422UnprocessableEntity, "sk-SK") => "Niektoré polia sú neplatné. Skontrolujte ich a skúste to znova.",
+            (StatusCodes.Status422UnprocessableEntity, "pl-PL") => "Niektóre pola są nieprawidłowe. Sprawdź je i spróbuj ponownie.",
+            (StatusCodes.Status422UnprocessableEntity, "de-DE") => "Einige Felder sind ungültig. Bitte prüfen und erneut versuchen.",
+            (StatusCodes.Status429TooManyRequests, "cs-CZ") => "Příliš mnoho pokusů. Zkuste to prosím později.",
+            (StatusCodes.Status429TooManyRequests, "sk-SK") => "Príliš veľa pokusov. Skúste to prosím neskôr.",
+            (StatusCodes.Status429TooManyRequests, "pl-PL") => "Zbyt wiele prób. Spróbuj ponownie później.",
+            (StatusCodes.Status429TooManyRequests, "de-DE") => "Zu viele Versuche. Bitte versuchen Sie es später erneut.",
+            _ => defaultDetail
+        };
     }
 
     public static void ApplyDefaults(ProblemDetails details, HttpContext context)
@@ -40,9 +64,9 @@ public static class ProblemDetailsDefaults
             details.Title = ReasonPhrases.GetReasonPhrase(statusCode);
         }
 
-        if (string.IsNullOrWhiteSpace(details.Detail) && DefaultDetails.TryGetValue(statusCode, out var detail))
+        if (string.IsNullOrWhiteSpace(details.Detail))
         {
-            details.Detail = detail;
+            details.Detail = GetDefaultDetail(statusCode, CultureInfo.CurrentUICulture.Name);
         }
 
         var traceId = Activity.Current?.Id ?? context.TraceIdentifier;

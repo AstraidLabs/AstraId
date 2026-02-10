@@ -1,6 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
-import TopNav from "./components/TopNav";
-import Container from "./components/Container";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -61,28 +59,17 @@ import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
-
-const PublicLayout = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100">
-    <TopNav />
-    <Container>
-      <main className="py-10">
-        <Outlet />
-      </main>
-    </Container>
-  </div>
-);
+import AuthLayout from "./layouts/AuthLayout";
+import GlobalLayout from "./layouts/GlobalLayout";
 
 const adminRootPath = adminRoutePrefix || "/";
 
 const App = () => {
   return (
     <Routes>
-      <Route element={<PublicLayout />}>
+      <Route element={<GlobalLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
         <Route path="/mfa" element={<MfaChallenge />} />
-        <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
         <Route path="/forgot-password" element={<AnonymousOnlyRoute><ForgotPassword /></AnonymousOnlyRoute>} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/activate" element={<ActivateAccount />} />
@@ -110,6 +97,10 @@ const App = () => {
         <Route path="/error/404" element={<Error404 />} />
         <Route path="/error/500" element={<Error500 />} />
         <Route path="*" element={<NotFound />} />
+      </Route>
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
+        <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
       </Route>
       <Route
         path={adminRoutePattern}
