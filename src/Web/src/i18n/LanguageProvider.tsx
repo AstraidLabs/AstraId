@@ -1,43 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, getPreferredLocale, normalizeLocale, setPreferredLocale, toLanguageTag, type SupportedLocale } from "./language";
 
-type TranslationKey =
-  | "language.label"
-  | "language.popoverAria"
-  | "language.listAria"
-  | "language.searchPlaceholder"
-  | "language.noResults"
-  | "auth.backToHome"
-  | "auth.backToHomeAria"
-  | "auth.login.badge"
-  | "auth.register.badge"
-  | "login.metaTitle"
-  | "login.metaDescription"
-  | "login.cardTitle"
-  | "login.cardDescription"
-  | "login.emailOrUsername"
-  | "login.password"
-  | "login.forgotPassword"
-  | "login.hidePassword"
-  | "login.showPassword"
-  | "login.submit"
-  | "login.submitting"
-  | "login.createAccount"
-  | "register.metaTitle"
-  | "register.metaDescription"
-  | "register.cardTitle"
-  | "register.cardDescription"
-  | "register.email"
-  | "register.password"
-  | "register.confirmPassword"
-  | "register.passwordHint"
-  | "register.hidePassword"
-  | "register.showPassword"
-  | "register.hideConfirmedPassword"
-  | "register.showConfirmedPassword"
-  | "register.submit"
-  | "register.submitting"
-  | "register.signIn";
+type TranslationKey = string;
 
 type TranslationSet = Record<TranslationKey, string>;
 
@@ -77,7 +41,99 @@ const en: TranslationSet = {
   "register.showConfirmedPassword": "Show confirmed password",
   "register.submit": "Create account",
   "register.submitting": "Creating account...",
-  "register.signIn": "Already have an account? Sign in"
+  "register.signIn": "Already have an account? Sign in",
+  "common.home": "Home",
+  "common.login": "Login",
+  "common.register": "Register",
+  "common.account": "Account",
+  "common.admin": "Admin",
+  "common.logout": "Logout",
+  "common.loadingSession": "Checking session…",
+  "common.validationFailed": "Validation failed.",
+  "common.requestFailed": "Request failed.",
+  "auth.layoutTitle": "AstraId authentication",
+  "auth.layoutSection": "Authentication form",
+  "auth.metaTitle": "AstraId | Authentication",
+  "auth.metaDescription": "Sign in or register for AstraId with secure authentication and account protections.",
+  "forgot.title": "Reset password",
+  "forgot.description": "Enter the email to reset your password.",
+  "forgot.email": "Email",
+  "forgot.submit": "Send reset link",
+  "forgot.submitting": "Sending...",
+  "forgot.success": "If an account exists for this email, you’ll receive a password reset link shortly.",
+  "reset.title": "Set a new password",
+  "reset.email": "Email",
+  "reset.token": "Verification token",
+  "reset.newPassword": "New password",
+  "reset.confirmPassword": "Confirm new password",
+  "reset.submit": "Update password",
+  "reset.submitting": "Saving...",
+  "reset.success": "Your password was updated. Please sign in again.",
+  "activate.title": "Activate account",
+  "activate.email": "Email",
+  "activate.token": "Verification token",
+  "activate.submit": "Activate account",
+  "activate.submitting": "Activating...",
+  "activate.success": "Your account has been activated. Please sign in.",
+  "mfa.title": "Two-factor authentication",
+  "mfa.description": "Enter the code from your authenticator app or use a recovery code.",
+  "mfa.code": "Verification code",
+  "mfa.recoveryCode": "Recovery code",
+  "mfa.useRecovery": "Use a recovery code",
+  "mfa.remember": "Trust this device",
+  "mfa.submit": "Continue",
+  "mfa.submitting": "Verifying...",
+  "mfa.tokenMissing": "The MFA challenge is no longer available. Please sign in again.",
+  "signedIn.goSecurity": "Go to account security",
+  "account.sidebarTitle": "Account",
+  "account.nav.overview": "Profile",
+  "account.nav.security": "Security",
+  "account.nav.privacy": "Privacy",
+  "account.overview.title": "Profile",
+  "account.overview.description": "Your self-service account dashboard.",
+  "account.security.title": "Security",
+  "account.security.description": "Manage account protections with dedicated security controls.",
+  "account.sessions.title": "Sign out all sessions",
+  "account.sessions.description": "Invalidate all active sessions except the current flow.",
+  "account.sessions.confirm": "Sign out all active sessions? You will need to sign in again on other devices.",
+  "account.sessions.submit": "Sign out all sessions",
+  "account.sessions.submitting": "Signing out...",
+  "account.events.title": "Recent login activity",
+  "account.events.description": "Review recent sign-ins and token issuances for your account.",
+  "account.events.empty": "No recent login history.",
+  "account.events.time": "Time (UTC)",
+  "account.events.result": "Result",
+  "account.events.client": "Client",
+  "account.events.ip": "IP",
+  "account.events.userAgent": "User agent",
+  "account.events.success": "Success",
+  "account.events.failed": "Failed",
+  "account.dropdown.aria": "Account menu",
+  "error.403.description": "You don’t have permission to access this page.",
+  "error.403.hint": "If you believe this is a mistake, contact an administrator.",
+  "error.404.description": "The requested resource was not found.",
+  "error.404.hint": "Check the URL or use the navigation to find what you need.",
+  "error.500.description": "Something went wrong on our side. Please try again.",
+  "error.500.hint": "If the issue persists, contact support and share the trace ID.",
+  "footer.copyright": "© {{year}} AstraId",
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.errorId": "Error ID",
+  "diagnostics.traceId": "Trace ID",
+  "diagnostics.exception": "Exception",
+  "diagnostics.request": "Request",
+  "diagnostics.innerException": "Inner exception",
+  "security.mfa": "MFA management",
+  "security.email": "Change email",
+  "security.password": "Change password",
+  "security.sessions": "Sign out all sessions",
+  "security.activity": "Recent login activity",
+  "security.mfa.description": "Set up, disable, and recover multi-factor authentication.",
+  "security.email.description": "Start a secured email change flow and confirm ownership.",
+  "security.password.description": "Update your password and refresh account protection.",
+  "security.sessions.description": "Invalidate sessions on every other device.",
+  "security.activity.description": "Review recent sign-in successes, failures, and logout events.",
+  "privacy.export": "Export my data",
+  "privacy.delete": "Request deletion",
 };
 
 const translations: Record<SupportedLocale, TranslationSet> = {

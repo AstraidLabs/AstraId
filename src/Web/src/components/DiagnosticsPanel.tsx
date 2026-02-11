@@ -1,3 +1,4 @@
+import { useLanguage } from "../i18n/LanguageProvider";
 import type { DiagnosticsDebug } from "../api/errors";
 
 type DiagnosticsPanelProps = {
@@ -13,6 +14,7 @@ export default function DiagnosticsPanel({
   debug,
   compact = false
 }: DiagnosticsPanelProps) {
+  const { t } = useLanguage();
   if (!traceId && !errorId && !debug) {
     return null;
   }
@@ -24,37 +26,37 @@ export default function DiagnosticsPanel({
       }`}
     >
       <summary className="cursor-pointer font-semibold text-slate-200">
-        Diagnostics
+        {t("diagnostics.title")}
       </summary>
       <div className="mt-3 space-y-2 text-slate-300">
         {errorId && (
           <div>
-            <span className="font-semibold text-slate-200">Error ID:</span>{" "}
+            <span className="font-semibold text-slate-200">{t("diagnostics.errorId")}:</span>{" "}
             {errorId}
           </div>
         )}
         {traceId && (
           <div>
-            <span className="font-semibold text-slate-200">Trace ID:</span>{" "}
+            <span className="font-semibold text-slate-200">{t("diagnostics.traceId")}:</span>{" "}
             {traceId}
           </div>
         )}
         {debug?.exceptionType && (
           <div>
-            <span className="font-semibold text-slate-200">Exception:</span>{" "}
+            <span className="font-semibold text-slate-200">{t("diagnostics.exception")}:</span>{" "}
             {debug.exceptionType}
           </div>
         )}
         {(debug?.path || debug?.method) && (
           <div>
-            <span className="font-semibold text-slate-200">Request:</span>{" "}
+            <span className="font-semibold text-slate-200">{t("diagnostics.request")}:</span>{" "}
             {[debug.method, debug.path].filter(Boolean).join(" ")}
           </div>
         )}
         {debug?.innerExceptionSummary && (
           <div>
             <span className="font-semibold text-slate-200">
-              Inner exception:
+              {t("diagnostics.innerException")}:
             </span>{" "}
             {debug.innerExceptionSummary}
           </div>

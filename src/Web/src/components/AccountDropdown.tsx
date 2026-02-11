@@ -4,10 +4,11 @@ import type { AuthSession } from "../api/authServer";
 import { hasAdminAccess } from "../auth/adminAccess";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import { accountIcons, accountMenuIconClass, accountMenuItems } from "../ui/accountIcons";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 type Props = { session: AuthSession; onLogout: () => Promise<void> };
 
-type MenuItem = { key: string; label: string; to?: string; external?: boolean; danger?: boolean; action?: () => Promise<void>; Icon: any };
+type MenuItem = { key: string; labelKey: string; to?: string; external?: boolean; danger?: boolean; action?: () => Promise<void>; Icon: any };
 
 const initialsFromSession = (session: AuthSession) => (session.userName ?? session.email ?? "User").charAt(0).toUpperCase();
 
@@ -19,6 +20,7 @@ const ChevronDownIcon = ({ className }: { className?: string }) => (
 
 export default function AccountDropdown({ session, onLogout }: Props) {
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const [working, setWorking] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -28,8 +30,8 @@ export default function AccountDropdown({ session, onLogout }: Props) {
 
   const menuItems = useMemo<MenuItem[]>(() => {
     const items: MenuItem[] = accountMenuItems.map((item) => ({ ...item, Icon: item.icon }));
-    if (hasAdminAccess(session.permissions)) items.push({ key: "admin", label: "Admin", to: adminUrl, external: isAbsoluteUrl(adminUrl), Icon: accountIcons.admin });
-    items.push({ key: "logout", label: "Logout", action: onLogout, danger: true, Icon: accountIcons.logout });
+    if (hasAdminAccess(session.permissions)) items.push({ key: "admin", labelKey: "common.admin", to: adminUrl, external: isAbsoluteUrl(adminUrl), Icon: accountIcons.admin });
+    items.push({ key: "logout", labelKey: "common.logout", action: onLogout, danger: true, Icon: accountIcons.logout });
     return items;
   }, [adminUrl, onLogout, session.permissions]);
 
@@ -68,7 +70,7 @@ export default function AccountDropdown({ session, onLogout }: Props) {
 
   return (
     <div className="relative" ref={rootRef}>
-      <button ref={triggerRef} type="button" className="flex max-w-[260px] items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 transition hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((c) => !c)}>
+      <button ref={triggerRef} type="button" className="flex max-w-[260px] items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 transition hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label={t("account.dropdown.aria")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((c) => !c)}>
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-200">{initialsFromSession(session)}</span>
         <span className="truncate">{session.userName ?? session.email ?? "Account"}</span>
         <ChevronDownIcon className="h-4 w-4 text-slate-400" />
@@ -77,10 +79,10 @@ export default function AccountDropdown({ session, onLogout }: Props) {
         <div ref={menuRef} role="menu" onKeyDown={onMenuKeyDown} className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl">
           {menuItems.map((item) => {
             const Icon = item.Icon;
-            if (item.action) return <button key={item.key} role="menuitem" data-menu-item="true" disabled={working} onClick={() => onAction(item.action!)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-900/30 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Icon className={accountMenuIconClass} />{working ? "Logging out..." : item.label}</button>;
-            if (item.external && item.to) return <a key={item.key} role="menuitem" data-menu-item="true" href={item.to} onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Icon className={accountMenuIconClass} />{item.label}</a>;
+            if (item.action) return <button key={item.key} role="menuitem" data-menu-item="true" disabled={working} onClick={() => onAction(item.action!)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-900/30 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Icon className={accountMenuIconClass} />{working ? t("account.sessions.submitting") : t(item.labelKey as any)}</button>;
+            if (item.external && item.to) return <a key={item.key} role="menuitem" data-menu-item="true" href={item.to} onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"><Icon className={accountMenuIconClass} />{t(item.labelKey as any)}</a>;
             const active = item.to === "/account" ? location.pathname === "/account" : !!item.to && location.pathname.startsWith(item.to);
-            return <Link key={item.key} to={item.to ?? "#"} role="menuitem" data-menu-item="true" onClick={() => setOpen(false)} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${active ? "bg-slate-800/80" : ""}`}><Icon className={accountMenuIconClass} />{item.label}</Link>;
+            return <Link key={item.key} to={item.to ?? "#"} role="menuitem" data-menu-item="true" onClick={() => setOpen(false)} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${active ? "bg-slate-800/80" : ""}`}><Icon className={accountMenuIconClass} />{t(item.labelKey as any)}</Link>;
           })}
         </div>
       )}

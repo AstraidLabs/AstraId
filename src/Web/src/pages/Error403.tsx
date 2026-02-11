@@ -1,11 +1,13 @@
+import { useLanguage } from "../i18n/LanguageProvider";
 import ErrorPage from "./ErrorPage";
 
 export default function Error403() {
+  const { t } = useLanguage();
   return (
     <ErrorPage
       title="403"
-      description="You don’t have permission to access this page."
-      hint="If you believe this is a mistake, contact an administrator."
+      description={t("error.403.description")}
+      hint={t("error.403.hint")}
     />
   );
 }
