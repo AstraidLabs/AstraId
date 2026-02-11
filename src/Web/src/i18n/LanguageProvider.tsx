@@ -9,11 +9,12 @@ type TranslationKey =
   | "language.noResults"
   | "auth.backToHome"
   | "auth.backToHomeAria"
+  | "auth.login.badge"
+  | "auth.register.badge"
   | "login.metaTitle"
   | "login.metaDescription"
   | "login.cardTitle"
   | "login.cardDescription"
-  | "login.secureAccess"
   | "login.emailOrUsername"
   | "login.password"
   | "login.forgotPassword"
@@ -26,7 +27,6 @@ type TranslationKey =
   | "register.metaDescription"
   | "register.cardTitle"
   | "register.cardDescription"
-  | "register.enterpriseOnboarding"
   | "register.email"
   | "register.password"
   | "register.confirmPassword"
@@ -49,11 +49,12 @@ const en: TranslationSet = {
   "language.noResults": "No matching languages",
   "auth.backToHome": "Back to home",
   "auth.backToHomeAria": "Back to home",
+  "auth.login.badge": "Authorization Portal",
+  "auth.register.badge": "Account Registration",
   "login.metaTitle": "AstraId | Sign in",
   "login.metaDescription": "Sign in to AstraId to securely access your account and enterprise identity features.",
   "login.cardTitle": "Sign in",
   "login.cardDescription": "Access your AstraId account securely.",
-  "login.secureAccess": "Secure access",
   "login.emailOrUsername": "Email or username",
   "login.password": "Password",
   "login.forgotPassword": "Forgot password?",
@@ -66,7 +67,6 @@ const en: TranslationSet = {
   "register.metaDescription": "Create a new AstraId account with secure registration and enterprise-grade protection.",
   "register.cardTitle": "Create account",
   "register.cardDescription": "Set up your AstraId account.",
-  "register.enterpriseOnboarding": "Enterprise onboarding",
   "register.email": "Email",
   "register.password": "Password",
   "register.confirmPassword": "Confirm password",
@@ -91,11 +91,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Žádné odpovídající jazyky",
     "auth.backToHome": "Zpět na hlavní stránku",
     "auth.backToHomeAria": "Zpět na hlavní stránku",
+    "auth.login.badge": "Autorizační portál",
+    "auth.register.badge": "Registrace účtu",
     "login.metaTitle": "AstraId | Přihlášení",
     "login.metaDescription": "Přihlaste se do AstraId a získejte bezpečný přístup ke svému účtu a podnikovým funkcím identity.",
     "login.cardTitle": "Přihlášení",
     "login.cardDescription": "Bezpečný přístup k vašemu účtu AstraId.",
-    "login.secureAccess": "Bezpečný přístup",
     "login.emailOrUsername": "E-mail nebo uživatelské jméno",
     "login.password": "Heslo",
     "login.forgotPassword": "Zapomenuté heslo?",
@@ -108,7 +109,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Vytvořte si nový účet AstraId se zabezpečenou registrací a ochranou na podnikové úrovni.",
     "register.cardTitle": "Vytvořit účet",
     "register.cardDescription": "Nastavte svůj účet AstraId.",
-    "register.enterpriseOnboarding": "Podnikové zřízení",
     "register.email": "E-mail",
     "register.password": "Heslo",
     "register.confirmPassword": "Potvrzení hesla",
@@ -130,11 +130,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Keine passenden Sprachen",
     "auth.backToHome": "Zur Startseite",
     "auth.backToHomeAria": "Zur Startseite",
+    "auth.login.badge": "Autorisierungsportal",
+    "auth.register.badge": "Konto registrieren",
     "login.metaTitle": "AstraId | Anmelden",
     "login.metaDescription": "Melden Sie sich bei AstraId an, um sicher auf Ihr Konto und auf unternehmensweite Identitätsfunktionen zuzugreifen.",
     "login.cardTitle": "Anmelden",
     "login.cardDescription": "Sicherer Zugriff auf Ihr AstraId-Konto.",
-    "login.secureAccess": "Sicherer Zugriff",
     "login.emailOrUsername": "E-Mail oder Benutzername",
     "login.password": "Passwort",
     "login.forgotPassword": "Passwort vergessen?",
@@ -147,7 +148,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Erstellen Sie ein neues AstraId-Konto mit sicherer Registrierung und Schutz auf Unternehmensniveau.",
     "register.cardTitle": "Konto erstellen",
     "register.cardDescription": "Richten Sie Ihr AstraId-Konto ein.",
-    "register.enterpriseOnboarding": "Unternehmens-Onboarding",
     "register.email": "E-Mail",
     "register.password": "Passwort",
     "register.confirmPassword": "Passwort bestätigen",
@@ -169,11 +169,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Brak pasujących języków",
     "auth.backToHome": "Powrót do strony głównej",
     "auth.backToHomeAria": "Powrót do strony głównej",
+    "auth.login.badge": "Portal autoryzacji",
+    "auth.register.badge": "Rejestracja konta",
     "login.metaTitle": "AstraId | Zaloguj się",
     "login.metaDescription": "Zaloguj się do AstraId, aby bezpiecznie uzyskać dostęp do konta i firmowych funkcji tożsamości.",
     "login.cardTitle": "Zaloguj się",
     "login.cardDescription": "Bezpieczny dostęp do konta AstraId.",
-    "login.secureAccess": "Bezpieczny dostęp",
     "login.emailOrUsername": "E-mail lub nazwa użytkownika",
     "login.password": "Hasło",
     "login.forgotPassword": "Nie pamiętasz hasła?",
@@ -186,7 +187,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Utwórz nowe konto AstraId z bezpieczną rejestracją i ochroną klasy korporacyjnej.",
     "register.cardTitle": "Utwórz konto",
     "register.cardDescription": "Skonfiguruj swoje konto AstraId.",
-    "register.enterpriseOnboarding": "Wdrożenie korporacyjne",
     "register.email": "E-mail",
     "register.password": "Hasło",
     "register.confirmPassword": "Potwierdź hasło",
@@ -208,11 +208,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Žiadne zodpovedajúce jazyky",
     "auth.backToHome": "Späť na hlavnú stránku",
     "auth.backToHomeAria": "Späť na hlavnú stránku",
+    "auth.login.badge": "Autorizačný portál",
+    "auth.register.badge": "Registrácia účtu",
     "login.metaTitle": "AstraId | Prihlásenie",
     "login.metaDescription": "Prihláste sa do AstraId a získajte bezpečný prístup k svojmu účtu a podnikovým funkciám identity.",
     "login.cardTitle": "Prihlásenie",
     "login.cardDescription": "Bezpečný prístup k vášmu účtu AstraId.",
-    "login.secureAccess": "Bezpečný prístup",
     "login.emailOrUsername": "E-mail alebo používateľské meno",
     "login.password": "Heslo",
     "login.forgotPassword": "Zabudnuté heslo?",
@@ -225,7 +226,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Vytvorte si nový účet AstraId so zabezpečenou registráciou a ochranou na podnikovej úrovni.",
     "register.cardTitle": "Vytvoriť účet",
     "register.cardDescription": "Nastavte si účet AstraId.",
-    "register.enterpriseOnboarding": "Podnikové zavedenie",
     "register.email": "E-mail",
     "register.password": "Heslo",
     "register.confirmPassword": "Potvrdenie hesla",
