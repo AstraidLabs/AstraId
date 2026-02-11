@@ -18,13 +18,15 @@ type LanguagePillPopoverProps = {
   onChange: (locale: SupportedLocale) => void;
   compact?: boolean;
   placement?: Placement;
+  fullWidth?: boolean;
 };
 
 export default function LanguagePillPopover({
   value,
   onChange,
   compact = false,
-  placement = "bottom-start"
+  placement = "bottom-start",
+  fullWidth = false
 }: LanguagePillPopoverProps) {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
@@ -147,7 +149,7 @@ export default function LanguagePillPopover({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-controls={popoverId}
-        className="inline-flex min-w-[11rem] items-center justify-between gap-2 rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1.5 text-sm text-slate-100 shadow-lg shadow-slate-950/30 backdrop-blur-md transition hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+        className={`inline-flex items-center justify-between gap-2 rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1.5 text-sm text-slate-100 shadow-lg shadow-slate-950/30 backdrop-blur-md transition hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 ${fullWidth ? "w-full" : "min-w-[11rem]"}`}
         onClick={() => setIsOpen((prev) => !prev)}
       >
         <span className="inline-flex items-center gap-2">
@@ -164,7 +166,7 @@ export default function LanguagePillPopover({
         id={popoverId}
         role="dialog"
         aria-label={t("language.popoverAria")}
-        className={`absolute ${alignmentClass} top-full z-30 mt-2 w-72 rounded-2xl border border-slate-700/80 bg-slate-950/90 p-2 shadow-2xl shadow-slate-950/60 backdrop-blur-md transition duration-150 motion-reduce:transition-none ${
+        className={`absolute ${alignmentClass} top-full z-30 mt-2 rounded-2xl border border-slate-700/80 bg-slate-950/90 p-2 shadow-2xl shadow-slate-950/60 backdrop-blur-md transition duration-150 motion-reduce:transition-none ${fullWidth ? "w-full" : "w-72"} ${
           isOpen
             ? "pointer-events-auto scale-100 opacity-100"
             : "pointer-events-none scale-95 opacity-0"
