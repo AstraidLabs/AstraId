@@ -81,7 +81,7 @@ const Register = () => {
           <div className="-mb-1 flex items-center justify-between gap-2">
             <p className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em] text-indigo-300">
               <ShieldPlus className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("register.enterpriseOnboarding")}
+              {t("auth.register.badge")}
             </p>
             <Link
               to="/"
