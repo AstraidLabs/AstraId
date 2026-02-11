@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Card from "./Card";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 type Props = {
   title: string;
@@ -7,6 +8,7 @@ type Props = {
 };
 
 export default function SignedInInfo({ title, message }: Props) {
+  const { t } = useLanguage();
   return (
     <div className="mx-auto max-w-md">
       <Card title={title}>
@@ -16,7 +18,7 @@ export default function SignedInInfo({ title, message }: Props) {
             to="/account/security"
             className="inline-flex rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white transition hover:bg-indigo-400"
           >
-            Go to account security
+            {t("signedIn.goSecurity")}
           </Link>
         </div>
       </Card>

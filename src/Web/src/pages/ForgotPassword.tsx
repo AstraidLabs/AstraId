@@ -5,8 +5,10 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { forgotPassword } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const ForgotPassword = () => {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<AppError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -24,7 +26,7 @@ const ForgotPassword = () => {
       const response = await forgotPassword({ email });
       setSuccess(
         response.message ??
-          "If an account exists for this email, you’ll receive a password reset link shortly."
+          t("forgot.success")
       );
     } catch (err) {
       if (err && typeof err === "object" && "status" in err) {
@@ -32,7 +34,7 @@ const ForgotPassword = () => {
         setError(appError);
         setFieldErrors(appError.fieldErrors ?? {});
       } else {
-        setError(new AppError({ status: 500, detail: "Unable to send request." }));
+        setError(new AppError({ status: 500, detail: t("common.requestFailed") }));
       }
     } finally {
       setIsSubmitting(false);
@@ -41,7 +43,7 @@ const ForgotPassword = () => {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Reset password" description="Enter the email to reset your password.">
+      <Card title={t("forgot.title")} description={t("forgot.description")}>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           {error ? (
             <div className="flex flex-col gap-3">
@@ -56,7 +58,7 @@ const ForgotPassword = () => {
           ) : null}
           {success ? <Alert variant="success">{success}</Alert> : null}
           <label className="text-sm text-slate-200">
-            Email
+            {t("forgot.email")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="email"
@@ -72,7 +74,7 @@ const ForgotPassword = () => {
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Sending..." : "Send reset link"}
+            {isSubmitting ? t("forgot.submitting") : t("forgot.submit")}
           </button>
         </form>
       </Card>

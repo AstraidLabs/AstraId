@@ -8,8 +8,10 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { resetPassword } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const ResetPassword = () => {
+  const { t } = useLanguage();
   const { status } = useAuthSession();
   const [params] = useSearchParams();
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
@@ -38,14 +40,14 @@ const ResetPassword = () => {
         newPassword,
         confirmPassword
       });
-      setSuccess("Your password was updated. Please sign in again.");
+      setSuccess(t("reset.success"));
     } catch (err) {
       if (err && typeof err === "object" && "status" in err) {
         const appError = err as AppError;
         setError(appError);
         setFieldErrors(appError.fieldErrors ?? {});
       } else {
-        setError(new AppError({ status: 500, detail: "Unable to reset password." }));
+        setError(new AppError({ status: 500, detail: t("common.requestFailed") }));
       }
     } finally {
       setIsSubmitting(false);
@@ -55,15 +57,15 @@ const ResetPassword = () => {
   if (status === "authenticated") {
     return (
       <SignedInInfo
-        title="Reset password"
-        message="You are already signed in. Reset password links are intended for signed-out recovery flows."
+        title={t("forgot.title")}
+        message={t("reset.title")}
       />
     );
   }
 
   return (
     <div className="mx-auto max-w-md">
-      <Card title="Set a new password">
+      <Card title={t("reset.title")}>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           {error ? (
             <div className="flex flex-col gap-3">
@@ -78,7 +80,7 @@ const ResetPassword = () => {
           ) : null}
           {success ? <Alert variant="success">{success}</Alert> : null}
           <label className="text-sm text-slate-200">
-            Email
+            {t("reset.email")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="email"
@@ -101,7 +103,7 @@ const ResetPassword = () => {
             <FieldError message={fieldErrors.token?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            New password
+            {t("reset.newPassword")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -113,7 +115,7 @@ const ResetPassword = () => {
             <FieldError message={fieldErrors.newPassword?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            Confirm new password
+            {t("reset.confirmPassword")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="password"
@@ -129,7 +131,7 @@ const ResetPassword = () => {
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Saving..." : "Update password"}
+            {isSubmitting ? t("reset.submitting") : t("reset.submit")}
           </button>
           {success ? (
             <div className="text-xs text-slate-400">

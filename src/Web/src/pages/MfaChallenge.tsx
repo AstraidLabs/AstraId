@@ -6,8 +6,10 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { loginMfa, resolveReturnUrl } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const MfaChallenge = () => {
+  const { t } = useLanguage();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const token = params.get("token") ?? "";
@@ -47,7 +49,7 @@ const MfaChallenge = () => {
         setError(appError);
         setFieldErrors(appError.fieldErrors ?? {});
       } else {
-        setError(new AppError({ status: 500, detail: "Unable to verify the code." }));
+        setError(new AppError({ status: 500, detail: t("common.requestFailed") }));
       }
     } finally {
       setIsSubmitting(false);
@@ -57,8 +59,8 @@ const MfaChallenge = () => {
   return (
     <div className="mx-auto max-w-md">
       <Card
-        title="Two-factor authentication"
-        description="Enter the code from your authenticator app or use a recovery code."
+        title={t("mfa.title")}
+        description={t("mfa.description")}
       >
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           {error ? (
@@ -74,11 +76,11 @@ const MfaChallenge = () => {
           ) : null}
           {!token ? (
             <Alert variant="error">
-              The MFA challenge is no longer available. Please sign in again.
+              {t("mfa.tokenMissing")}
             </Alert>
           ) : null}
           <label className="text-sm text-slate-200">
-            {useRecoveryCode ? "Recovery code" : "Verification code"}
+            {useRecoveryCode ? t("mfa.recoveryCode") : t("mfa.code")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="text"
@@ -95,7 +97,7 @@ const MfaChallenge = () => {
               checked={useRecoveryCode}
               onChange={(event) => setUseRecoveryCode(event.target.checked)}
             />
-            Use a recovery code
+            {t("mfa.useRecovery")}
           </label>
           {!useRecoveryCode ? (
             <label className="flex items-center gap-3 text-xs text-slate-400">
@@ -104,7 +106,7 @@ const MfaChallenge = () => {
                 checked={rememberMachine}
                 onChange={(event) => setRememberMachine(event.target.checked)}
               />
-              Trust this device
+              {t("mfa.remember")}
             </label>
           ) : null}
           <button
@@ -112,7 +114,7 @@ const MfaChallenge = () => {
             disabled={isSubmitting || !token}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Verifying..." : "Continue"}
+            {isSubmitting ? t("mfa.submitting") : t("mfa.submit")}
           </button>
           <div className="text-xs text-slate-400">
             <Link className="hover:text-slate-200" to="/login">
