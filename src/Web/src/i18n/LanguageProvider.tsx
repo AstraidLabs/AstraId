@@ -1,43 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, getPreferredLocale, normalizeLocale, setPreferredLocale, toLanguageTag, type SupportedLocale } from "./language";
 
-type TranslationKey =
-  | "language.label"
-  | "language.popoverAria"
-  | "language.listAria"
-  | "language.searchPlaceholder"
-  | "language.noResults"
-  | "auth.backToHome"
-  | "auth.backToHomeAria"
-  | "login.metaTitle"
-  | "login.metaDescription"
-  | "login.cardTitle"
-  | "login.cardDescription"
-  | "login.secureAccess"
-  | "login.emailOrUsername"
-  | "login.password"
-  | "login.forgotPassword"
-  | "login.hidePassword"
-  | "login.showPassword"
-  | "login.submit"
-  | "login.submitting"
-  | "login.createAccount"
-  | "register.metaTitle"
-  | "register.metaDescription"
-  | "register.cardTitle"
-  | "register.cardDescription"
-  | "register.enterpriseOnboarding"
-  | "register.email"
-  | "register.password"
-  | "register.confirmPassword"
-  | "register.passwordHint"
-  | "register.hidePassword"
-  | "register.showPassword"
-  | "register.hideConfirmedPassword"
-  | "register.showConfirmedPassword"
-  | "register.submit"
-  | "register.submitting"
-  | "register.signIn";
+type TranslationKey = string;
 
 type TranslationSet = Record<TranslationKey, string>;
 
@@ -49,11 +13,12 @@ const en: TranslationSet = {
   "language.noResults": "No matching languages",
   "auth.backToHome": "Back to home",
   "auth.backToHomeAria": "Back to home",
+  "auth.login.badge": "Authorization Portal",
+  "auth.register.badge": "Account Registration",
   "login.metaTitle": "AstraId | Sign in",
   "login.metaDescription": "Sign in to AstraId to securely access your account and enterprise identity features.",
   "login.cardTitle": "Sign in",
   "login.cardDescription": "Access your AstraId account securely.",
-  "login.secureAccess": "Secure access",
   "login.emailOrUsername": "Email or username",
   "login.password": "Password",
   "login.forgotPassword": "Forgot password?",
@@ -66,7 +31,6 @@ const en: TranslationSet = {
   "register.metaDescription": "Create a new AstraId account with secure registration and enterprise-grade protection.",
   "register.cardTitle": "Create account",
   "register.cardDescription": "Set up your AstraId account.",
-  "register.enterpriseOnboarding": "Enterprise onboarding",
   "register.email": "Email",
   "register.password": "Password",
   "register.confirmPassword": "Confirm password",
@@ -77,7 +41,99 @@ const en: TranslationSet = {
   "register.showConfirmedPassword": "Show confirmed password",
   "register.submit": "Create account",
   "register.submitting": "Creating account...",
-  "register.signIn": "Already have an account? Sign in"
+  "register.signIn": "Already have an account? Sign in",
+  "common.home": "Home",
+  "common.login": "Login",
+  "common.register": "Register",
+  "common.account": "Account",
+  "common.admin": "Admin",
+  "common.logout": "Logout",
+  "common.loadingSession": "Checking session…",
+  "common.validationFailed": "Validation failed.",
+  "common.requestFailed": "Request failed.",
+  "auth.layoutTitle": "AstraId authentication",
+  "auth.layoutSection": "Authentication form",
+  "auth.metaTitle": "AstraId | Authentication",
+  "auth.metaDescription": "Sign in or register for AstraId with secure authentication and account protections.",
+  "forgot.title": "Reset password",
+  "forgot.description": "Enter the email to reset your password.",
+  "forgot.email": "Email",
+  "forgot.submit": "Send reset link",
+  "forgot.submitting": "Sending...",
+  "forgot.success": "If an account exists for this email, you’ll receive a password reset link shortly.",
+  "reset.title": "Set a new password",
+  "reset.email": "Email",
+  "reset.token": "Verification token",
+  "reset.newPassword": "New password",
+  "reset.confirmPassword": "Confirm new password",
+  "reset.submit": "Update password",
+  "reset.submitting": "Saving...",
+  "reset.success": "Your password was updated. Please sign in again.",
+  "activate.title": "Activate account",
+  "activate.email": "Email",
+  "activate.token": "Verification token",
+  "activate.submit": "Activate account",
+  "activate.submitting": "Activating...",
+  "activate.success": "Your account has been activated. Please sign in.",
+  "mfa.title": "Two-factor authentication",
+  "mfa.description": "Enter the code from your authenticator app or use a recovery code.",
+  "mfa.code": "Verification code",
+  "mfa.recoveryCode": "Recovery code",
+  "mfa.useRecovery": "Use a recovery code",
+  "mfa.remember": "Trust this device",
+  "mfa.submit": "Continue",
+  "mfa.submitting": "Verifying...",
+  "mfa.tokenMissing": "The MFA challenge is no longer available. Please sign in again.",
+  "signedIn.goSecurity": "Go to account security",
+  "account.sidebarTitle": "Account",
+  "account.nav.overview": "Profile",
+  "account.nav.security": "Security",
+  "account.nav.privacy": "Privacy",
+  "account.overview.title": "Profile",
+  "account.overview.description": "Your self-service account dashboard.",
+  "account.security.title": "Security",
+  "account.security.description": "Manage account protections with dedicated security controls.",
+  "account.sessions.title": "Sign out all sessions",
+  "account.sessions.description": "Invalidate all active sessions except the current flow.",
+  "account.sessions.confirm": "Sign out all active sessions? You will need to sign in again on other devices.",
+  "account.sessions.submit": "Sign out all sessions",
+  "account.sessions.submitting": "Signing out...",
+  "account.events.title": "Recent login activity",
+  "account.events.description": "Review recent sign-ins and token issuances for your account.",
+  "account.events.empty": "No recent login history.",
+  "account.events.time": "Time (UTC)",
+  "account.events.result": "Result",
+  "account.events.client": "Client",
+  "account.events.ip": "IP",
+  "account.events.userAgent": "User agent",
+  "account.events.success": "Success",
+  "account.events.failed": "Failed",
+  "account.dropdown.aria": "Account menu",
+  "error.403.description": "You don’t have permission to access this page.",
+  "error.403.hint": "If you believe this is a mistake, contact an administrator.",
+  "error.404.description": "The requested resource was not found.",
+  "error.404.hint": "Check the URL or use the navigation to find what you need.",
+  "error.500.description": "Something went wrong on our side. Please try again.",
+  "error.500.hint": "If the issue persists, contact support and share the trace ID.",
+  "footer.copyright": "© {{year}} AstraId",
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.errorId": "Error ID",
+  "diagnostics.traceId": "Trace ID",
+  "diagnostics.exception": "Exception",
+  "diagnostics.request": "Request",
+  "diagnostics.innerException": "Inner exception",
+  "security.mfa": "MFA management",
+  "security.email": "Change email",
+  "security.password": "Change password",
+  "security.sessions": "Sign out all sessions",
+  "security.activity": "Recent login activity",
+  "security.mfa.description": "Set up, disable, and recover multi-factor authentication.",
+  "security.email.description": "Start a secured email change flow and confirm ownership.",
+  "security.password.description": "Update your password and refresh account protection.",
+  "security.sessions.description": "Invalidate sessions on every other device.",
+  "security.activity.description": "Review recent sign-in successes, failures, and logout events.",
+  "privacy.export": "Export my data",
+  "privacy.delete": "Request deletion",
 };
 
 const translations: Record<SupportedLocale, TranslationSet> = {
@@ -91,11 +147,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Žádné odpovídající jazyky",
     "auth.backToHome": "Zpět na hlavní stránku",
     "auth.backToHomeAria": "Zpět na hlavní stránku",
+    "auth.login.badge": "Autorizační portál",
+    "auth.register.badge": "Registrace účtu",
     "login.metaTitle": "AstraId | Přihlášení",
     "login.metaDescription": "Přihlaste se do AstraId a získejte bezpečný přístup ke svému účtu a podnikovým funkcím identity.",
     "login.cardTitle": "Přihlášení",
     "login.cardDescription": "Bezpečný přístup k vašemu účtu AstraId.",
-    "login.secureAccess": "Bezpečný přístup",
     "login.emailOrUsername": "E-mail nebo uživatelské jméno",
     "login.password": "Heslo",
     "login.forgotPassword": "Zapomenuté heslo?",
@@ -108,7 +165,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Vytvořte si nový účet AstraId se zabezpečenou registrací a ochranou na podnikové úrovni.",
     "register.cardTitle": "Vytvořit účet",
     "register.cardDescription": "Nastavte svůj účet AstraId.",
-    "register.enterpriseOnboarding": "Podnikové zřízení",
     "register.email": "E-mail",
     "register.password": "Heslo",
     "register.confirmPassword": "Potvrzení hesla",
@@ -130,11 +186,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Keine passenden Sprachen",
     "auth.backToHome": "Zur Startseite",
     "auth.backToHomeAria": "Zur Startseite",
+    "auth.login.badge": "Autorisierungsportal",
+    "auth.register.badge": "Konto registrieren",
     "login.metaTitle": "AstraId | Anmelden",
     "login.metaDescription": "Melden Sie sich bei AstraId an, um sicher auf Ihr Konto und auf unternehmensweite Identitätsfunktionen zuzugreifen.",
     "login.cardTitle": "Anmelden",
     "login.cardDescription": "Sicherer Zugriff auf Ihr AstraId-Konto.",
-    "login.secureAccess": "Sicherer Zugriff",
     "login.emailOrUsername": "E-Mail oder Benutzername",
     "login.password": "Passwort",
     "login.forgotPassword": "Passwort vergessen?",
@@ -147,7 +204,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Erstellen Sie ein neues AstraId-Konto mit sicherer Registrierung und Schutz auf Unternehmensniveau.",
     "register.cardTitle": "Konto erstellen",
     "register.cardDescription": "Richten Sie Ihr AstraId-Konto ein.",
-    "register.enterpriseOnboarding": "Unternehmens-Onboarding",
     "register.email": "E-Mail",
     "register.password": "Passwort",
     "register.confirmPassword": "Passwort bestätigen",
@@ -169,11 +225,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Brak pasujących języków",
     "auth.backToHome": "Powrót do strony głównej",
     "auth.backToHomeAria": "Powrót do strony głównej",
+    "auth.login.badge": "Portal autoryzacji",
+    "auth.register.badge": "Rejestracja konta",
     "login.metaTitle": "AstraId | Zaloguj się",
     "login.metaDescription": "Zaloguj się do AstraId, aby bezpiecznie uzyskać dostęp do konta i firmowych funkcji tożsamości.",
     "login.cardTitle": "Zaloguj się",
     "login.cardDescription": "Bezpieczny dostęp do konta AstraId.",
-    "login.secureAccess": "Bezpieczny dostęp",
     "login.emailOrUsername": "E-mail lub nazwa użytkownika",
     "login.password": "Hasło",
     "login.forgotPassword": "Nie pamiętasz hasła?",
@@ -186,7 +243,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Utwórz nowe konto AstraId z bezpieczną rejestracją i ochroną klasy korporacyjnej.",
     "register.cardTitle": "Utwórz konto",
     "register.cardDescription": "Skonfiguruj swoje konto AstraId.",
-    "register.enterpriseOnboarding": "Wdrożenie korporacyjne",
     "register.email": "E-mail",
     "register.password": "Hasło",
     "register.confirmPassword": "Potwierdź hasło",
@@ -208,11 +264,12 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "language.noResults": "Žiadne zodpovedajúce jazyky",
     "auth.backToHome": "Späť na hlavnú stránku",
     "auth.backToHomeAria": "Späť na hlavnú stránku",
+    "auth.login.badge": "Autorizačný portál",
+    "auth.register.badge": "Registrácia účtu",
     "login.metaTitle": "AstraId | Prihlásenie",
     "login.metaDescription": "Prihláste sa do AstraId a získajte bezpečný prístup k svojmu účtu a podnikovým funkciám identity.",
     "login.cardTitle": "Prihlásenie",
     "login.cardDescription": "Bezpečný prístup k vášmu účtu AstraId.",
-    "login.secureAccess": "Bezpečný prístup",
     "login.emailOrUsername": "E-mail alebo používateľské meno",
     "login.password": "Heslo",
     "login.forgotPassword": "Zabudnuté heslo?",
@@ -225,7 +282,6 @@ const translations: Record<SupportedLocale, TranslationSet> = {
     "register.metaDescription": "Vytvorte si nový účet AstraId so zabezpečenou registráciou a ochranou na podnikovej úrovni.",
     "register.cardTitle": "Vytvoriť účet",
     "register.cardDescription": "Nastavte si účet AstraId.",
-    "register.enterpriseOnboarding": "Podnikové zavedenie",
     "register.email": "E-mail",
     "register.password": "Heslo",
     "register.confirmPassword": "Potvrdenie hesla",

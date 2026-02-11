@@ -8,8 +8,10 @@ import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
 import { activateAccount } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const ActivateAccount = () => {
+  const { t } = useLanguage();
   const { status } = useAuthSession();
   const [params] = useSearchParams();
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
@@ -31,14 +33,14 @@ const ActivateAccount = () => {
 
     try {
       await activateAccount({ email, token });
-      setSuccess("Your account has been activated. Please sign in.");
+      setSuccess(t("activate.success"));
     } catch (err) {
       if (err && typeof err === "object" && "status" in err) {
         const appError = err as AppError;
         setError(appError);
         setFieldErrors(appError.fieldErrors ?? {});
       } else {
-        setError(new AppError({ status: 500, detail: "Unable to activate account." }));
+        setError(new AppError({ status: 500, detail: t("common.requestFailed") }));
       }
     } finally {
       setIsSubmitting(false);
@@ -48,7 +50,7 @@ const ActivateAccount = () => {
   if (status === "authenticated") {
     return (
       <SignedInInfo
-        title="Activate account"
+        title={t("activate.title")}
         message="You are already signed in. Account activation links are intended for email verification flows."
       />
     );
@@ -56,7 +58,7 @@ const ActivateAccount = () => {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <Card title="Activate account">
+      <Card title={t("activate.title")}>
         <form className="flex flex-col gap-4" onSubmit={handleActivate}>
           {error ? (
             <div className="flex flex-col gap-3">
@@ -71,7 +73,7 @@ const ActivateAccount = () => {
           ) : null}
           {success ? <Alert variant="success">{success}</Alert> : null}
           <label className="text-sm text-slate-200">
-            Email
+            {t("activate.email")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="email"
@@ -83,7 +85,7 @@ const ActivateAccount = () => {
             <FieldError message={fieldErrors.email?.[0]} />
           </label>
           <label className="text-sm text-slate-200">
-            Verification token
+            {t("activate.token")}
             <input
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
               type="text"
@@ -98,7 +100,7 @@ const ActivateAccount = () => {
             disabled={isSubmitting}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Activating..." : "Activate account"}
+            {isSubmitting ? t("activate.submitting") : t("activate.submit")}
           </button>
           {success ? (
             <div className="text-xs text-slate-400">

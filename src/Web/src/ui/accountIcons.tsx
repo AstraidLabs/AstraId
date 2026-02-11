@@ -109,24 +109,24 @@ export const accountIcons: Record<AccountIconKey, AccountIcon> = {
 };
 
 export const accountMenuItems = [
-  { key: "profile", label: "Dashboard", to: "/account", icon: accountIcons.profile },
-  { key: "security", label: "Security", to: "/account/security", icon: accountIcons.security },
-  { key: "mfa", label: "MFA", to: "/account/security/mfa", icon: accountIcons.mfa },
-  { key: "email", label: "Change email", to: "/account/security/email", icon: accountIcons.email },
-  { key: "password", label: "Change password", to: "/account/security/password", icon: accountIcons.password },
-  { key: "sessions", label: "Sign out everywhere", to: "/account/security/sessions", icon: accountIcons.sessions },
-  { key: "activity", label: "Recent logins", to: "/account/security/activity", icon: accountIcons.activity },
-  { key: "privacy", label: "Privacy", to: "/account/privacy", icon: accountIcons.privacy },
-  { key: "export", label: "Export my data", to: "/account/privacy", icon: accountIcons.export },
-  { key: "delete", label: "Request deletion", to: "/account/privacy", icon: accountIcons.delete }
+  { key: "profile", labelKey: "account.nav.overview", to: "/account", icon: accountIcons.profile },
+  { key: "security", labelKey: "account.nav.security", to: "/account/security", icon: accountIcons.security },
+  { key: "mfa", labelKey: "security.mfa", to: "/account/security/mfa", icon: accountIcons.mfa },
+  { key: "email", labelKey: "security.email", to: "/account/security/email", icon: accountIcons.email },
+  { key: "password", labelKey: "security.password", to: "/account/security/password", icon: accountIcons.password },
+  { key: "sessions", labelKey: "security.sessions", to: "/account/security/sessions", icon: accountIcons.sessions },
+  { key: "activity", labelKey: "security.activity", to: "/account/security/activity", icon: accountIcons.activity },
+  { key: "privacy", labelKey: "account.nav.privacy", to: "/account/privacy", icon: accountIcons.privacy },
+  { key: "export", labelKey: "privacy.export", to: "/account/privacy", icon: accountIcons.export },
+  { key: "delete", labelKey: "privacy.delete", to: "/account/privacy", icon: accountIcons.delete }
 ] as const;
 
 export const securityItems = [
-  { key: "mfa", label: "MFA management", to: "/account/security/mfa", description: "Set up, disable, and recover multi-factor authentication.", icon: accountIcons.mfa },
-  { key: "email", label: "Change email", to: "/account/security/email", description: "Start a secured email change flow and confirm ownership.", icon: accountIcons.email },
-  { key: "password", label: "Change password", to: "/account/security/password", description: "Update your password and refresh account protection.", icon: accountIcons.password },
-  { key: "sessions", label: "Sign out all sessions", to: "/account/security/sessions", description: "Invalidate sessions on every other device.", icon: accountIcons.sessions },
-  { key: "activity", label: "Recent login activity", to: "/account/security/activity", description: "Review recent sign-in successes, failures, and logout events.", icon: accountIcons.activity }
+  { key: "mfa", labelKey: "security.mfa", to: "/account/security/mfa", descriptionKey: "security.mfa.description", icon: accountIcons.mfa },
+  { key: "email", labelKey: "security.email", to: "/account/security/email", descriptionKey: "security.email.description", icon: accountIcons.email },
+  { key: "password", labelKey: "security.password", to: "/account/security/password", descriptionKey: "security.password.description", icon: accountIcons.password },
+  { key: "sessions", labelKey: "security.sessions", to: "/account/security/sessions", descriptionKey: "security.sessions.description", icon: accountIcons.sessions },
+  { key: "activity", labelKey: "security.activity", to: "/account/security/activity", descriptionKey: "security.activity.description", icon: accountIcons.activity }
 ] as const;
 
 export const accountCardIconClass = "h-5 w-5";

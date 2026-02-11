@@ -6,6 +6,7 @@ import { isAuthenticatedSession } from "../auth/sessionState";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import AccountDropdown from "./AccountDropdown";
 import LanguageSelector from "./LanguageSelector";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-3 py-1 text-sm transition ${
@@ -16,6 +17,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 const TopNav = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { session, status, refresh } = useAuthSession();
   const isAuthenticated = isAuthenticatedSession(status, session);
   const isAdmin = session?.permissions?.includes("system.admin") ?? false;
@@ -36,26 +38,16 @@ const TopNav = () => {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               AstraId
             </p>
-            <h1 className="text-xl font-semibold text-white">Public UI</h1>
+            <h1 className="text-xl font-semibold text-white">AstraId</h1>
           </div>
           <nav className="flex flex-wrap items-center gap-2" aria-label="Primary">
             <NavLink to="/" className={linkClass}>
-              Home
+              {t("common.home")}
             </NavLink>
             {status === "loading" ? (
               <span className="rounded-full border border-slate-800 px-3 py-1 text-sm text-slate-500">
-                Checking session…
+                {t("common.loadingSession")}
               </span>
-            ) : null}
-            {status === "anonymous" ? (
-              <>
-                <NavLink to="/login" className={linkClass}>
-                  Login
-                </NavLink>
-                <NavLink to="/register" className={linkClass}>
-                  Register
-                </NavLink>
-              </>
             ) : null}
             {isAuthenticated && isAdmin ? (
               adminIsExternal ? (
@@ -63,18 +55,18 @@ const TopNav = () => {
                   href={adminUrl}
                   className="rounded-full px-3 py-1 text-sm text-amber-200 transition hover:text-amber-50"
                 >
-                  Admin
+                  {t("common.admin")}
                 </a>
               ) : (
                 <NavLink to={adminUrl} className={linkClass}>
-                  Admin
+                  {t("common.admin")}
                 </NavLink>
               )
             ) : null}
           </nav>
           <div className="flex flex-wrap items-center gap-3">
             {status === "loading" ? (
-              <span className="text-sm text-slate-500">Checking session…</span>
+              <span className="text-sm text-slate-500">{t("common.loadingSession")}</span>
             ) : isAuthenticated && session ? (
               <>
                 <LanguageSelector authenticated compact />
