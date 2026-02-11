@@ -204,8 +204,6 @@ const Register = () => {
             {isSubmitting ? t("register.submitting") : t("register.submit")}
           </button>
 
-          <LanguagePillPopover value={locale} onChange={setLocale} />
-
           <Link
             to="/login"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950"
@@ -213,6 +211,10 @@ const Register = () => {
             <LogIn className="h-4 w-4" aria-hidden="true" />
             {t("register.signIn")}
           </Link>
+
+          <div className="mt-2">
+            <LanguagePillPopover value={locale} onChange={setLocale} fullWidth />
+          </div>
         </form>
       </Card>
     </main>
