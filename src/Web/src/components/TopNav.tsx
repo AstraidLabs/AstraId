@@ -44,6 +44,16 @@ const TopNav = () => {
             <NavLink to="/" className={linkClass}>
               {t("common.home")}
             </NavLink>
+            {status === "anonymous" ? (
+              <>
+                <NavLink to="/login" className={linkClass}>
+                  {t("common.login")}
+                </NavLink>
+                <NavLink to="/register" className={linkClass}>
+                  {t("common.register")}
+                </NavLink>
+              </>
+            ) : null}
             {status === "loading" ? (
               <span className="rounded-full border border-slate-800 px-3 py-1 text-sm text-slate-500">
                 {t("common.loadingSession")}
