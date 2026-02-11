@@ -186,8 +186,6 @@ const Login = () => {
             </div>
           </div>
 
-          <LanguagePillPopover value={locale} onChange={setLocale} />
-
           <button
             type="submit"
             disabled={isSubmitting}
@@ -204,6 +202,10 @@ const Login = () => {
             <UserPlus className="h-4 w-4" aria-hidden="true" />
             {t("login.createAccount")}
           </Link>
+
+          <div className="mt-6">
+            <LanguagePillPopover value={locale} onChange={setLocale} compact fullWidth />
+          </div>
         </form>
       </Card>
     </main>
