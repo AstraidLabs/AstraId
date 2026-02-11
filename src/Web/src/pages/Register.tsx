@@ -212,8 +212,8 @@ const Register = () => {
             {t("register.signIn")}
           </Link>
 
-          <div className="mt-2">
-            <LanguagePillPopover value={locale} onChange={setLocale} fullWidth />
+          <div className="mt-6">
+            <LanguagePillPopover value={locale} onChange={setLocale} compact fullWidth />
           </div>
         </form>
       </Card>
