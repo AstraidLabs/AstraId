@@ -92,7 +92,23 @@ public static class AuthServerDefinitions
             [
                 OpenIddictConstants.GrantTypes.AuthorizationCode,
                 OpenIddictConstants.GrantTypes.RefreshToken
-            ]
+            ],
+            ClientApplicationType = "web"
+        },
+        new OAuthClientDefinition
+        {
+            ClientId = "resource-api",
+            DisplayName = "Resource API",
+            Type = OpenIddictConstants.ClientTypes.Confidential,
+            RedirectUris = [],
+            PostLogoutRedirectUris = [],
+            Scopes = ["api"],
+            AllowedGrantTypes =
+            [
+                OpenIddictConstants.GrantTypes.ClientCredentials
+            ],
+            AllowIntrospection = true,
+            ClientApplicationType = "integration"
         }
     ];
 }

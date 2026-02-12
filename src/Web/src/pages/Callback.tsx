@@ -4,8 +4,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Alert from "../components/Alert";
 import Card from "../components/Card";
 import DiagnosticsPanel from "../components/DiagnosticsPanel";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const Callback = () => {
+  const { t } = useLanguage();
   const auth = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string>("");
@@ -19,27 +21,23 @@ const Callback = () => {
         await auth.signinRedirectCallback();
         navigate("/", { replace: true });
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : auth.error?.message ?? "We couldn’t complete the sign-in.";
-        setError(message);
+        setError(err instanceof Error ? err.message : auth.error?.message ?? t("callback.error"));
       }
     };
 
     void handleCallback();
-  }, [auth, navigate]);
+  }, [auth, navigate, t]);
 
   return (
     <div className="flex flex-col gap-6">
-      <Card title="Signing you in" description="Processing the OIDC callback.">
+      <Card title={t("callback.title")} description={t("callback.description")}>
         {error ? (
           <div className="flex flex-col gap-3">
             <Alert variant="error">{error}</Alert>
             <DiagnosticsPanel traceId={traceId} errorId={errorId} compact />
           </div>
         ) : (
-          <Alert variant="info">Completing sign-in...</Alert>
+          <Alert variant="info">{t("callback.progress")}</Alert>
         )}
       </Card>
     </div>

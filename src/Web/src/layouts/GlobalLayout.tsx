@@ -7,8 +7,8 @@ import { useLanguage } from "../i18n/LanguageProvider";
 const GlobalLayout = () => {
   const { t } = useLanguage();
   useDocumentMeta({
-    title: "AstraId | Secure Identity",
-    description: "AstraId secure identity portal for sign-in, account management, and access control."
+    title: t("common.metaTitle"),
+    description: t("common.metaDescription")
   });
 
   return (
@@ -16,7 +16,7 @@ const GlobalLayout = () => {
       <header>
         <TopNav />
       </header>
-      <main>
+      <main aria-label={t("common.main")}>
         <Container>
           <div className="py-10">
             <Outlet />

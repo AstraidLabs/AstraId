@@ -16,6 +16,7 @@ using AuthServer.Services.Tokens;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Security;
 using AuthServer.Services.Notifications;
+using AuthServer.Services.OpenIddict;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -77,6 +78,7 @@ builder.Services.AddControllers()
         };
     });
 builder.Services.AddRazorPages();
+builder.Services.AddAntiforgery();
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     options.DefaultRequestCulture = new RequestCulture(SupportedCultures.Default);
@@ -270,12 +272,15 @@ builder.Services.AddOpenIddict()
                .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
+               .SetIntrospectionEndpointUris("connect/introspect")
                .SetUserInfoEndpointUris("connect/userinfo")
                .SetEndSessionEndpointUris("connect/logout")
                .SetRevocationEndpointUris("connect/revocation");
 
         options.AllowAuthorizationCodeFlow()
-               .AllowRefreshTokenFlow();
+               .AllowRefreshTokenFlow()
+               .AllowClientCredentialsFlow()
+               .AllowPasswordFlow();
 
         options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
 
@@ -290,8 +295,19 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
                .EnableTokenEndpointPassthrough()
+               .EnableIntrospectionEndpointPassthrough()
                .EnableUserInfoEndpointPassthrough()
                .EnableEndSessionEndpointPassthrough();
+
+        options.AddEventHandler<OpenIddictServerEvents.ValidateIntrospectionRequestContext>(builder =>
+        {
+            builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateIntrospectionClientAsync);
+        });
+
+        options.AddEventHandler<OpenIddictServerEvents.ValidateRevocationRequestContext>(builder =>
+        {
+            builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateRevocationClientAsync);
+        });
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
@@ -309,6 +325,25 @@ var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Val
 ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
+if (app.Environment.IsProduction())
+{
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+        context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self';";
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 app.UseRequestLocalization();
 app.Use(async (context, next) =>
 {

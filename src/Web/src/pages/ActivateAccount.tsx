@@ -51,7 +51,7 @@ const ActivateAccount = () => {
     return (
       <SignedInInfo
         title={t("activate.title")}
-        message="You are already signed in. Account activation links are intended for email verification flows."
+        message={t("activate.alreadySignedIn")}
       />
     );
   }
@@ -105,7 +105,7 @@ const ActivateAccount = () => {
           {success ? (
             <div className="text-xs text-slate-400">
               <Link className="hover:text-slate-200" to="/login">
-                Back to sign in
+                {t("activate.backToSignIn")}
               </Link>
             </div>
           ) : null}

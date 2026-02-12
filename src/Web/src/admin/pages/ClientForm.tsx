@@ -39,6 +39,10 @@ type FormState = {
   enabled: boolean;
   grantTypes: string[];
   pkceRequired: boolean;
+  clientApplicationType: "web" | "mobile" | "desktop" | "integration";
+  allowIntrospection: boolean;
+  allowUserCredentials: boolean;
+  allowedScopesForPasswordGrant: string[];
   scopes: string[];
   redirectUrisText: string;
   postLogoutRedirectUrisText: string;
@@ -52,6 +56,9 @@ type FormErrors = {
   redirectUris?: string;
   postLogoutRedirectUris?: string;
   scopes?: string;
+  clientApplicationType?: string;
+  allowUserCredentials?: string;
+  allowedScopesForPasswordGrant?: string;
 };
 
 const defaultState: FormState = {
@@ -61,6 +68,10 @@ const defaultState: FormState = {
   enabled: true,
   grantTypes: ["authorization_code", "refresh_token"],
   pkceRequired: true,
+  clientApplicationType: "web",
+  allowIntrospection: false,
+  allowUserCredentials: false,
+  allowedScopesForPasswordGrant: [],
   scopes: [],
   redirectUrisText: "",
   postLogoutRedirectUrisText: "",
@@ -99,6 +110,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       { value: "authorization_code", label: "Authorization Code" },
       { value: "refresh_token", label: "Refresh Token" },
       { value: "client_credentials", label: "Client Credentials" },
+      { value: "password", label: "Password (Integrations only)" },
     ],
     []
   );
@@ -136,6 +148,10 @@ export default function ClientForm({ mode, clientId }: Props) {
           clientType: detail.defaults.clientType === "confidential" ? "confidential" : "public",
           pkceRequired: detail.defaults.pkceRequired,
           grantTypes: detail.defaults.grantTypes,
+          clientApplicationType: "web",
+          allowIntrospection: false,
+          allowUserCredentials: false,
+          allowedScopesForPasswordGrant: [],
           redirectUrisText: detail.defaults.redirectUris.join("\n"),
           postLogoutRedirectUrisText: detail.defaults.postLogoutRedirectUris.join("\n"),
           scopes: detail.defaults.scopes,
@@ -164,6 +180,10 @@ export default function ClientForm({ mode, clientId }: Props) {
           enabled: data.enabled,
           grantTypes: data.grantTypes,
           pkceRequired: data.pkceRequired,
+          clientApplicationType: (data.clientApplicationType as FormState["clientApplicationType"]) ?? "web",
+          allowIntrospection: data.allowIntrospection,
+          allowUserCredentials: data.allowUserCredentials,
+          allowedScopesForPasswordGrant: data.allowedScopesForPasswordGrant,
           scopes: data.scopes,
           redirectUrisText: data.redirectUris.join("\n"),
           postLogoutRedirectUrisText: data.postLogoutRedirectUris.join("\n"),
@@ -221,6 +241,18 @@ export default function ClientForm({ mode, clientId }: Props) {
       nextErrors.postLogoutRedirectUris = getRedirectErrorMessage(postLogoutResult.errors) ?? undefined;
     }
 
+    if (nextForm.allowUserCredentials) {
+      if (nextForm.clientType !== "confidential" || nextForm.clientApplicationType !== "integration") {
+        nextErrors.allowUserCredentials = "Password grant requires confidential integration client.";
+      }
+      if (!nextForm.grantTypes.includes("password")) {
+        nextErrors.grantTypes = "Password grant must be enabled when allowUserCredentials is selected.";
+      }
+      if (nextForm.allowedScopesForPasswordGrant.length === 0) {
+        nextErrors.allowedScopesForPasswordGrant = "Select at least one allowed scope for password grant.";
+      }
+    }
+
     setErrors(nextErrors);
     return nextErrors;
   };
@@ -242,6 +274,10 @@ export default function ClientForm({ mode, clientId }: Props) {
         enabled: form.enabled,
         grantTypes: form.grantTypes,
         pkceRequired: form.clientType === "public" ? form.pkceRequired : false,
+        clientApplicationType: form.clientApplicationType,
+        allowIntrospection: form.allowIntrospection,
+        allowUserCredentials: form.allowUserCredentials,
+        allowedScopesForPasswordGrant: form.allowedScopesForPasswordGrant,
         scopes: form.scopes,
         redirectUris: parseRedirectUris(form.redirectUrisText),
         postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
@@ -252,6 +288,10 @@ export default function ClientForm({ mode, clientId }: Props) {
           clientType: form.clientType,
           pkceRequired: form.pkceRequired,
           grantTypes: form.grantTypes,
+          clientApplicationType: form.clientApplicationType,
+          allowIntrospection: form.allowIntrospection,
+          allowUserCredentials: form.allowUserCredentials,
+          allowedScopesForPasswordGrant: form.allowedScopesForPasswordGrant,
           scopes: form.scopes,
           redirectUris: parseRedirectUris(form.redirectUrisText),
           postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
@@ -301,6 +341,9 @@ export default function ClientForm({ mode, clientId }: Props) {
           postLogoutRedirectUris: parsed.fieldErrors.postLogoutRedirectUris?.[0],
           scopes: parsed.fieldErrors.scopes?.[0],
           presetId: parsed.fieldErrors.presetId?.[0],
+          clientApplicationType: parsed.fieldErrors.clientApplicationType?.[0],
+          allowUserCredentials: parsed.fieldErrors.allowUserCredentials?.[0],
+          allowedScopesForPasswordGrant: parsed.fieldErrors.allowedScopesForPasswordGrant?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save client.");
         setFormDiagnostics(parsed.diagnostics);
@@ -487,6 +530,19 @@ export default function ClientForm({ mode, clientId }: Props) {
               Enabled
             </label>
           </Field>
+
+          <Field label="Client application type" error={errors.clientApplicationType}>
+            <select
+              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              value={form.clientApplicationType}
+              onChange={(event) => setForm((prev) => ({ ...prev, clientApplicationType: event.target.value as FormState["clientApplicationType"] }))}
+            >
+              <option value="web">Web</option>
+              <option value="mobile">Mobile</option>
+              <option value="desktop">Desktop</option>
+              <option value="integration">Integration</option>
+            </select>
+          </Field>
         </div>
       </section>
 
@@ -518,7 +574,7 @@ export default function ClientForm({ mode, clientId }: Props) {
                       grantTypes: validateGrantTypes(nextGrantTypes) ?? undefined,
                     }));
                   }}
-                  disabled={presetDetail?.lockedFields.includes("grantTypes") || (form.clientType === "public" && option.value === "client_credentials")}
+                  disabled={presetDetail?.lockedFields.includes("grantTypes") || (form.clientType === "public" && (option.value === "client_credentials" || option.value === "password"))}
                 />
                 {option.label}
               </label>
@@ -555,6 +611,32 @@ export default function ClientForm({ mode, clientId }: Props) {
             </label>
           </Field>
         )}
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <Field label="Allow introspection (RFC 7662)">
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                checked={form.allowIntrospection}
+                onChange={(event) => setForm((prev) => ({ ...prev, allowIntrospection: event.target.checked }))}
+              />
+              Allow /connect/introspect
+            </label>
+          </Field>
+
+          <Field label="Allow user credentials (password grant)" error={errors.allowUserCredentials}>
+            <label className="flex items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                checked={form.allowUserCredentials}
+                onChange={(event) => setForm((prev) => ({ ...prev, allowUserCredentials: event.target.checked }))}
+              />
+              Restricted integration-only password grant
+            </label>
+          </Field>
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
@@ -591,6 +673,35 @@ export default function ClientForm({ mode, clientId }: Props) {
             )}
           </div>
         </Field>
+
+        {form.allowUserCredentials && (
+          <Field
+            label="Allowed scopes for password grant"
+            hint="Requested scopes for password grant must be a subset of this list."
+            error={errors.allowedScopesForPasswordGrant}
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {scopes.map((scope) => (
+                <label key={`pwd-${scope.name}`} className="flex items-center gap-2 text-sm text-slate-200">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
+                    checked={form.allowedScopesForPasswordGrant.includes(scope.name)}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        allowedScopesForPasswordGrant: event.target.checked
+                          ? [...prev.allowedScopesForPasswordGrant, scope.name]
+                          : prev.allowedScopesForPasswordGrant.filter((item) => item !== scope.name),
+                      }))
+                    }
+                  />
+                  <span className="font-medium">{scope.name}</span>
+                </label>
+              ))}
+            </div>
+          </Field>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">

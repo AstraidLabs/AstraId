@@ -40,7 +40,7 @@ const TopNav = () => {
             </p>
             <h1 className="text-xl font-semibold text-white">AstraId</h1>
           </div>
-          <nav className="flex flex-wrap items-center gap-2" aria-label="Primary">
+          <nav className="flex flex-wrap items-center gap-2" aria-label={t("common.primaryNavigation")}>
             <NavLink to="/" className={linkClass}>
               {t("common.home")}
             </NavLink>

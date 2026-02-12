@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using AuthServer.Services.Admin;
 using AuthServer.Data;
 using AuthServer.Options;
 using Company.Auth.Contracts;
@@ -209,6 +210,12 @@ public sealed class AuthBootstrapHostedService : IHostedService
                 case OpenIddictConstants.GrantTypes.RefreshToken:
                     permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
                     break;
+                case OpenIddictConstants.GrantTypes.ClientCredentials:
+                    permissions.Add(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
+                    break;
+                case OpenIddictConstants.GrantTypes.Password:
+                    permissions.Add(OpenIddictConstants.Permissions.GrantTypes.Password);
+                    break;
             }
         }
 
@@ -216,6 +223,11 @@ public sealed class AuthBootstrapHostedService : IHostedService
             || client.AllowedGrantTypes.Contains(OpenIddictConstants.GrantTypes.RefreshToken))
         {
             permissions.Add(OpenIddictConstants.Permissions.Endpoints.Revocation);
+        }
+
+        if (client.AllowIntrospection)
+        {
+            permissions.Add(OpenIddictConstants.Permissions.Endpoints.Introspection);
         }
 
         foreach (var scope in client.Scopes)
@@ -277,6 +289,13 @@ public sealed class AuthBootstrapHostedService : IHostedService
                 ApplicationId = applicationId,
                 Enabled = true,
                 SystemManaged = true,
+                OverridesJson = JsonSerializer.Serialize(new
+                {
+                    clientApplicationType = ClientApplicationTypes.Web,
+                    allowIntrospection = false,
+                    allowUserCredentials = false,
+                    allowedScopesForPasswordGrant = Array.Empty<string>()
+                }),
                 UpdatedUtc = now
             });
         }

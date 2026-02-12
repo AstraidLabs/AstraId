@@ -1,178 +1,144 @@
-# AstraId ✨
+# AstraId
 
-AstraId je demonstrační řešení OAuth2/OIDC postavené na OpenIddict + ASP.NET Core Identity. Obsahuje autorizační server, chráněné API a React SPA (public + admin UI). Implementace vychází výhradně z aktuálního kódu a konfigurace v repozitáři.
+Authorization and identity server solution built on ASP.NET Identity, OpenIddict, and a React admin/user UI.
 
----
+## Introduction
 
-## Proč AstraId (k čemu je)
+AstraId is a repository containing:
+- **AuthServer** (`src/AuthServer`): authentication, user lifecycle, OIDC server endpoints, and admin APIs.
+- **Api** (`src/Api`): protected sample API using token validation and permission checks.
+- **Web** (`src/Web`): React + Vite frontend for user and admin routes.
+- **Company.Auth.Contracts** (`src/Company.Auth.Contracts`): shared auth constants and contracts.
+- **Company.Auth.Api** (`src/Company.Auth.Api`): reusable API auth wiring for token validation/policies.
 
-AstraId slouží jako **centrální Identity + OIDC provider** pro více aplikací (SPA, API, serverové aplikace) v rámci jednoho issueru. V praxi přináší jednotné přihlášení (SSO v rámci stejného issueru/originu), jednotné tokeny/claims a centralizovanou správu klientů, scopes/resources, uživatelů, rolí a permissions přes AuthServer + admin UI/API. Aktuálně podporované OIDC endpointy jsou `/.well-known/openid-configuration`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation` a vlastní auth API `/auth/*` (login/registrace/aktivace/reset/session).
+It is intended for developers building applications that need OIDC/OAuth2 authentication plus first-party account management and an admin surface.
 
-### Výhody
+## What it does (Description)
 
-**Technické**
-- OIDC/OAuth2 standard s **Authorization Code + PKCE** (server povoluje pouze authorization_code + refresh_token).
-- Centralizovaný issuer (`AuthServer:Issuer`) a jednotná validace tokenů v API přes `AddCompanyAuth` (OpenIddict Validation).
-- Permission‑based autorizace přes claim `permission` a policy (např. `system.admin`) napříč službami.
-- Admin audit log změn (admin API `/admin/api/audit`).
-- Automatické migrace + seedování scopes/clients/permissions/admin účtu při startu AuthServeru (AuthBootstrapHostedService + AuthServerDefinitions).
+- Runs an OpenIddict server with discovery, JWKS, authorize, token, introspection, userinfo, end-session, and revocation endpoint URIs.
+- Supports ASP.NET Identity-backed user authentication, registration, activation, password reset, and account session checks.
+- Supports MFA flows (status, setup, confirm, recovery code regeneration, disable, MFA login challenge completion).
+- Exposes self-service account APIs for password change, email change flow, sign out all sessions, security event listing, export, and deletion request/cancel.
+- Provides admin APIs for OIDC clients/scopes/resources, API resources/endpoints, users, roles, permissions, diagnostics, audits, signing keys, token/security policies, revocation, lifecycle/privacy policies, and email outbox.
+- Hosts admin static assets under `/admin` from `wwwroot/admin-ui` when built assets are present.
+- Applies token policy settings (access/identity/refresh lifetimes and clock skew) through governance services and OpenIddict options configuration.
+- Implements refresh-token reuse detection/remediation and incident logging for suspicious token events.
+- Provides a protected API sample that validates bearer tokens with OpenIddict validation and applies permission checks, including a policy-map refresh from AuthServer.
 
-**Praktické / uživatelské**
-- Jeden účet pro více aplikací a jednotné přihlášení přes `/connect/authorize` + společný issuer.
-- Konzistentní login/register/recovery UX přes `/auth/*` + UI režim `Separate/Hosted` (UiMode + UiBaseUrl).
-- Centralizovaná správa přístupů (role/permissions) bez zásahů do každé aplikace – permission claimy se vystavují do tokenu i session odpovědi.
+## Key Features
 
-**Byznysové**
-- Rychlejší onboarding nové aplikace: přidáte klienta, scopes a redirect URI v admin UI/API a použijete jednotný issuer/scopes/audience v klientovi + API.
-- Jednotné řízení přístupů a compliance (centralizované audit logy admin změn).
-- Nižší náklady na údržbu auth logiky v každé aplikaci díky sdíleným helperům a jednotnému standardu.
+### Authentication & user lifecycle
+- `/auth` endpoints for login, register, activate, resend activation, forgot/reset password, logout, and session checks.
+- MFA endpoints under `/auth/mfa/*` for setup and operation.
+- Authenticated self-service endpoints for profile, password/email change, session revocation, security events, and privacy/deletion workflows.
+- Cookie auth for first-party flows (`AstraId.Auth`) with `HttpOnly`, `SameSite=None`, and `SecurePolicy=Always`.
 
-### Kdy AstraId použít
-- Máte více aplikací (SPA, API, admin portály), které musí sdílet identitu a jednotné tokeny/claims.
-- Přístupy/role/permissions se často mění a potřebujete je řídit centrálně přes admin UI/API.
-- Chcete konzistentní OIDC flow (Authorization Code + PKCE) napříč klienty.
+### OIDC/OAuth2
+- OpenIddict endpoint URIs configured for:
+  - `/.well-known/openid-configuration`
+  - `/.well-known/jwks`
+  - `/connect/authorize`
+  - `/connect/token`
+  - `/connect/userinfo`
+  - `/connect/logout`
+  - `/connect/revocation`
+- Server flow enablement in OpenIddict configuration: **authorization_code**, **refresh_token**, and restricted **password** (integration-only via server-side policy gates).
+- `client_credentials` and `password` grant handling are both enforced by OpenIddict + runtime client policy checks.
 
-### Limity a co to není
-- **Grant types**: server povoluje pouze `authorization_code` a `refresh_token` (žádný `client_credentials`, `password`, `implicit`).
-- **Externí identity/federace**: aktuálně v repu nevidím integraci s Google/Microsoft nebo jinými IdP (žádné externí sign-in provider konfigurace v AuthServer).
-- **Multi‑tenant model**: existuje claim `tenant`, ale v kódu nevidím skutečný tenant model ani tenant‑aware autorizaci (aktuálně je to limit).
-- **Key management**: v dev se používají development certifikáty; v produkci musíte dodat signing/encryption certy – UI pro rotaci signing keys aktuálně nevidím.
-- **SSO jen v rámci stejného issueru/originu** (cookie‑based session); cross‑domain SSO bez sdíleného issueru zde není řešené. Cookie je `SameSite=None; Secure` a vyžaduje HTTPS + správné CORS/credentials nastavení.
-- **SPOF riziko**: AuthServer je centrální bod, bez HA/monitoringu je výpadek kritický (potřeba řešit dostupnost v nasazení).
+### Admin & governance
+- Admin APIs under `/admin/api/*` protected by `AdminOnly` policy.
+- `AdminOnly` policy requires `Admin` role and enforces `system.admin` permission when permission claims are present.
+- Signing key ring, rotation worker, and admin key management APIs exist (including JWKS rollover-oriented handling with active/previous keys).
+- Token/security policy APIs exist with governance guardrails.
+- Audit and diagnostics APIs exist; error logs can be stored and cleaned up by hosted services.
 
-### Jak musí být aplikace připravena (checklist)
+### API integration
+- `Api` project validates tokens using `AddCompanyAuth` (OpenIddict validation, issuer + audience).
+- Permission checks are enforced via policies and endpoint authorization middleware.
+- Policy map is refreshed from AuthServer admin endpoint using API key auth.
 
-**1) SPA klient (React/Vite)**
-- ✅ Umí Authorization Code + PKCE (react-oidc-context / oidc-client-ts).
-- ✅ Nastaví `redirect_uri` a `post_logout_redirect_uri` (např. `http://localhost:5173/auth/callback`).
-- ✅ Pracuje se scopes `openid profile email offline_access api` (nebo dle adminu).
-- ✅ Pro cookie‑based session volá `/auth/session` s `credentials: "include"` (SSO v rámci issueru).
-- ✅ Token ukládá bezpečně (aktuálně Web používá `sessionStorage`).
 
-**2) Backend API**
-- ✅ Validuje JWT proti issueru pomocí OpenIddict Validation (`AddCompanyAuth`).
-- ✅ Nastaví audience (v repo default `api`).
-- ✅ Vynucuje policies s permission claimem `permission` (např. `system.admin`).
-- ✅ Swagger OAuth2 nastavený na Authorization Code + PKCE (pokud používáte Swagger UI).
+### Token Introspection (RFC 7662)
 
-**3) Server aplikace (confidential client)**
-- ✅ Pokud chcete confidential klienta, musí mít `client_secret` (spravuje admin UI/API).
-- ✅ Secret drží bezpečně (user-secrets/KeyVault/env) – v repo není automatizované uložení secretů.
-- ⚠️ Pozn.: server aktuálně nepovoluje `client_credentials`, takže typické M2M scénáře je potřeba řešit jinak nebo rozšířit konfiguraci serveru.
+- Introspection endpoint is exposed at `/connect/introspect` and handled by OpenIddict server pipeline.
+- Only confidential clients can introspect, and each client must be explicitly allowed (`allowIntrospection=true`).
+- Admin UI/client config supports the introspection flag.
 
-### Typický integrační postup
-1) **V admin UI/API vytvořit API resource** (`/admin/api/api-resources`).
-2) **V admin UI/API vytvořit scopes** a přiřadit je resource (`/admin/api/oidc/scopes`, `/admin/api/oidc/resources`).
-3) **V admin UI/API vytvořit clienta** (public/confidential), nastavit grant types, redirect URI a scopes (`/admin/api/clients`).
-4) **V klientovi nastavit** `authority/issuer`, `client_id`, `redirect_uri`, `scopes` (SPA: Authorization Code + PKCE).
-5) **V API nastavit** issuer/audience a permission policies (`AddCompanyAuth`, `RequirePermission`).
-6) **Ověřit flow**: `/connect/authorize` → `/connect/token` → volání API s bearer tokenem → `/connect/userinfo`.
+Example: obtain an access token (client credentials)
 
-## 📁 Struktura repozitáře
+```bash
+curl -u resource-api:<client-secret> \
+  -X POST https://localhost:7001/connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&scope=api"
+```
 
-- `src/AuthServer` – OpenIddict autorizační server s Identity, admin API a hostováním admin UI (pokud je build k dispozici).
-- `src/Api` – chráněné API se Swaggerem a OAuth2 konfigurací pro authorization code + PKCE.
-- `src/Web` – React SPA (Vite) pro public UI i admin UI (build:admin).
-- `src/Company.Auth.Contracts` – sdílené konstanty a definice clientů/scopů/permissions.
-- `src/Company.Auth.Api` – sdílené rozšíření pro OpenIddict validation a permission policies v API.
+Example: introspect with `client_secret_basic`
 
----
+```bash
+curl -u resource-api:<client-secret> \
+  -X POST https://localhost:7001/connect/introspect \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=<access-token>"
+```
 
-## ✅ Funkcionality (stručně)
+### Password Grant (Integrations only)
 
-- **AuthServer**: OIDC endpoints (`/.well-known/openid-configuration`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation`) a vlastní auth API `/auth/*` (login/registrace/aktivace/reset/MFA).
-- **Admin UI + Admin API**: admin UI pod `/admin` (pokud existuje build) a admin API pod `/admin/api/*` (clients, roles, permissions, users, audit, OIDC scopes/resources).
-- **Api**: chráněné endpointy `/api/*`, veřejný `/api/public`, admin `/api/admin/ping` a healthcheck `/health` s CORS pro Web SPA.
-- **Seeding/migrace**: při startu AuthServer provede `Database.Migrate()` a synchronizuje permissions, scopes, clients a admin účet podle `AuthServerDefinitions` + `BootstrapAdmin`.
-- **Company.Auth.***: sdílené konstanty (issuer, scopes, claim types) a helpery pro autorizaci v API.
+> ⚠️ Security warning: password grant is disabled-by-default and only allowed for trusted confidential integration clients.
 
----
+Server-side gates:
+- client must be confidential
+- `clientApplicationType` must be `integration`
+- `allowUserCredentials` must be `true`
+- grant type `password` must be permitted for that client
+- requested scopes must be subset of `allowedScopesForPasswordGrant`
+- ASP.NET Identity password validation uses lockout-on-failure and blocks unconfirmed/2FA-required accounts
 
-## 🧰 Prerekvizity
+Example:
 
-- **.NET SDK**: repo neobsahuje `global.json`; projekty cílí na `net10.0` (potřebujete kompatibilní SDK).
-- **Node.js + npm**: nutné pro build a běh SPA v `src/Web` (Vite).
-- **PostgreSQL**: EF Core provider je Npgsql (connection string v `appsettings*.json`).
-- (volitelné) **SMTP server** pro e-maily; v dev se defaultuje na `localhost:2525` (např. smtp4dev).
+```bash
+curl -u integration-client:<client-secret> \
+  -X POST https://localhost:7001/connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=<password>&scope=openid profile api"
+```
 
----
+### Manual verification checklist
 
-## 🔐 MFA (TOTP / 2FA)
+1. Obtain token via `client_credentials` for a valid confidential client.
+2. Introspect token using a client with `allowIntrospection=true` => response contains `"active": true`.
+3. Introspect using a client without introspection permission => `unauthorized_client`.
+4. Request password grant with permitted integration client + allowed scopes => token response succeeds.
+5. Request password grant with non-integration or disallowed client => `unauthorized_client`.
 
-AstraId podporuje **TOTP MFA** přes ASP.NET Identity. MFA je řešené jako API v AuthServeru a UI v React (public web). Klíčové vlastnosti:
+## Prerequisites
 
-- Uživatel si může MFA zapnout/vypnout.
-- Přihlášení vyžaduje MFA kód nebo recovery code, pokud má MFA aktivní.
-- MFA flow funguje i při `/connect/authorize` (returnUrl pokračuje po ověření).
-- Recovery codes se zobrazují pouze jednou a je nutné je bezpečně uložit.
+- **.NET SDK** compatible with `net10.0` (AuthServer and Api target `net10.0`).
+- **Node.js + npm** (for `src/Web` Vite frontend).
+- **PostgreSQL** (AuthServer uses `Npgsql.EntityFrameworkCore.PostgreSQL`).
 
-### API endpointy
+## Installation (local development)
 
-**Přihlášení**
-- `POST /auth/login` → při MFA vrací `{ requiresTwoFactor: true, mfaToken, redirectTo }`.
-- `POST /auth/login/mfa` → dokončení MFA challenge.
-
-**Správa MFA (vyžaduje auth cookie)**
-- `GET /auth/mfa/status`
-- `POST /auth/mfa/setup/start` → shared key + QR (SVG)
-- `POST /auth/mfa/setup/confirm` → aktivace + recovery codes
-- `POST /auth/mfa/recovery-codes/regenerate`
-- `POST /auth/mfa/disable`
-
-### Zapnutí MFA (rychlý postup)
-1. Přihlaste se do public UI (`/login`).
-2. Otevřete **Account → Security** (`/account/security`).
-3. Spusťte nastavení MFA → naskenujte QR v authenticator aplikaci.
-4. Potvrďte kód, uložte recovery codes.
-
-### Ověření flow (manuálně)
-1. Registrace → login bez MFA.
-2. Zapnutí MFA (setup + confirm).
-3. Logout.
-4. Login → vyžádán MFA challenge.
-5. Login přes recovery code.
-6. Regenerace recovery codes.
-7. Disable MFA.
-
-### Bezpečnostní poznámky
-- MFA challenge token je krátkodobý (5 min) a jednorázový.
-- MFA kódy/recovery codes se nelogují.
-- Rate limiting chrání `/auth/login` a `/auth/login/mfa`.
-
-## 🚀 Instalace a spuštění (krok za krokem)
-
-### 1) Restore
+1. Restore/build .NET projects:
 
 ```bash
 dotnet restore
+dotnet build
 ```
 
-### 2) Nastavení databáze (PostgreSQL)
-
-Connection string je v:
-- `src/AuthServer/appsettings.json` / `appsettings.Development.json` (`ConnectionStrings:DefaultConnection`).
-
-Pokud používáte user-secrets, přepište stejný klíč `ConnectionStrings:DefaultConnection` v secrets.
-
-### 3) Migrace / update DB
-
-AuthServer migruje DB automaticky při startu. Ruční migrace:
+2. Run AuthServer (launch profile uses HTTPS 7001):
 
 ```bash
-dotnet ef database update --project src/AuthServer --startup-project src/AuthServer
-```
-
-### 4) Spuštění služeb
-
-```bash
-# AuthServer (https://localhost:7001)
 dotnet run --project src/AuthServer --launch-profile AuthServer
+```
 
-# Api (https://localhost:7002)
+3. Run Api (launch profile uses HTTPS 7002):
+
+```bash
 dotnet run --project src/Api --launch-profile Api
 ```
 
-Web SPA:
+4. Run Web (Vite dev server on port 5173):
 
 ```bash
 cd src/Web
@@ -180,139 +146,134 @@ npm install
 npm run dev
 ```
 
-**Admin entry (DEV vs PROD)**
-- **DEV (Vite)**: Admin UI běží v rámci SPA na `http://localhost:5173/admin` a používá client‑side routing. Není nutné buildovat/copy admin bundle do AuthServeru.
-- **PROD (AuthServer hostované)**: Admin UI je servováno AuthServerem pod `/admin` (build + kopie do `src/AuthServer/wwwroot/admin-ui`).
-- **VITE_ADMIN_ENTRY_URL**:
-  - DEV příklad: `VITE_ADMIN_ENTRY_URL=http://localhost:5173/admin`
-  - PROD příklad (jiný host): `VITE_ADMIN_ENTRY_URL=https://<authserver-host>/admin`
-  - Pokud není nastaveno, Web UI použije relativní `/admin` (vhodné pro stejného hosta).
+Default local dev URLs:
+- AuthServer: `https://localhost:7001`
+- Api: `https://localhost:7002`
+- Web: `http://localhost:5173`
 
-> 🧩 **Admin UI build**: `dotnet build src/AuthServer` spustí `npm ci` + `npm run build:admin` a zkopíruje build do `src/AuthServer/wwwroot/admin-ui`.
-> Admin UI pak běží na `https://localhost:7001/admin`.
+## Configuration
 
----
+### Configuration overview
 
-## ⚙️ Konfigurace
+#### AuthServer (`src/AuthServer/appsettings*.json`)
+- `ConnectionStrings:DefaultConnection`
+- `AuthServer:Issuer`
+- `AuthServer:UiMode`, `AuthServer:UiBaseUrl`, `AuthServer:HostedUiPath`
+- `AuthServer:Certificates:*` (encryption/signing certificate descriptors)
+- `AuthServer:SigningKeys:*`
+- `AuthServer:KeyRotationDefaults:*`
+- `AuthServer:Tokens:*`
+- `AuthServer:TokenPolicyDefaults:*`
+- `AuthServer:GovernanceGuardrails:*`
+- `AuthServer:DataProtection:*`
+- `Cors:AllowedOrigins`
+- `Email:*`
+- `Diagnostics:*`
+- `BootstrapAdmin:*`
 
-### AuthServer
+Example (placeholders only):
 
-- **Issuer**: `AuthServer:Issuer` (musí být absolutní URL, v produkci HTTPS).
-- **UI režim**: `AuthServer:UiMode` = `Separate` nebo `Hosted`. `UiBaseUrl` je pro separátní SPA (`http://localhost:5173`).
-- **CORS**: `Cors:AllowedOrigins` (aktuálně `http://localhost:5173`).
-- **Email** (SMTP): viz `Email:*` (Mode/From/Smtp) a validace v runtime; v dev se doplní defaulty pokud chybí.
-- **Bootstrap admin**: `BootstrapAdmin` (Enabled, Email, Password, RoleName...).
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=astra;Username=<user>;Password=<password>"
+  },
+  "AuthServer": {
+    "Issuer": "https://localhost:7001/",
+    "UiMode": "Separate",
+    "UiBaseUrl": "http://localhost:5173",
+    "SigningKeys": {
+      "Mode": "Auto",
+      "RotationIntervalDays": 30,
+      "PreviousKeyRetentionDays": 14
+    },
+    "TokenPolicyDefaults": {
+      "AccessTokenMinutes": 30,
+      "IdentityTokenMinutes": 15,
+      "RefreshTokenDays": 30,
+      "ClockSkewSeconds": 60
+    }
+  },
+  "Email": {
+    "FromEmail": "no-reply@example.com",
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "Username": "<smtp-user>",
+      "Password": "<smtp-password>"
+    }
+  },
+  "Cors": {
+    "AllowedOrigins": ["http://localhost:5173"]
+  }
+}
+```
 
-### Api
+#### Api (`src/Api/appsettings*.json`)
+- `Auth:Issuer`, `Auth:Audience`, `Auth:Scopes`
+- `Api:AuthServer:*` (policy-map source)
+- `Services:AuthServer:*`, `Services:Cms:*`
+- `Http:*`
+- `Swagger:OAuthClientId`
 
-- **Auth**: `Auth:Issuer`, `Auth:Audience`, `Auth:Scopes`.
-- **Swagger OAuth**: `Swagger:OAuthClientId` (default `web-spa`).
-- **CORS**: API povoluje `http://localhost:5173` (hard-coded v `Program.cs`).
+Example:
 
-### Web (Vite env)
+```json
+{
+  "Auth": {
+    "Issuer": "https://localhost:7001/",
+    "Audience": "api",
+    "Scopes": ["api"]
+  },
+  "Api": {
+    "AuthServer": {
+      "BaseUrl": "https://localhost:7001",
+      "ApiName": "api",
+      "ApiKey": "<api-key>",
+      "RefreshMinutes": 5
+    }
+  }
+}
+```
 
-V repo je pouze `.env.example`. **TODO: vytvořte `.env` s odpovídajícími hodnotami pro vaše prostředí** (nebo se spolehněte na defaulty v kódu).
+#### Web (`src/Web/.env.example`)
+- `VITE_API_BASE_URL`
+- `VITE_AUTHSERVER_BASE_URL`
+- `VITE_AUTH_AUTHORITY`
+- `VITE_AUTH_CLIENT_ID`
+- `VITE_AUTH_REDIRECT_URI`
+- `VITE_AUTH_POST_LOGOUT_REDIRECT_URI`
+- `VITE_AUTH_SCOPE`
+- `VITE_ADMIN_ENTRY_URL`
 
-Používané proměnné:
+## AstraId vs Duende (Truthful comparison)
 
-- `VITE_API_BASE_URL` (default `https://localhost:7002`).
-- `VITE_AUTHSERVER_BASE_URL` (default `https://localhost:7001`).
-- `VITE_AUTH_AUTHORITY`, `VITE_AUTH_CLIENT_ID`, `VITE_AUTH_REDIRECT_URI`, `VITE_AUTH_POST_LOGOUT_REDIRECT_URI`, `VITE_AUTH_SCOPE`.
-- volitelné: `VITE_ADMIN_API_BASE_URL` (jinak použije `VITE_AUTHSERVER_BASE_URL`).
-- Vite runtime parametry pro build (`VITE_BASE`, `VITE_OUT_DIR`, `VITE_ROUTER_BASE`) jsou použity ve `build` skriptech a `vite.config.ts`.
+- AstraId implements OIDC discovery/JWKS/authorize/token/userinfo/logout/revocation endpoint wiring in code. Duende typically provides OIDC/OAuth endpoint infrastructure as part of a commercial identity server offering.
+- AstraId implements authorization code + refresh flows in OpenIddict server setup. Duende typically supports core OAuth2/OIDC flows with configurable clients/scopes.
+- AstraId has refresh-token reuse detection and remediation logic (including token/authorization revocation and incident logging). Duende enterprise offerings typically include advanced token/security controls.
+- AstraId has an admin API/UI surface for clients, scopes, resources, users, roles, and permissions. Duende typically provides admin/operational tooling via ecosystem and commercial components.
+- AstraId includes signing key ring and rotation workers with active/previous key handling for JWKS rollover. Duende typically includes key management options in enterprise deployments.
+- AstraId includes diagnostics and audit APIs backed by persisted logs. Duende deployments typically include operational observability options via platform integrations.
+- AstraId includes first-party account lifecycle APIs (registration, activation, password reset, MFA, sessions). Duende is generally protocol-focused and commonly paired with custom account UX.
+- AstraId includes a sample protected API that validates tokens and enforces permission mapping. Duende commonly integrates with APIs via standards-based token validation.
 
----
+## What AstraId is NOT
 
-## 🔐 OIDC klient (napojení SPA)
+- Not a CMS platform.
+- Not a hosted multi-tenant identity SaaS product in this repository.
+- Not a full federation hub for external identity providers (no external IdP federation implementation found).
+- Not a full replacement for all Duende enterprise capabilities out of the box.
+- **Not implemented:** explicit consent UI/persisted consent flow.
 
-### Jak vytvořit klienta
+## Security notes
 
-- **Seeding**: `AuthServerDefinitions` obsahuje klienta `web-spa` s redirect URI `http://localhost:5173/auth/callback`, PKCE a scope `openid profile email offline_access api`. Spouští se při startu AuthServeru (s migracemi).
-- **Admin UI**: můžete spravovat klienty přes `/admin` a `/admin/api/clients` (vyžaduje policy `AdminOnly`).
+- In production, AuthServer startup enforces HTTPS for `AuthServer:Issuer`.
+- Auth cookie settings are explicitly hardened (`HttpOnly`, `SecurePolicy=Always`, `SameSite=None`).
+- Token policy defaults include access/identity/refresh lifetimes and clock skew configuration.
+- Refresh token rotation/reuse detection settings are configurable and checked during refresh exchanges.
+- Signing keys can be certificate-based or DB key-ring based (mode-resolved), with hosted rotation checks and key retention/grace handling.
+- Data Protection keys can be persisted to filesystem and optionally set read-only.
 
-### Nastavení redirect URI, scopes, PKCE
+## License
 
-- **Redirect URI**: např. `http://localhost:5173/auth/callback` (seeding).
-- **Scopes**: `openid profile email offline_access api` (seeding i Web `.env.example`).
-- **PKCE**: public client používá authorization code + PKCE (v OpenIddict nastavuje requirements).
-
-### Ověření flow
-
-1. Získejte authorization code přes `https://localhost:7001/connect/authorize`.
-2. Vyměňte code za token přes `https://localhost:7001/connect/token`.
-3. Zavolejte chráněné API `GET https://localhost:7002/api/me` s access tokenem.
-
----
-
-## 🌐 Základní URL přehled
-
-- **AuthServer**: `https://localhost:7001` (launch profile).
-- **Api**: `https://localhost:7002` (launch profile).
-- **Web (public UI)**: `http://localhost:5173` (Vite dev server).
-- **Admin UI**: `https://localhost:7001/admin` (statika ze `wwwroot/admin-ui`, pokud je build).
-
----
-
-## 🔎 Endpointy a flow (výběr)
-
-### AuthServer
-
-- OIDC endpoints: `/.well-known/openid-configuration`, `/.well-known/jwks`, `/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation`.
-- Auth API (`/auth/*`):
-  - `POST /auth/login`
-  - `POST /auth/register`
-  - `POST /auth/forgot-password`
-  - `POST /auth/reset-password`
-  - `POST /auth/resend-activation`
-  - `POST /auth/activate`
-  - `POST /auth/logout`
-  - `GET /auth/session`
-- Admin API (`/admin/api/*`):
-  - `/admin/api/clients`
-  - `/admin/api/roles`
-  - `/admin/api/permissions`
-  - `/admin/api/users`
-  - `/admin/api/me`
-  - `/admin/api/audit`
-  - `/admin/api/oidc/scopes`
-  - `/admin/api/oidc/resources`
-  - `/admin/api/api-resources`
-- Admin ping: `GET /admin/ping` (policy `AdminOnly`).
-
-### Api
-
-- `GET /health` (healthcheck).
-- `GET /api/public` (anonymous).
-- `GET /api/me` (authenticated).
-- `GET /api/admin/ping` (policy `RequireSystemAdmin`).
-- `GET /api/integrations/authserver/ping` a `/api/integrations/cms/ping` (admin).
-
----
-
-## 🧯 Troubleshooting
-
-- **EF Core tools vs runtime**: projekty používají EF Core 10.0.x (Design/Identity) a Npgsql 10.0.0; použijte kompatibilní `dotnet-ef` verzi (10.0.x).
-- **Issuer musí být absolutní URL** a v produkci HTTPS, jinak aplikace spadne při startu.
-- **Email konfigurace**: v produkci musí být vyplněné `Email:FromEmail`, `Email:Smtp:Host`, `Email:Smtp:Port` (jinak start selže).
-- **CORS/cookies**: AuthServer používá cookie `SameSite=None` a `Secure` (HTTPS); pokud UI běží separátně, povolte origin v `Cors:AllowedOrigins` a používejte HTTPS na AuthServeru.
-
-## GDPR privacy and retention
-
-AuthServer now includes GDPR self-service and governance endpoints:
-
-- `GET /account/export` – authenticated data export (JSON).
-- `POST /account/deletion/request` – submit deletion request with cooldown.
-- `POST /account/deletion/cancel` – cancel during cooldown.
-- `POST /account/sessions/revoke-all` – revoke all sessions/tokens.
-- `GET/PUT /admin/api/security/privacy-policy` – manage retention and deletion policy.
-- `GET /admin/api/security/deletion-requests` and `POST /admin/api/security/deletion-requests/{id}/{approve|execute|cancel}` – govern deletion requests.
-
-Retention/deletion automation:
-
-- `RetentionCleanupService` runs daily and applies configured retention windows.
-- `DeletionExecutorService` runs every 30 minutes and executes matured deletion requests.
-
-Security notes:
-
-- Export and login history flows intentionally omit secrets (password hashes, MFA shared secrets, recovery codes, private key material).
-- User-linked logs use nullable relationships so anonymization preserves diagnostics and audit integrity.
+No `LICENSE` file is currently present in this repository.

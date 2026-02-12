@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AuthServer.Data;
 using AuthServer.Services.Admin;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +63,24 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
             return (false, OpenIddictConstants.Errors.UnauthorizedClient, "The client is not allowed to use this grant_type.", "RULE_GRANT_NOT_ALLOWED");
         }
 
+        if (string.Equals(request.GrantType, OpenIddictConstants.GrantTypes.Password, StringComparison.Ordinal)
+            && (!policy.IsConfidential
+                || !policy.AllowUserCredentials
+                || !string.Equals(policy.ClientApplicationType, ClientApplicationTypes.Integration, StringComparison.OrdinalIgnoreCase)))
+        {
+            return (false, OpenIddictConstants.Errors.UnauthorizedClient, "The client is not allowed to use password grant.", "RULE_PASSWORD_RESTRICTED");
+        }
+
+        if (string.Equals(request.GrantType, OpenIddictConstants.GrantTypes.Password, StringComparison.Ordinal))
+        {
+            var requestedScopes = request.GetScopes().ToArray();
+            if (requestedScopes.Length > 0
+                && requestedScopes.Except(policy.AllowedScopesForPasswordGrant, StringComparer.OrdinalIgnoreCase).Any())
+            {
+                return (false, OpenIddictConstants.Errors.InvalidScope, "The requested scopes are not allowed for password grant.", "RULE_PASSWORD_SCOPE_RESTRICTED");
+            }
+        }
+
         return (true, string.Empty, string.Empty, string.Empty);
     }
 
@@ -97,17 +114,24 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
             .ToArray();
 
         var pkceRequired = requirements.Contains(OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange, StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(state?.OverridesJson))
-        {
-            using var document = JsonDocument.Parse(state.OverridesJson);
-            if (document.RootElement.TryGetProperty("pkceRequired", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False)
-            {
-                pkceRequired = value.GetBoolean();
-            }
-        }
+        var policySnapshot = ClientPolicySnapshot.From(state?.OverridesJson);
 
-        return new RuntimeClientPolicy(grants, pkceRequired, redirectUris.Select(x => x.ToString()).ToArray());
+        return new RuntimeClientPolicy(
+            grants,
+            pkceRequired,
+            redirectUris.Select(x => x.ToString()).ToArray(),
+            string.Equals(await _applicationManager.GetClientTypeAsync(application, cancellationToken), OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal),
+            policySnapshot.ClientApplicationType,
+            policySnapshot.AllowUserCredentials,
+            policySnapshot.AllowedScopesForPasswordGrant);
     }
 
-    private sealed record RuntimeClientPolicy(IReadOnlyList<string> GrantTypes, bool PkceRequired, IReadOnlyList<string> RedirectUris);
+    private sealed record RuntimeClientPolicy(
+        IReadOnlyList<string> GrantTypes,
+        bool PkceRequired,
+        IReadOnlyList<string> RedirectUris,
+        bool IsConfidential,
+        string ClientApplicationType,
+        bool AllowUserCredentials,
+        IReadOnlyList<string> AllowedScopesForPasswordGrant);
 }

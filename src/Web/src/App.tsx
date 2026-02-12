@@ -57,6 +57,7 @@ import UserLifecyclePolicy from "./admin/pages/UserLifecyclePolicy";
 import InactivityPolicy from "./admin/pages/InactivityPolicy";
 import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
+import Callback from "./pages/Callback";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
 import AuthLayout from "./layouts/AuthLayout";
@@ -101,6 +102,7 @@ const App = () => {
         <Route path="/activate" element={<ActivateAccount />} />
         <Route path="/login" element={<AnonymousOnlyRoute><Login /></AnonymousOnlyRoute>} />
         <Route path="/register" element={<AnonymousOnlyRoute><Register /></AnonymousOnlyRoute>} />
+        <Route path="/auth/callback" element={<Callback />} />
       </Route>
       <Route
         path={adminRoutePattern}
