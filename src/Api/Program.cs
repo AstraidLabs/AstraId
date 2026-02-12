@@ -285,19 +285,28 @@ api.MapGet("/integrations/cms/ping", async (CmsClient client, CancellationToken 
     Results.Ok(await client.PingAsync(cancellationToken)))
     .RequireAuthorization("RequireSystemAdmin");
 
-api.MapGet("/integrations/auth/contract", (PolicyMapClient policyMapClient) =>
+api.MapGet("/integrations/authserver/contract", (PolicyMapClient policyMapClient, ILoggerFactory loggerFactory) =>
     {
+        var logger = loggerFactory.CreateLogger("AuthContractDiagnostics");
         var policyMapDiagnostics = policyMapClient.GetDiagnostics();
+        logger.LogInformation(
+            "AuthServer contract diagnostics requested for environment {EnvironmentName} with policy map status {RefreshStatus}.",
+            app.Environment.EnvironmentName,
+            policyMapDiagnostics.RefreshStatus);
+
         return Results.Ok(new
         {
             issuer = effectiveIssuer,
             audience = effectiveAudience,
             permissionClaimType = AuthConstants.ClaimTypes.Permission,
-            scopes = effectiveScopes,
             policyMapEndpointUrl = policyMapDiagnostics.EndpointUrl,
             policyMapLastRefreshUtc = policyMapDiagnostics.LastRefreshUtc,
-            policyMapEntryCount = policyMapDiagnostics.EntryCount,
             policyMapLastFailureUtc = policyMapDiagnostics.LastFailureUtc,
+            policyMapLastFailureReason = policyMapDiagnostics.LastFailureReason,
+            policyMapRefreshStatus = policyMapDiagnostics.RefreshStatus,
+            policyMapEntryCount = policyMapDiagnostics.EntryCount,
+            swaggerEnabled = enableSwagger,
+            environmentName = app.Environment.EnvironmentName,
             validationMode = "discovery+jwks"
         });
     })

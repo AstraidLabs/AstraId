@@ -31,7 +31,9 @@ The API is configured to align with the AuthServer OpenIddict contract while pre
 
 ## Diagnostics endpoint
 
-- `GET /api/integrations/auth/contract`
+- `GET /api/integrations/authserver/contract`
   - Requires `RequireSystemAdmin` policy.
-  - Returns a safe snapshot of the effective auth contract and policy-map refresh health.
+  - Returns a safe snapshot of the effective auth contract and policy-map refresh health, including last refresh/failure timestamps and refresh status.
   - Never includes secrets, API keys, or token contents.
+
+- Swagger enablement flag and environment name are included for compatibility troubleshooting.
