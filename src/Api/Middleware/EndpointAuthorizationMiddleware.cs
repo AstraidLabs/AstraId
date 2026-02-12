@@ -17,7 +17,8 @@ public sealed class EndpointAuthorizationMiddleware
     public async Task InvokeAsync(
         HttpContext context,
         PolicyMapClient policyMapClient,
-        IProblemDetailsService problemDetailsService)
+        IProblemDetailsService problemDetailsService,
+        ILogger<EndpointAuthorizationMiddleware> logger)
     {
         var path = context.Request.Path;
         if (!path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
@@ -35,6 +36,7 @@ public sealed class EndpointAuthorizationMiddleware
         var requiredPermissions = policyMapClient.FindRequiredPermissions(context.Request.Method, path.Value ?? string.Empty);
         if (requiredPermissions is null)
         {
+            logger.LogWarning("Endpoint not found in policy map. Method: {Method}, Path: {Path}", context.Request.Method, path);
             await WriteProblemDetailsAsync(context, problemDetailsService, StatusCodes.Status403Forbidden, "Forbidden");
             return;
         }
@@ -47,6 +49,7 @@ public sealed class EndpointAuthorizationMiddleware
 
         if (context.User?.Identity?.IsAuthenticated != true)
         {
+            logger.LogInformation("Unauthorized request to protected endpoint. Method: {Method}, Path: {Path}", context.Request.Method, path);
             await WriteProblemDetailsAsync(context, problemDetailsService, StatusCodes.Status401Unauthorized, "Unauthorized");
             return;
         }
@@ -57,6 +60,7 @@ public sealed class EndpointAuthorizationMiddleware
 
         if (!requiredPermissions.All(userPermissions.Contains))
         {
+            logger.LogInformation("Forbidden request due to missing permissions. Method: {Method}, Path: {Path}", context.Request.Method, path);
             await WriteProblemDetailsAsync(context, problemDetailsService, StatusCodes.Status403Forbidden, "Forbidden");
             return;
         }
