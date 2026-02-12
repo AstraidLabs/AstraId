@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -136,8 +137,9 @@ public class AuthorizationController : ControllerBase
             : await _applicationManager.FindByClientIdAsync(request.ClientId, HttpContext.RequestAborted);
         var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
         var existingAuthorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
-        var forceConsent = request.HasPrompt(OpenIddictConstants.Prompts.Consent);
-        var noPrompt = request.HasPrompt(OpenIddictConstants.Prompts.None);
+        var promptValues = GetPromptValues(request);
+        var forceConsent = promptValues.Contains("consent", StringComparer.Ordinal);
+        var noPrompt = promptValues.Contains("none", StringComparer.Ordinal);
 
         if (forceConsent || existingAuthorization is null)
         {
@@ -206,7 +208,7 @@ public class AuthorizationController : ControllerBase
                 subject: user.Id.ToString(),
                 client: applicationId,
                 type: OpenIddictConstants.AuthorizationTypes.Permanent,
-                scopes: requestedScopes,
+                scopes: requestedScopes.ToImmutableArray(),
                 cancellationToken: HttpContext.RequestAborted);
         }
 
@@ -425,7 +427,7 @@ public class AuthorizationController : ControllerBase
         principal.SetResources(AuthServerScopeRegistry.ApiResources);
 
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
-        _tokenPolicyApplier.Apply(principal, policy, DateTimeOffset.UtcNow, refreshAbsoluteExpiry: null);
+        _tokenPolicyApplier.Apply(principal, policy, DateTimeOffset.UtcNow, absoluteExpiryOverride: null);
 
         foreach (var claim in principal.Claims)
         {
@@ -486,7 +488,7 @@ public class AuthorizationController : ControllerBase
                            client: applicationId,
                            status: OpenIddictConstants.Statuses.Valid,
                            type: OpenIddictConstants.AuthorizationTypes.Permanent,
-                           scopes: scopes,
+                           scopes: scopes.ToImmutableArray(),
                            cancellationToken: cancellationToken))
         {
             return authorization;
@@ -541,6 +543,19 @@ public class AuthorizationController : ControllerBase
 """;
 
         return Content(html, "text/html");
+    }
+
+    private static ISet<string> GetPromptValues(OpenIddictRequest request)
+    {
+        var prompt = request.GetParameter(OpenIddictConstants.Parameters.Prompt).ToString();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        return prompt
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private string GetScopeDisplayName(string scope)
