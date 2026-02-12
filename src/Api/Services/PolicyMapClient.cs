@@ -9,6 +9,8 @@ public sealed record PolicyMapDiagnostics(
     string EndpointUrl,
     DateTimeOffset? LastRefreshUtc,
     DateTimeOffset? LastFailureUtc,
+    string? LastFailureReason,
+    string RefreshStatus,
     int EntryCount);
 
 public sealed class PolicyMapClient
@@ -21,6 +23,8 @@ public sealed class PolicyMapClient
     private IReadOnlyList<PolicyMapEntry> _entries = Array.Empty<PolicyMapEntry>();
     private DateTimeOffset? _lastRefreshUtc;
     private DateTimeOffset? _lastFailureUtc;
+    private string? _lastFailureReason;
+    private string _refreshStatus = "never_refreshed";
     private int _entryCount;
     private readonly object _lock = new();
 
@@ -49,7 +53,7 @@ public sealed class PolicyMapClient
 
         lock (_lock)
         {
-            return new PolicyMapDiagnostics(endpointUrl, _lastRefreshUtc, _lastFailureUtc, _entryCount);
+            return new PolicyMapDiagnostics(endpointUrl, _lastRefreshUtc, _lastFailureUtc, _lastFailureReason, _refreshStatus, _entryCount);
         }
     }
 
@@ -59,12 +63,14 @@ public sealed class PolicyMapClient
         if (string.IsNullOrWhiteSpace(options.BaseUrl) || string.IsNullOrWhiteSpace(options.ApiName))
         {
             _logger.LogWarning("Policy map refresh skipped: missing configuration.");
+            SetFailureState("missing_configuration");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(options.ApiKey))
         {
             _logger.LogWarning("Policy map refresh skipped: missing API key.");
+            SetFailureState("missing_api_key");
             return;
         }
 
@@ -80,10 +86,7 @@ public sealed class PolicyMapClient
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Policy map refresh failed with status {StatusCode} from {Url}.", response.StatusCode, url);
-                lock (_lock)
-                {
-                    _lastFailureUtc = DateTimeOffset.UtcNow;
-                }
+                SetFailureState($"http_{(int)response.StatusCode}");
 
                 return;
             }
@@ -96,6 +99,8 @@ public sealed class PolicyMapClient
                 _entries = entries;
                 _entryCount = entries.Count;
                 _lastRefreshUtc = DateTimeOffset.UtcNow;
+                _lastFailureReason = null;
+                _refreshStatus = "ok";
             }
 
             _logger.LogInformation("Policy map refreshed: {Count} entries.", entries.Count);
@@ -106,12 +111,19 @@ public sealed class PolicyMapClient
         }
         catch (Exception ex)
         {
-            lock (_lock)
-            {
-                _lastFailureUtc = DateTimeOffset.UtcNow;
-            }
+            SetFailureState($"{ex.GetType().Name}");
 
             _logger.LogWarning(ex, "Policy map refresh failed due to unexpected error.");
+        }
+    }
+
+    private void SetFailureState(string reason)
+    {
+        lock (_lock)
+        {
+            _lastFailureUtc = DateTimeOffset.UtcNow;
+            _lastFailureReason = reason;
+            _refreshStatus = "error";
         }
     }
 
