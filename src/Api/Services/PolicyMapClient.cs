@@ -4,6 +4,13 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Services;
 
+
+public sealed record PolicyMapDiagnostics(
+    string EndpointUrl,
+    DateTimeOffset? LastRefreshUtc,
+    DateTimeOffset? LastFailureUtc,
+    int EntryCount);
+
 public sealed class PolicyMapClient
 {
     public const string HttpClientName = "PolicyMap";
@@ -12,6 +19,9 @@ public sealed class PolicyMapClient
     private readonly IOptionsMonitor<PolicyMapOptions> _options;
     private readonly ILogger<PolicyMapClient> _logger;
     private IReadOnlyList<PolicyMapEntry> _entries = Array.Empty<PolicyMapEntry>();
+    private DateTimeOffset? _lastRefreshUtc;
+    private DateTimeOffset? _lastFailureUtc;
+    private int _entryCount;
     private readonly object _lock = new();
 
     public PolicyMapClient(
@@ -32,6 +42,17 @@ public sealed class PolicyMapClient
         }
     }
 
+    public PolicyMapDiagnostics GetDiagnostics()
+    {
+        var options = _options.CurrentValue;
+        var endpointUrl = BuildEndpointUrl(options);
+
+        lock (_lock)
+        {
+            return new PolicyMapDiagnostics(endpointUrl, _lastRefreshUtc, _lastFailureUtc, _entryCount);
+        }
+    }
+
     public async Task RefreshAsync(CancellationToken cancellationToken)
     {
         var options = _options.CurrentValue;
@@ -49,7 +70,8 @@ public sealed class PolicyMapClient
 
         try
         {
-            var url = new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map");
+            var endpointUrl = BuildEndpointUrl(options);
+            var url = new Uri(endpointUrl);
             var client = _httpClientFactory.CreateClient(HttpClientName);
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("X-Api-Key", options.ApiKey);
@@ -58,6 +80,11 @@ public sealed class PolicyMapClient
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Policy map refresh failed with status {StatusCode} from {Url}.", response.StatusCode, url);
+                lock (_lock)
+                {
+                    _lastFailureUtc = DateTimeOffset.UtcNow;
+                }
+
                 return;
             }
 
@@ -67,6 +94,8 @@ public sealed class PolicyMapClient
             lock (_lock)
             {
                 _entries = entries;
+                _entryCount = entries.Count;
+                _lastRefreshUtc = DateTimeOffset.UtcNow;
             }
 
             _logger.LogInformation("Policy map refreshed: {Count} entries.", entries.Count);
@@ -77,6 +106,11 @@ public sealed class PolicyMapClient
         }
         catch (Exception ex)
         {
+            lock (_lock)
+            {
+                _lastFailureUtc = DateTimeOffset.UtcNow;
+            }
+
             _logger.LogWarning(ex, "Policy map refresh failed due to unexpected error.");
         }
     }
@@ -98,6 +132,16 @@ public sealed class PolicyMapClient
         }
 
         return null;
+    }
+
+    private static string BuildEndpointUrl(PolicyMapOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) || string.IsNullOrWhiteSpace(options.ApiName))
+        {
+            return string.Empty;
+        }
+
+        return new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map").ToString();
     }
 
     private static bool IsPathMatch(string template, string path)
