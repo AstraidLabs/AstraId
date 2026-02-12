@@ -7,6 +7,8 @@ using AuthServer.Services;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
 using AuthServer.Services.Security;
+using Microsoft.EntityFrameworkCore;
+using AuthServer.Services.Admin;
 using AuthServer.Localization;
 using Microsoft.Extensions.Localization;
 using Company.Auth.Contracts;
@@ -136,12 +138,12 @@ public class AuthorizationController : ControllerBase
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Token.InvalidRequest", "The token request is invalid.")));
         }
 
-        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType())
+        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType())
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
             return BadRequest(CreateErrorResponse(
                 OpenIddictConstants.Errors.UnsupportedGrantType,
-                "Only authorization_code, refresh_token, and client_credentials grants are supported."));
+                "Only authorization_code, refresh_token, client_credentials, and password grants are supported."));
         }
 
         var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -185,6 +187,11 @@ public class AuthorizationController : ControllerBase
             machinePrincipal.SetResources(AuthServerScopeRegistry.ApiResources);
             await _loginHistoryService.RecordAsync(null, null, true, null, HttpContext, clientId, HttpContext.RequestAborted);
             return SignIn(machinePrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (request.IsPasswordGrantType())
+        {
+            return await HandlePasswordGrantAsync(request, clientId);
         }
 
         var user = await _userManager.GetUserAsync(authenticateResult.Principal);
@@ -267,6 +274,75 @@ public class AuthorizationController : ControllerBase
     {
         await _signInManager.SignOutAsync();
         return SignOut(new AuthenticationProperties { RedirectUri = "/" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    private async Task<IActionResult> HandlePasswordGrantAsync(OpenIddictRequest request, string? clientId)
+    {
+        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return Forbid(CreateInvalidGrant("The username/password credentials are invalid."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var user = await _userManager.FindByNameAsync(request.Username) ?? await _userManager.FindByEmailAsync(request.Username);
+        if (user is null)
+        {
+            return Forbid(CreateInvalidGrant("The username/password credentials are invalid."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var passwordResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+        if (passwordResult.RequiresTwoFactor)
+        {
+            return Forbid(CreateInvalidGrant("Password grant is not available for users requiring multi-factor authentication."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (!passwordResult.Succeeded)
+        {
+            return Forbid(CreateInvalidGrant("The username/password credentials are invalid."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (_signInManager.Options.SignIn.RequireConfirmedAccount && !user.EmailConfirmed)
+        {
+            return Forbid(CreateInvalidGrant("The user account is not confirmed."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (!user.IsActive || user.IsAnonymized)
+        {
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var applicationManager = HttpContext.RequestServices.GetRequiredService<IOpenIddictApplicationManager>();
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var app = string.IsNullOrWhiteSpace(clientId) ? null : await applicationManager.FindByClientIdAsync(clientId, HttpContext.RequestAborted);
+        var applicationId = app is null ? null : await applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
+        var state = string.IsNullOrWhiteSpace(applicationId)
+            ? null
+            : await dbContext.ClientStates.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationId == applicationId, HttpContext.RequestAborted);
+
+        var policySnapshot = ClientPolicySnapshot.From(state?.OverridesJson);
+        var requestedScopes = request.GetScopes().ToArray();
+        if (requestedScopes.Except(policySnapshot.AllowedScopesForPasswordGrant, StringComparer.OrdinalIgnoreCase).Any())
+        {
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.InvalidScope,
+                [OpenIddictConstants.Parameters.ErrorDescription] = "The requested scopes are not allowed for password grant."
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var principal = await _signInManager.CreateUserPrincipalAsync(user);
+        principal.SetScopes(requestedScopes.Intersect(AllowedScopes));
+        principal.SetResources(AuthServerScopeRegistry.ApiResources);
+
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        _tokenPolicyApplier.Apply(principal, policy, DateTimeOffset.UtcNow, refreshAbsoluteExpiry: null);
+
+        foreach (var claim in principal.Claims)
+        {
+            claim.SetDestinations(ClaimDestinations.GetDestinations(claim, principal));
+        }
+
+        await _loginHistoryService.RecordAsync(user.Id, user.Email ?? user.UserName, true, null, HttpContext, clientId, HttpContext.RequestAborted);
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private async Task<ClaimsPrincipal> CreatePrincipalAsync(

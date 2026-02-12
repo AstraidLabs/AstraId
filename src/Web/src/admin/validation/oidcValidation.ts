@@ -7,7 +7,7 @@ const nameMaxLength = 100;
 const clientIdMinLength = 3;
 const clientIdMaxLength = 100;
 
-const supportedGrantTypes = ["authorization_code", "refresh_token", "client_credentials"] as const;
+const supportedGrantTypes = ["authorization_code", "refresh_token", "client_credentials", "password"] as const;
 
 export type RedirectUriError = {
   line: number;

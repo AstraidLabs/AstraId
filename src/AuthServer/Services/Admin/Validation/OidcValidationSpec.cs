@@ -19,7 +19,8 @@ public static class OidcValidationSpec
         {
             ["authorization_code"] = OpenIddictConstants.GrantTypes.AuthorizationCode,
             ["refresh_token"] = OpenIddictConstants.GrantTypes.RefreshToken,
-            ["client_credentials"] = OpenIddictConstants.GrantTypes.ClientCredentials
+            ["client_credentials"] = OpenIddictConstants.GrantTypes.ClientCredentials,
+            ["password"] = OpenIddictConstants.GrantTypes.Password
         };
 
     public static string NormalizeScopeName(string? name, AdminValidationErrors errors, string field)
@@ -80,6 +81,23 @@ public static class OidcValidationSpec
 
         errors.Add(field, "Client type must be Public or Confidential.");
         return OpenIddictConstants.ClientTypes.Public;
+    }
+
+    public static string NormalizeClientApplicationType(string? clientApplicationType, AdminValidationErrors errors, string field)
+    {
+        var normalized = clientApplicationType?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return ClientApplicationTypes.Web;
+        }
+
+        if (!ClientApplicationTypes.All.Contains(normalized))
+        {
+            errors.Add(field, "Client application type must be web, mobile, desktop, or integration.");
+            return ClientApplicationTypes.Web;
+        }
+
+        return normalized;
     }
 
     public static HashSet<string> NormalizeGrantTypes(

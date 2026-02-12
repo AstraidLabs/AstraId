@@ -9,6 +9,10 @@ public sealed class OAuthClientDefinition
     public required IReadOnlyCollection<Uri> PostLogoutRedirectUris { get; init; }
     public required IReadOnlyCollection<string> Scopes { get; init; }
     public required IReadOnlyCollection<string> AllowedGrantTypes { get; init; }
+    public bool AllowIntrospection { get; init; }
+    public string ClientApplicationType { get; init; } = "web";
+    public bool AllowUserCredentials { get; init; }
+    public IReadOnlyCollection<string> AllowedScopesForPasswordGrant { get; init; } = Array.Empty<string>();
 }
 
 public sealed class ApiResourceDefinition

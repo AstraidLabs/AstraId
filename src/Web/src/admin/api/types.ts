@@ -21,6 +21,10 @@ export type AdminClientDetail = {
   enabled: boolean;
   grantTypes: string[];
   pkceRequired: boolean;
+  clientApplicationType: string;
+  allowIntrospection: boolean;
+  allowUserCredentials: boolean;
+  allowedScopesForPasswordGrant: string[];
   scopes: string[];
   redirectUris: string[];
   postLogoutRedirectUris: string[];

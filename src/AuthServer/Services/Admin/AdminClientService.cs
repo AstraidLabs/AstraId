@@ -16,7 +16,8 @@ public sealed class AdminClientService : IAdminClientService
     {
         [OpenIddictConstants.GrantTypes.AuthorizationCode] = "authorization_code",
         [OpenIddictConstants.GrantTypes.RefreshToken] = "refresh_token",
-        [OpenIddictConstants.GrantTypes.ClientCredentials] = "client_credentials"
+        [OpenIddictConstants.GrantTypes.ClientCredentials] = "client_credentials",
+        [OpenIddictConstants.GrantTypes.Password] = "password"
     };
 
     private readonly IOpenIddictApplicationManager _applicationManager;
@@ -395,6 +396,7 @@ public sealed class AdminClientService : IAdminClientService
         var grantTypes = ParseGrantTypes(permissions);
         var scopes = ParseScopes(permissions);
         var pkceRequired = requirements.Contains(OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange, StringComparer.Ordinal);
+        var policy = ClientPolicySnapshot.From(state?.OverridesJson);
 
         return new AdminClientDetail(
             id,
@@ -404,6 +406,10 @@ public sealed class AdminClientService : IAdminClientService
             enabled,
             grantTypes,
             pkceRequired,
+            policy.ClientApplicationType,
+            permissions.Contains(OpenIddictConstants.Permissions.Endpoints.Introspection, StringComparer.Ordinal) || policy.AllowIntrospection,
+            policy.AllowUserCredentials,
+            policy.AllowedScopesForPasswordGrant,
             scopes,
             redirectUris.Select(uri => uri.ToString()).ToArray(),
             postLogoutUris.Select(uri => uri.ToString()).ToArray(),
@@ -422,6 +428,10 @@ public sealed class AdminClientService : IAdminClientService
             request.Enabled,
             request.GrantTypes,
             request.PkceRequired,
+            request.ClientApplicationType,
+            request.AllowIntrospection,
+            request.AllowUserCredentials,
+            request.AllowedScopesForPasswordGrant,
             request.Scopes,
             request.RedirectUris,
             request.PostLogoutRedirectUris,
@@ -441,6 +451,10 @@ public sealed class AdminClientService : IAdminClientService
             request.Enabled,
             request.GrantTypes,
             request.PkceRequired,
+            request.ClientApplicationType,
+            request.AllowIntrospection,
+            request.AllowUserCredentials,
+            request.AllowedScopesForPasswordGrant,
             request.Scopes,
             request.RedirectUris,
             request.PostLogoutRedirectUris,
@@ -458,6 +472,10 @@ public sealed class AdminClientService : IAdminClientService
         bool enabled,
         IReadOnlyList<string> grantTypes,
         bool pkceRequired,
+        string? clientApplicationType,
+        bool allowIntrospection,
+        bool allowUserCredentials,
+        IReadOnlyList<string> allowedScopesForPasswordGrant,
         IReadOnlyList<string> scopes,
         IReadOnlyList<string> redirectUris,
         IReadOnlyList<string> postLogoutRedirectUris,
@@ -493,8 +511,20 @@ public sealed class AdminClientService : IAdminClientService
             errors.Add("profile", "Profile must match selected preset.");
         }
 
-        var mergedOverrides = BuildOverrides(grantTypes, pkceRequired, scopes, redirectUris, postLogoutRedirectUris, clientType, overrides);
+        var mergedOverrides = BuildOverrides(
+            grantTypes,
+            pkceRequired,
+            scopes,
+            redirectUris,
+            postLogoutRedirectUris,
+            clientType,
+            clientApplicationType,
+            allowIntrospection,
+            allowUserCredentials,
+            allowedScopesForPasswordGrant,
+            overrides);
         var effective = _configComposer.Compose(preset, mergedOverrides);
+        var normalizedClientApplicationType = OidcValidationSpec.NormalizeClientApplicationType(clientApplicationType ?? effective.ClientApplicationType, errors, "clientApplicationType");
         _configValidator.Validate(effective, errors);
 
         var normalizedScopes = effective.Scopes
@@ -524,9 +554,17 @@ public sealed class AdminClientService : IAdminClientService
             normalizedClientId!,
             string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
             effective.ClientType,
+            normalizedClientApplicationType,
             enabled,
             OidcValidationSpec.NormalizeGrantTypes(effective.GrantTypes, errors, "grantTypes").ToList(),
             effective.PkceRequired,
+            effective.AllowIntrospection,
+            effective.AllowUserCredentials,
+            effective.AllowedScopesForPasswordGrant
+                .Where(scope => !string.IsNullOrWhiteSpace(scope))
+                .Select(scope => scope.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             normalizedScopes,
             normalizedRedirectUris,
             normalizedPostLogoutUris,
@@ -543,6 +581,10 @@ public sealed class AdminClientService : IAdminClientService
         IReadOnlyList<string> redirectUris,
         IReadOnlyList<string> postLogoutRedirectUris,
         string? clientType,
+        string? clientApplicationType,
+        bool allowIntrospection,
+        bool allowUserCredentials,
+        IReadOnlyList<string> allowedScopesForPasswordGrant,
         JsonElement? incoming)
     {
         if (incoming is not null && incoming.Value.ValueKind == JsonValueKind.Object)
@@ -557,7 +599,11 @@ public sealed class AdminClientService : IAdminClientService
             scopes,
             redirectUris,
             postLogoutRedirectUris,
-            clientType
+            clientType,
+            clientApplicationType,
+            allowIntrospection,
+            allowUserCredentials,
+            allowedScopesForPasswordGrant
         };
 
         return JsonSerializer.SerializeToElement(payload);
@@ -602,6 +648,16 @@ public sealed class AdminClientService : IAdminClientService
             permissions.Add(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
         }
 
+        if (config.GrantTypes.Contains(OpenIddictConstants.GrantTypes.Password))
+        {
+            permissions.Add(OpenIddictConstants.Permissions.GrantTypes.Password);
+        }
+
+        if (config.AllowIntrospection)
+        {
+            permissions.Add(OpenIddictConstants.Permissions.Endpoints.Introspection);
+        }
+
         foreach (var scope in config.Scopes)
         {
             permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scope);
@@ -637,6 +693,11 @@ public sealed class AdminClientService : IAdminClientService
         if (permissions.Contains(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials, StringComparer.Ordinal))
         {
             grantTypes.Add(GrantTypeReverseMap[OpenIddictConstants.GrantTypes.ClientCredentials]);
+        }
+
+        if (permissions.Contains(OpenIddictConstants.Permissions.GrantTypes.Password, StringComparer.Ordinal))
+        {
+            grantTypes.Add(GrantTypeReverseMap[OpenIddictConstants.GrantTypes.Password]);
         }
 
         return grantTypes;
@@ -757,9 +818,13 @@ public sealed class AdminClientService : IAdminClientService
         string ClientId,
         string? DisplayName,
         string ClientType,
+        string ClientApplicationType,
         bool Enabled,
         IReadOnlyList<string> GrantTypes,
         bool PkceRequired,
+        bool AllowIntrospection,
+        bool AllowUserCredentials,
+        IReadOnlyList<string> AllowedScopesForPasswordGrant,
         IReadOnlyList<string> Scopes,
         IReadOnlyList<Uri> RedirectUris,
         IReadOnlyList<Uri> PostLogoutRedirectUris,
