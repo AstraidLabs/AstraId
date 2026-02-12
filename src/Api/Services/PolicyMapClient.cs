@@ -6,6 +6,8 @@ namespace Api.Services;
 
 public sealed class PolicyMapClient
 {
+    public const string HttpClientName = "PolicyMap";
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<PolicyMapOptions> _options;
     private readonly ILogger<PolicyMapClient> _logger;
@@ -48,14 +50,14 @@ public sealed class PolicyMapClient
         try
         {
             var url = new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map");
-            var client = _httpClientFactory.CreateClient();
+            var client = _httpClientFactory.CreateClient(HttpClientName);
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("X-Api-Key", options.ApiKey);
 
             var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Policy map refresh failed with status {StatusCode}.", response.StatusCode);
+                _logger.LogWarning("Policy map refresh failed with status {StatusCode} from {Url}.", response.StatusCode, url);
                 return;
             }
 

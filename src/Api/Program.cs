@@ -32,7 +32,18 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+        if (!builder.Environment.IsDevelopment() && context.ProblemDetails.Status >= 500)
+        {
+            context.ProblemDetails.Detail = "An unexpected error occurred.";
+        }
+    };
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -72,6 +83,13 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<PolicyMapOptions>(builder.Configuration.GetSection("Api:AuthServer"));
 builder.Services.AddSingleton<PolicyMapClient>();
 builder.Services.AddHostedService<PolicyMapRefreshService>();
+
+builder.Services.AddHttpClient(PolicyMapClient.HttpClientName, (sp, client) =>
+    {
+        var httpOptions = sp.GetRequiredService<IOptions<HttpOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(httpOptions.TimeoutSeconds);
+    })
+    .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.AuthServer, builder.Configuration.GetSection("Services:AuthServer"));
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Configuration.GetSection("Services:Cms"));
@@ -132,7 +150,20 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Web", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+        if (allowedOrigins is null || allowedOrigins.Length == 0)
+        {
+            if (builder.Environment.IsDevelopment())
+            {
+                allowedOrigins = ["http://localhost:5173"];
+            }
+            else
+            {
+                throw new InvalidOperationException("Cors:AllowedOrigins must be configured outside Development.");
+            }
+        }
+
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -143,23 +174,29 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+var enableSwagger = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:EnableInProduction");
+if (enableSwagger)
 {
-    var scopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
-    var clientId = builder.Configuration["Swagger:OAuthClientId"] ?? "web-spa";
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        var scopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
+        var clientId = builder.Configuration["Swagger:OAuthClientId"] ?? "web-spa";
 
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Api v1");
-    options.OAuthClientId(clientId);
-    options.OAuthUsePkce();
-    options.OAuthScopes(scopes);
-});
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Api v1");
+        options.OAuthClientId(clientId);
+        options.OAuthUsePkce();
+        options.OAuthScopes(scopes);
+    });
+}
 
 app.UseHttpsRedirection();
 if (app.Environment.IsProduction())
 {
     app.UseHsts();
 }
+
+app.UseRouting();
 
 app.Use(async (context, next) =>
 {
