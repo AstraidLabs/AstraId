@@ -6,8 +6,10 @@ import type { ParsedProblemResult } from "../../api/problemDetails";
 import FormField from "../../components/account/FormField";
 import InlineAlert from "../../components/account/InlineAlert";
 import AccountPageHeader from "../../components/account/AccountPageHeader";
+import { useLanguage } from "../../i18n/LanguageProvider";
 
 export default function PasswordPage() {
+  const { t } = useLanguage();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,9 +30,9 @@ export default function PasswordPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setSuccess("Password updated.");
+      setSuccess(t("account.password.success"));
     } catch (error) {
-      const parsed = mapErrorToProblem(error, "Unable to update password.");
+      const parsed = mapErrorToProblem(error, t("account.password.error"));
       if (parsed.status === 401 || parsed.status === 403) {
         navigate(`/login?returnUrl=${encodeURIComponent("/account/security/password")}`, { replace: true });
         return;
@@ -45,20 +47,20 @@ export default function PasswordPage() {
 
   return (
     <div>
-      <AccountPageHeader title="Password" description="Change your password and optionally sign out other sessions." />
+      <AccountPageHeader title={t("account.password.title")} description={t("account.password.description")} />
       <form className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/50 p-5" onSubmit={onSubmit}>
         {success ? <InlineAlert kind="success" message={success} /> : null}
-        {problem?.kind === "problem" ? <InlineAlert kind="error" message={`${problem.detail ?? "Request failed."}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`} /> : null}
-        {problem?.kind === "validation" ? <InlineAlert kind="error" message={Object.values(problem.fieldErrors).flat()[0] ?? "Validation failed."} /> : null}
-        <FormField label="Current password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} error={fieldErrors.currentPassword?.[0]} autoComplete="current-password" />
-        <FormField label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} error={fieldErrors.newPassword?.[0]} autoComplete="new-password" />
-        <FormField label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fieldErrors.confirmPassword?.[0]} autoComplete="new-password" />
+        {problem?.kind === "problem" ? <InlineAlert kind="error" message={`${problem.detail ?? t("common.requestFailed")}${problem.errorId ? ` (Error ID: ${problem.errorId})` : ""}`} /> : null}
+        {problem?.kind === "validation" ? <InlineAlert kind="error" message={Object.values(problem.fieldErrors).flat()[0] ?? t("common.validationFailed")} /> : null}
+        <FormField label={t("account.password.current")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} error={fieldErrors.currentPassword?.[0]} autoComplete="current-password" />
+        <FormField label={t("account.password.new")} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} error={fieldErrors.newPassword?.[0]} autoComplete="new-password" />
+        <FormField label={t("account.password.confirm")} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fieldErrors.confirmPassword?.[0]} autoComplete="new-password" />
         <label className="flex items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={signOutOthers} onChange={(e) => setSignOutOthers(e.target.checked)} />
-          Sign out other sessions
+          {t("account.password.signOutOthers")}
         </label>
         <button type="submit" disabled={working} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-60">
-          {working ? "Updating..." : "Update password"}
+          {working ? t("account.password.updating") : t("account.password.submit")}
         </button>
       </form>
     </div>

@@ -10,7 +10,7 @@ type Props = { session: AuthSession; onLogout: () => Promise<void> };
 
 type MenuItem = { key: string; labelKey: string; to?: string; external?: boolean; danger?: boolean; action?: () => Promise<void>; Icon: any };
 
-const initialsFromSession = (session: AuthSession) => (session.userName ?? session.email ?? "User").charAt(0).toUpperCase();
+const initialsFromSession = (session: AuthSession) => (session.userName ?? session.email ?? "?").charAt(0).toUpperCase();
 
 const ChevronDownIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
@@ -72,7 +72,7 @@ export default function AccountDropdown({ session, onLogout }: Props) {
     <div className="relative" ref={rootRef}>
       <button ref={triggerRef} type="button" className="flex max-w-[260px] items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-100 transition hover:border-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label={t("account.dropdown.aria")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((c) => !c)}>
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-200">{initialsFromSession(session)}</span>
-        <span className="truncate">{session.userName ?? session.email ?? "Account"}</span>
+        <span className="truncate">{session.userName ?? session.email ?? t("common.account")}</span>
         <ChevronDownIcon className="h-4 w-4 text-slate-400" />
       </button>
       {open && (

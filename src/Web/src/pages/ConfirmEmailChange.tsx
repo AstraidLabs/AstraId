@@ -5,8 +5,10 @@ import Card from "../components/Card";
 import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import { confirmEmailChange } from "../api/authServer";
 import { AppError } from "../api/errors";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const ConfirmEmailChange = () => {
+  const { t } = useLanguage();
   const [params] = useSearchParams();
   const userId = useMemo(() => params.get("userId") ?? "", [params]);
   const email = useMemo(() => params.get("email") ?? "", [params]);
@@ -22,12 +24,12 @@ const ConfirmEmailChange = () => {
     setIsSubmitting(true);
     try {
       const response = await confirmEmailChange({ userId, newEmail: email, token });
-      setSuccess(response.message ?? "Your email has been updated.");
+      setSuccess(response.message ?? t("confirmEmail.success"));
     } catch (err) {
       if (err && typeof err === "object" && "status" in err) {
         setError(err as AppError);
       } else {
-        setError(new AppError({ status: 500, detail: "Unable to confirm email change." }));
+        setError(new AppError({ status: 500, detail: t("confirmEmail.error") }));
       }
     } finally {
       setIsSubmitting(false);
@@ -36,7 +38,7 @@ const ConfirmEmailChange = () => {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <Card title="Confirm email change">
+      <Card title={t("confirmEmail.title")}>
         <div className="flex flex-col gap-4">
           {error ? (
             <>
@@ -45,17 +47,17 @@ const ConfirmEmailChange = () => {
             </>
           ) : null}
           {success ? <Alert variant="success">{success}</Alert> : null}
-          <p className="text-sm text-slate-300">Click the button below to confirm your new email address.</p>
+          <p className="text-sm text-slate-300">{t("confirmEmail.description")}</p>
           <button
             type="button"
             onClick={handleConfirm}
             disabled={!userId || !email || !token || isSubmitting}
             className="w-fit rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Confirming..." : "Confirm email change"}
+            {isSubmitting ? t("confirmEmail.submitting") : t("confirmEmail.submit")}
           </button>
           <Link className="text-sm text-indigo-300 hover:text-indigo-200" to="/login">
-            Back to login
+            {t("confirmEmail.backToLogin")}
           </Link>
         </div>
       </Card>
