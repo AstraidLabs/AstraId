@@ -22,8 +22,7 @@ public static class OpenIddictIntrospectionHandlers
                 context.Transaction.GetHttpRequest()?.HttpContext,
                 "oidc.introspection.rejected",
                 null,
-                "missing_client_auth",
-                context.CancellationToken);
+                "missing_client_auth");
             await LogIncidentAsync(
                 context.Transaction.GetHttpRequest()?.HttpContext,
                 "oidc_introspection_rejected",
@@ -40,7 +39,7 @@ public static class OpenIddictIntrospectionHandlers
         if (dbContext is null || applicationManager is null || clientStateService is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
-            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "services_unavailable", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "services_unavailable");
             await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "services_unavailable", context.CancellationToken);
             return;
         }
@@ -48,7 +47,7 @@ public static class OpenIddictIntrospectionHandlers
         if (!await clientStateService.IsClientEnabledAsync(context.ClientId, context.CancellationToken))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "The client is disabled.");
-            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "client_disabled", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "client_disabled");
             await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "client_disabled", context.CancellationToken);
             return;
         }
@@ -57,7 +56,7 @@ public static class OpenIddictIntrospectionHandlers
         if (application is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Unknown client.");
-            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "unknown_client", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "unknown_client");
             await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "unknown_client", context.CancellationToken);
             return;
         }
@@ -66,7 +65,7 @@ public static class OpenIddictIntrospectionHandlers
         if (!string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Only confidential clients can introspect tokens.");
-            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "public_client", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "public_client");
             await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "public_client", context.CancellationToken);
             return;
         }
@@ -85,12 +84,12 @@ public static class OpenIddictIntrospectionHandlers
             context.Reject(
                 error: OpenIddictConstants.Errors.UnauthorizedClient,
                 description: "The client is not allowed to use the introspection endpoint.");
-            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.introspection.rejected", context.ClientId, "endpoint_not_allowed");
             await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
             return;
         }
 
-        await LogAuditAsync(httpContext, "oidc.introspection.accepted", context.ClientId, null, context.CancellationToken);
+        await LogAuditAsync(httpContext, "oidc.introspection.accepted", context.ClientId, null);
         await LogIncidentAsync(httpContext, "oidc_introspection_accepted", context.ClientId, null, context.CancellationToken);
     }
 
@@ -103,8 +102,7 @@ public static class OpenIddictIntrospectionHandlers
                 context.Transaction.GetHttpRequest()?.HttpContext,
                 "oidc.revocation.rejected",
                 null,
-                "missing_client_auth",
-                context.CancellationToken);
+                "missing_client_auth");
             await LogIncidentAsync(
                 context.Transaction.GetHttpRequest()?.HttpContext,
                 "oidc_revocation_rejected",
@@ -121,7 +119,7 @@ public static class OpenIddictIntrospectionHandlers
         if (dbContext is null || applicationManager is null || clientStateService is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
-            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "services_unavailable", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "services_unavailable");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "services_unavailable", context.CancellationToken);
             return;
         }
@@ -129,7 +127,7 @@ public static class OpenIddictIntrospectionHandlers
         if (!await clientStateService.IsClientEnabledAsync(context.ClientId, context.CancellationToken))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "The client is disabled.");
-            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "client_disabled", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "client_disabled");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "client_disabled", context.CancellationToken);
             return;
         }
@@ -138,7 +136,7 @@ public static class OpenIddictIntrospectionHandlers
         if (application is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Unknown client.");
-            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "unknown_client", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "unknown_client");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "unknown_client", context.CancellationToken);
             return;
         }
@@ -147,7 +145,7 @@ public static class OpenIddictIntrospectionHandlers
         if (!string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Only confidential clients can revoke tokens.");
-            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "public_client", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "public_client");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "public_client", context.CancellationToken);
             return;
         }
@@ -158,16 +156,16 @@ public static class OpenIddictIntrospectionHandlers
             context.Reject(
                 error: OpenIddictConstants.Errors.UnauthorizedClient,
                 description: "The client is not allowed to use the revocation endpoint.");
-            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
+            await LogAuditAsync(httpContext, "oidc.revocation.rejected", context.ClientId, "endpoint_not_allowed");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
             return;
         }
 
-        await LogAuditAsync(httpContext, "oidc.revocation.accepted", context.ClientId, null, context.CancellationToken);
+        await LogAuditAsync(httpContext, "oidc.revocation.accepted", context.ClientId, null);
         await LogIncidentAsync(httpContext, "oidc_revocation_accepted", context.ClientId, null, context.CancellationToken);
     }
 
-    private static async Task LogAuditAsync(HttpContext? httpContext, string action, string? clientId, string? reason, CancellationToken cancellationToken)
+    private static async Task LogAuditAsync(HttpContext? httpContext, string action, string? clientId, string? reason)
     {
         var dbContext = httpContext?.RequestServices.GetService<ApplicationDbContext>();
         var logger = httpContext?.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("OpenIddictEndpointAudit");
@@ -195,7 +193,8 @@ public static class OpenIddictIntrospectionHandlers
                 })
             });
 
-            await dbContext.SaveChangesAsync(cancellationToken);
+            using var saveChangesTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await dbContext.SaveChangesAsync(saveChangesTimeout.Token);
         }
         catch (Exception ex)
         {
