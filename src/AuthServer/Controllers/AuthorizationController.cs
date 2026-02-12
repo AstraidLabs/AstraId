@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using AuthServer.Authorization;
@@ -17,6 +19,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace AuthServer.Controllers;
 
@@ -37,6 +40,9 @@ public class AuthorizationController : ControllerBase
     private readonly LoginHistoryService _loginHistoryService;
     private readonly TokenIncidentService _incidentService;
     private readonly IOidcClientPolicyEnforcer _policyEnforcer;
+    private readonly IOpenIddictApplicationManager _applicationManager;
+    private readonly IOpenIddictAuthorizationManager _authorizationManager;
+    private readonly IAntiforgery _antiforgery;
     private readonly ILogger<AuthorizationController> _logger;
     private readonly IStringLocalizer<AuthMessages> _localizer;
 
@@ -53,6 +59,9 @@ public class AuthorizationController : ControllerBase
         LoginHistoryService loginHistoryService,
         TokenIncidentService incidentService,
         IOidcClientPolicyEnforcer policyEnforcer,
+        IOpenIddictApplicationManager applicationManager,
+        IOpenIddictAuthorizationManager authorizationManager,
+        IAntiforgery antiforgery,
         ILogger<AuthorizationController> logger,
         IStringLocalizer<AuthMessages> localizer)
     {
@@ -68,6 +77,9 @@ public class AuthorizationController : ControllerBase
         _loginHistoryService = loginHistoryService;
         _incidentService = incidentService;
         _policyEnforcer = policyEnforcer;
+        _applicationManager = applicationManager;
+        _authorizationManager = authorizationManager;
+        _antiforgery = antiforgery;
         _logger = logger;
         _localizer = localizer;
     }
@@ -118,13 +130,83 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
+        var requestedScopes = request.GetScopes().Intersect(AllowedScopes).ToArray();
+        var app = string.IsNullOrWhiteSpace(request.ClientId)
+            ? null
+            : await _applicationManager.FindByClientIdAsync(request.ClientId, HttpContext.RequestAborted);
+        var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
+        var existingAuthorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
+        var forceConsent = request.HasPrompt(OpenIddictConstants.Prompts.Consent);
+
+        if (forceConsent || existingAuthorization is null)
+        {
+            var clientName = app is null
+                ? request.ClientId ?? "Unknown client"
+                : await _applicationManager.GetDisplayNameAsync(app, HttpContext.RequestAborted) ?? request.ClientId ?? "Unknown client";
+            return RenderConsentPage(clientName, requestedScopes);
+        }
+
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
 
         var principal = await CreatePrincipalAsync(
             user,
-            request.GetScopes(),
+            requestedScopes,
             policy,
             refreshAbsoluteExpiry: null);
+        principal.SetAuthorizationId(await _authorizationManager.GetIdAsync(existingAuthorization, HttpContext.RequestAborted));
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    [HttpPost("~/connect/authorize")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitConsent([FromForm] string decision, [FromForm] bool remember)
+    {
+        var request = HttpContext.GetOpenIddictServerRequest();
+        if (request is null)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Authorize.InvalidRequest", "The authorization request is invalid.")));
+        }
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null || !user.IsActive || user.IsAnonymized)
+        {
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (string.Equals(decision, "deny", StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.AccessDenied,
+                [OpenIddictConstants.Parameters.ErrorDescription] = "The resource owner denied the authorization request."
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var requestedScopes = request.GetScopes().Intersect(AllowedScopes).ToArray();
+        var app = string.IsNullOrWhiteSpace(request.ClientId)
+            ? null
+            : await _applicationManager.FindByClientIdAsync(request.ClientId, HttpContext.RequestAborted);
+        var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
+
+        var authorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
+        if (remember && authorization is null && !string.IsNullOrWhiteSpace(applicationId))
+        {
+            authorization = await _authorizationManager.CreateAsync(
+                identity: new ClaimsIdentity(),
+                subject: user.Id.ToString(),
+                client: applicationId,
+                type: OpenIddictConstants.AuthorizationTypes.Permanent,
+                scopes: requestedScopes,
+                cancellationToken: HttpContext.RequestAborted);
+        }
+
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        var principal = await CreatePrincipalAsync(user, requestedScopes, policy, refreshAbsoluteExpiry: null);
+        if (authorization is not null)
+        {
+            principal.SetAuthorizationId(await _authorizationManager.GetIdAsync(authorization, HttpContext.RequestAborted));
+        }
+
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -310,10 +392,9 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
-        var applicationManager = HttpContext.RequestServices.GetRequiredService<IOpenIddictApplicationManager>();
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-        var app = string.IsNullOrWhiteSpace(clientId) ? null : await applicationManager.FindByClientIdAsync(clientId, HttpContext.RequestAborted);
-        var applicationId = app is null ? null : await applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
+        var app = string.IsNullOrWhiteSpace(clientId) ? null : await _applicationManager.FindByClientIdAsync(clientId, HttpContext.RequestAborted);
+        var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
         var state = string.IsNullOrWhiteSpace(applicationId)
             ? null
             : await dbContext.ClientStates.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationId == applicationId, HttpContext.RequestAborted);
@@ -380,6 +461,68 @@ public class AuthorizationController : ControllerBase
             claim.SetDestinations(ClaimDestinations.GetDestinations(claim, principal));
         }
         return await Task.FromResult(principal);
+    }
+
+
+    private async Task<object?> FindValidAuthorizationAsync(Guid userId, string? applicationId, IReadOnlyCollection<string> scopes, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId))
+        {
+            return null;
+        }
+
+        await foreach (var authorization in _authorizationManager.FindAsync(
+                           subject: userId.ToString(),
+                           client: applicationId,
+                           status: OpenIddictConstants.Statuses.Valid,
+                           type: OpenIddictConstants.AuthorizationTypes.Permanent,
+                           scopes: scopes,
+                           cancellationToken: cancellationToken))
+        {
+            return authorization;
+        }
+
+        return null;
+    }
+
+    private ContentResult RenderConsentPage(string clientName, IReadOnlyCollection<string> scopes)
+    {
+        var tokenSet = _antiforgery.GetAndStoreTokens(HttpContext);
+        var requestPath = Request.PathBase + Request.Path + Request.QueryString;
+        var encodedAction = HtmlEncoder.Default.Encode(requestPath);
+        var encodedClientName = HtmlEncoder.Default.Encode(clientName);
+        var token = HtmlEncoder.Default.Encode(tokenSet.RequestToken ?? string.Empty);
+
+        var scopeList = new StringBuilder();
+        foreach (var scope in scopes.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+        {
+            var encodedScope = HtmlEncoder.Default.Encode(scope);
+            scopeList.Append($"<li>{encodedScope}</li>");
+        }
+
+        var html = $"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Consent</title></head>
+<body style="font-family:Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem;">
+  <main style="max-width:640px;margin:0 auto;background:#111827;border-radius:12px;padding:1.5rem;">
+    <h1 style="margin-top:0">Consent required</h1>
+    <p><strong>{encodedClientName}</strong> is requesting access to:</p>
+    <ul>{scopeList}</ul>
+    <form method="post" action="{encodedAction}">
+      <input type="hidden" name="__RequestVerificationToken" value="{token}" />
+      <label><input type="checkbox" name="remember" value="true" /> Remember my choice</label>
+      <div style="margin-top:1rem;display:flex;gap:0.75rem;">
+        <button type="submit" name="decision" value="allow">Allow</button>
+        <button type="submit" name="decision" value="deny">Deny</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>
+""";
+
+        return Content(html, "text/html");
     }
 
     private string L(string key, string fallback)
