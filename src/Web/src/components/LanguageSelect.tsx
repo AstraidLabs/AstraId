@@ -34,14 +34,14 @@ export default function LanguageSelect({ authenticated = false, compact = false 
   };
 
   return (
-    <div className={`flex flex-col gap-1 ${compact ? "" : "mt-2"}`}>
-      <label htmlFor={selectId} className="inline-flex items-center gap-2 text-xs text-slate-300">
+    <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "mt-2"}`}>
+      <label htmlFor={selectId} className="inline-flex items-center gap-2 whitespace-nowrap text-xs text-slate-300">
         <Languages className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{t("language.label")}</span>
       </label>
       <select
         id={selectId}
-        className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+        className="min-w-28 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
         aria-label={t("language.label")}
         value={locale}
         onChange={(event) => void onChange(event.target.value)}
