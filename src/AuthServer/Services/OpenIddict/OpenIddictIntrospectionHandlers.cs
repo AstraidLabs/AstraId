@@ -18,6 +18,12 @@ public static class OpenIddictIntrospectionHandlers
             context.Reject(
                 error: OpenIddictConstants.Errors.InvalidClient,
                 description: "Client authentication is required.");
+            await LogIncidentAsync(
+                context.Transaction.GetHttpRequest()?.HttpContext,
+                "oidc_introspection_rejected",
+                null,
+                "missing_client_auth",
+                context.CancellationToken);
             return;
         }
 
@@ -28,6 +34,7 @@ public static class OpenIddictIntrospectionHandlers
         if (dbContext is null || applicationManager is null || clientStateService is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
+            await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "services_unavailable", context.CancellationToken);
             return;
         }
 
@@ -80,6 +87,12 @@ public static class OpenIddictIntrospectionHandlers
         if (string.IsNullOrWhiteSpace(context.ClientId))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Client authentication is required.");
+            await LogIncidentAsync(
+                context.Transaction.GetHttpRequest()?.HttpContext,
+                "oidc_revocation_rejected",
+                null,
+                "missing_client_auth",
+                context.CancellationToken);
             return;
         }
 
@@ -90,6 +103,7 @@ public static class OpenIddictIntrospectionHandlers
         if (dbContext is null || applicationManager is null || clientStateService is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
+            await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "services_unavailable", context.CancellationToken);
             return;
         }
 
@@ -105,6 +119,14 @@ public static class OpenIddictIntrospectionHandlers
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Unknown client.");
             await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "unknown_client", context.CancellationToken);
+            return;
+        }
+
+        var clientType = await applicationManager.GetClientTypeAsync(application, context.CancellationToken);
+        if (!string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal))
+        {
+            context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Only confidential clients can revoke tokens.");
+            await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "public_client", context.CancellationToken);
             return;
         }
 
