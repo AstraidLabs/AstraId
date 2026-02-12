@@ -127,7 +127,8 @@ public sealed class AuthBootstrapHostedService : IHostedService
             {
                 ClientId = client.ClientId,
                 DisplayName = client.DisplayName,
-                ClientType = client.Type
+                ClientType = client.Type,
+                ClientSecret = client.ClientSecret
             };
 
             foreach (var uri in client.RedirectUris)
