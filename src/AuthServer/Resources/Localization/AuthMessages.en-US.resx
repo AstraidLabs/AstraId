@@ -34,4 +34,24 @@
   <data name="Oidc.Token.InvalidRequest" xml:space="preserve"><value>The token request is invalid.</value></data>
   <data name="Oidc.Token.RefreshReused" xml:space="preserve"><value>The refresh token has already been used.</value></data>
   <data name="Oidc.Token.RefreshExpired" xml:space="preserve"><value>The refresh token has expired.</value></data>
+  <data name="Oidc.Consent.PromptNone" xml:space="preserve"><value>User consent is required.</value></data>
+  <data name="Oidc.Consent.Title" xml:space="preserve"><value>Consent required</value></data>
+  <data name="Oidc.Consent.ClientRequest" xml:space="preserve"><value>is requesting access to:</value></data>
+  <data name="Oidc.Consent.Remember" xml:space="preserve"><value>Remember my choice</value></data>
+  <data name="Oidc.Consent.Allow" xml:space="preserve"><value>Allow</value></data>
+  <data name="Oidc.Consent.Deny" xml:space="preserve"><value>Deny</value></data>
+  <data name="Oidc.Scope.OpenId.Name" xml:space="preserve"><value>OpenID identifier</value></data>
+  <data name="Oidc.Scope.OpenId.Description" xml:space="preserve"><value>Authenticate you and share your subject identifier.</value></data>
+  <data name="Oidc.Scope.Profile.Name" xml:space="preserve"><value>Basic profile</value></data>
+  <data name="Oidc.Scope.Profile.Description" xml:space="preserve"><value>Access your basic profile details.</value></data>
+  <data name="Oidc.Scope.Email.Name" xml:space="preserve"><value>Email address</value></data>
+  <data name="Oidc.Scope.Email.Description" xml:space="preserve"><value>Access your email address and verification status.</value></data>
+  <data name="Oidc.Scope.OfflineAccess.Name" xml:space="preserve"><value>Offline access</value></data>
+  <data name="Oidc.Scope.OfflineAccess.Description" xml:space="preserve"><value>Keep access using refresh tokens when you are offline.</value></data>
+  <data name="Oidc.Scope.Api.Name" xml:space="preserve"><value>API access</value></data>
+  <data name="Oidc.Scope.Api.Description" xml:space="preserve"><value>Call protected API endpoints on your behalf.</value></data>
+  <data name="Oidc.Scope.Roles.Name" xml:space="preserve"><value>Roles</value></data>
+  <data name="Oidc.Scope.Roles.Description" xml:space="preserve"><value>Access your role assignments.</value></data>
+  <data name="Oidc.Scope.Generic.Name" xml:space="preserve"><value>Requested permission</value></data>
+  <data name="Oidc.Scope.Generic.Description" xml:space="preserve"><value>Allows the application to access this scope.</value></data>
 </root>
