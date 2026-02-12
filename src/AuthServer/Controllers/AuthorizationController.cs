@@ -137,6 +137,19 @@ public class AuthorizationController : ControllerBase
         var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
         var existingAuthorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
         var forceConsent = request.HasPrompt(OpenIddictConstants.Prompts.Consent);
+        var silentPrompt = request.HasPrompt(OpenIddictConstants.Prompts.None);
+
+        if (silentPrompt && (forceConsent || existingAuthorization is null))
+        {
+            _logger.LogInformation(
+                "Authorization request for client {ClientId} requires consent but includes prompt=none.",
+                request.ClientId);
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.ConsentRequired,
+                [OpenIddictConstants.Parameters.ErrorDescription] = "Interactive consent is required for this request."
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
 
         if (forceConsent || existingAuthorization is null)
         {
