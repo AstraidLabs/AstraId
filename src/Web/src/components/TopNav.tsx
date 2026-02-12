@@ -5,7 +5,6 @@ import { useAuthSession } from "../auth/useAuthSession";
 import { isAuthenticatedSession } from "../auth/sessionState";
 import { getAdminEntryUrl, isAbsoluteUrl } from "../utils/adminEntry";
 import AccountDropdown from "./AccountDropdown";
-import LanguageSelector from "./LanguageSelector";
 import { useLanguage } from "../i18n/LanguageProvider";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -68,12 +67,9 @@ const TopNav = () => {
             {status === "loading" ? (
               <span className="text-sm text-slate-500">{t("common.loadingSession")}</span>
             ) : isAuthenticated && session ? (
-              <>
-                <LanguageSelector authenticated compact />
-                <AccountDropdown session={session} onLogout={handleLogout} />
-              </>
+              <AccountDropdown session={session} onLogout={handleLogout} />
             ) : (
-              <LanguageSelector compact />
+              null
             )}
           </div>
         </div>
