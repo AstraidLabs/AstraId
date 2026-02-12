@@ -40,14 +40,14 @@ export default function OverviewPage() {
       {problem?.kind === "problem" && <InlineAlert kind="error" message={problem.detail ?? problem.title ?? t("common.requestFailed")} />}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Email</p><p className="mt-2 font-semibold text-white">{overview?.email ?? "Unknown"}</p></div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Email status</p><p className="mt-2 font-semibold text-white">{overview?.emailConfirmed ? "Verified" : "Verification required"}</p></div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">MFA</p><p className="mt-2 font-semibold text-white">{mfaStatus?.enabled ? "Enabled" : "Disabled"}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">{t("account.overview.email")}</p><p className="mt-2 font-semibold text-white">{overview?.email ?? t("common.unknown")}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">{t("account.overview.emailStatus")}</p><p className="mt-2 font-semibold text-white">{overview?.emailConfirmed ? t("account.overview.verified") : t("account.overview.verificationRequired")}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">{t("account.overview.mfa")}</p><p className="mt-2 font-semibold text-white">{mfaStatus?.enabled ? t("account.overview.enabled") : t("account.overview.disabled")}</p></div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <Link to="/account" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><ProfileIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">Profile</p><p className="text-sm text-slate-400">Review your account identity details.</p></Link>
-        <Link to="/account/security" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><SecurityIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">Security</p><p className="text-sm text-slate-400">Open enterprise security controls and activity pages.</p></Link>
+        <Link to="/account" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><ProfileIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">{t("account.nav.overview")}</p><p className="text-sm text-slate-400">{t("account.overview.profileCard")}</p></Link>
+        <Link to="/account/security" className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><SecurityIcon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">{t("account.nav.security")}</p><p className="text-sm text-slate-400">{t("account.overview.securityCard")}</p></Link>
         {securityItems.map((item) => { const Icon = item.icon; return <Link key={item.key} to={item.to} className="rounded-xl border border-slate-700 p-4 hover:border-indigo-400"><Icon className={`${accountCardIconClass} mb-2 text-indigo-300`} /><p className="font-semibold text-white">{t(item.labelKey as any)}</p><p className="text-sm text-slate-400">{t(item.descriptionKey as any)}</p></Link>; })}
       </div>
     </div>
