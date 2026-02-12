@@ -137,9 +137,19 @@ public class AuthorizationController : ControllerBase
         var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
         var existingAuthorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
         var forceConsent = request.HasPrompt(OpenIddictConstants.Prompts.Consent);
+        var noPrompt = request.HasPrompt(OpenIddictConstants.Prompts.None);
 
         if (forceConsent || existingAuthorization is null)
         {
+            if (noPrompt)
+            {
+                return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.InteractionRequired,
+                    [OpenIddictConstants.Parameters.ErrorDescription] = L("Oidc.Consent.PromptNone", "User consent is required.")
+                }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            }
+
             var clientName = app is null
                 ? request.ClientId ?? "Unknown client"
                 : await _applicationManager.GetDisplayNameAsync(app, HttpContext.RequestAborted) ?? request.ClientId ?? "Unknown client";
@@ -497,24 +507,32 @@ public class AuthorizationController : ControllerBase
         foreach (var scope in scopes.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
         {
             var encodedScope = HtmlEncoder.Default.Encode(scope);
-            scopeList.Append($"<li>{encodedScope}</li>");
+            var encodedDisplayName = HtmlEncoder.Default.Encode(GetScopeDisplayName(scope));
+            var encodedDescription = HtmlEncoder.Default.Encode(GetScopeDescription(scope));
+            scopeList.Append($"<li><strong>{encodedDisplayName}</strong><br /><span style=\"opacity:0.9\">{encodedDescription}</span><br /><small style=\"opacity:0.7\">{encodedScope}</small></li>");
         }
+
+        var title = HtmlEncoder.Default.Encode(L("Oidc.Consent.Title", "Consent required"));
+        var requestText = HtmlEncoder.Default.Encode(L("Oidc.Consent.ClientRequest", "is requesting access to:"));
+        var rememberText = HtmlEncoder.Default.Encode(L("Oidc.Consent.Remember", "Remember my choice"));
+        var allowText = HtmlEncoder.Default.Encode(L("Oidc.Consent.Allow", "Allow"));
+        var denyText = HtmlEncoder.Default.Encode(L("Oidc.Consent.Deny", "Deny"));
 
         var html = $"""
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Consent</title></head>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{title}</title></head>
 <body style="font-family:Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem;">
   <main style="max-width:640px;margin:0 auto;background:#111827;border-radius:12px;padding:1.5rem;">
-    <h1 style="margin-top:0">Consent required</h1>
-    <p><strong>{encodedClientName}</strong> is requesting access to:</p>
+    <h1 style="margin-top:0">{title}</h1>
+    <p><strong>{encodedClientName}</strong> {requestText}</p>
     <ul>{scopeList}</ul>
     <form method="post" action="{encodedAction}">
       <input type="hidden" name="__RequestVerificationToken" value="{token}" />
-      <label><input type="checkbox" name="remember" value="true" /> Remember my choice</label>
+      <label><input type="checkbox" name="remember" value="true" /> {rememberText}</label>
       <div style="margin-top:1rem;display:flex;gap:0.75rem;">
-        <button type="submit" name="decision" value="allow">Allow</button>
-        <button type="submit" name="decision" value="deny">Deny</button>
+        <button type="submit" name="decision" value="allow">{allowText}</button>
+        <button type="submit" name="decision" value="deny">{denyText}</button>
       </div>
     </form>
   </main>
@@ -523,6 +541,38 @@ public class AuthorizationController : ControllerBase
 """;
 
         return Content(html, "text/html");
+    }
+
+    private string GetScopeDisplayName(string scope)
+    {
+        var key = scope.ToLowerInvariant() switch
+        {
+            OpenIddictConstants.Scopes.OpenId => "Oidc.Scope.OpenId.Name",
+            OpenIddictConstants.Scopes.Profile => "Oidc.Scope.Profile.Name",
+            OpenIddictConstants.Scopes.Email => "Oidc.Scope.Email.Name",
+            OpenIddictConstants.Scopes.OfflineAccess => "Oidc.Scope.OfflineAccess.Name",
+            "api" => "Oidc.Scope.Api.Name",
+            "roles" => "Oidc.Scope.Roles.Name",
+            _ => "Oidc.Scope.Generic.Name"
+        };
+
+        return L(key, scope);
+    }
+
+    private string GetScopeDescription(string scope)
+    {
+        var key = scope.ToLowerInvariant() switch
+        {
+            OpenIddictConstants.Scopes.OpenId => "Oidc.Scope.OpenId.Description",
+            OpenIddictConstants.Scopes.Profile => "Oidc.Scope.Profile.Description",
+            OpenIddictConstants.Scopes.Email => "Oidc.Scope.Email.Description",
+            OpenIddictConstants.Scopes.OfflineAccess => "Oidc.Scope.OfflineAccess.Description",
+            "api" => "Oidc.Scope.Api.Description",
+            "roles" => "Oidc.Scope.Roles.Description",
+            _ => "Oidc.Scope.Generic.Description"
+        };
+
+        return L(key, "Allows the application to access this scope.");
     }
 
     private string L(string key, string fallback)
