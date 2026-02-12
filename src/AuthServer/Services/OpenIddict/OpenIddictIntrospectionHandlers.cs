@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
+using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.OpenIddict;
 
@@ -72,7 +73,7 @@ public static class OpenIddictIntrospectionHandlers
 
         var applicationId = await applicationManager.GetIdAsync(application, context.CancellationToken);
         var state = await dbContext.ClientStates.AsNoTracking()
-            .FirstOrDefaultAsync(entry => entry.ApplicationId == applicationId, context.CancellationToken);
+            .FirstOrDefaultAsync((ClientState entry) => entry.ApplicationId == applicationId, context.CancellationToken);
 
         var snapshot = ClientPolicySnapshot.From(state?.OverridesJson);
         var permissions = await applicationManager.GetPermissionsAsync(application, context.CancellationToken);
