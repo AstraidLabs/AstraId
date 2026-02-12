@@ -100,6 +100,7 @@ public static class AuthServerDefinitions
             ClientId = "resource-api",
             DisplayName = "Resource API",
             Type = OpenIddictConstants.ClientTypes.Confidential,
+            ClientSecret = "resource-api-local-secret",
             RedirectUris = [],
             PostLogoutRedirectUris = [],
             Scopes = ["api"],
