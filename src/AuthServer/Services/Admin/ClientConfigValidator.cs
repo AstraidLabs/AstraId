@@ -13,9 +13,9 @@ public sealed class ClientConfigValidator
 
         if (string.Equals(effective.Profile, ClientProfileIds.ServiceConfidential, StringComparison.Ordinal))
         {
-            if (rule.Count != 1 || !rule.Contains(OpenIddictConstants.GrantTypes.ClientCredentials))
+            if (rule.Except([OpenIddictConstants.GrantTypes.ClientCredentials, OpenIddictConstants.GrantTypes.Password], StringComparer.Ordinal).Any())
             {
-                errors.Add("grantTypes", "ServiceConfidential supports only client_credentials.");
+                errors.Add("grantTypes", "ServiceConfidential supports only client_credentials and password.");
             }
 
             if (effective.RedirectUris.Count > 0)
@@ -28,6 +28,12 @@ public sealed class ClientConfigValidator
             && rule.Contains(OpenIddictConstants.GrantTypes.ClientCredentials))
         {
             errors.Add("grantTypes", "Public clients cannot use client_credentials.");
+        }
+
+        if (string.Equals(effective.ClientType, OpenIddictConstants.ClientTypes.Public, StringComparison.OrdinalIgnoreCase)
+            && rule.Contains(OpenIddictConstants.GrantTypes.Password))
+        {
+            errors.Add("grantTypes", "Public clients cannot use password grant.");
         }
 
         if (rule.Contains(OpenIddictConstants.GrantTypes.AuthorizationCode) && effective.RedirectUris.Count == 0)
@@ -65,6 +71,34 @@ public sealed class ClientConfigValidator
             && effective.RedirectUris.Any(uri => !IsNativeRedirectAllowed(uri)))
         {
             errors.Add("redirectUris", "Native clients allow loopback http(s) or custom scheme redirects only.");
+        }
+
+        if (effective.AllowUserCredentials
+            && !string.Equals(effective.ClientApplicationType, ClientApplicationTypes.Integration, StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("allowUserCredentials", "Password grant is only allowed for integration clients.");
+        }
+
+        if (effective.AllowUserCredentials
+            && !rule.Contains(OpenIddictConstants.GrantTypes.Password))
+        {
+            errors.Add("grantTypes", "allowUserCredentials requires the password grant type.");
+        }
+
+        if (!effective.AllowUserCredentials && effective.AllowedScopesForPasswordGrant.Count > 0)
+        {
+            errors.Add("allowedScopesForPasswordGrant", "Set allowUserCredentials to true before configuring password grant scopes.");
+        }
+
+        if (effective.AllowUserCredentials && effective.AllowedScopesForPasswordGrant.Count == 0)
+        {
+            errors.Add("allowedScopesForPasswordGrant", "At least one allowed scope must be configured for password grant.");
+        }
+
+        if (effective.AllowUserCredentials
+            && effective.AllowedScopesForPasswordGrant.Any(scope => !effective.Scopes.Contains(scope, StringComparer.OrdinalIgnoreCase)))
+        {
+            errors.Add("allowedScopesForPasswordGrant", "Password grant scopes must be a subset of client scopes.");
         }
     }
 

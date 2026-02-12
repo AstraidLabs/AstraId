@@ -16,6 +16,7 @@ using AuthServer.Services.Tokens;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Security;
 using AuthServer.Services.Notifications;
+using AuthServer.Services.OpenIddict;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -270,12 +271,14 @@ builder.Services.AddOpenIddict()
                .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
+               .SetIntrospectionEndpointUris("connect/introspect")
                .SetUserInfoEndpointUris("connect/userinfo")
                .SetEndSessionEndpointUris("connect/logout")
                .SetRevocationEndpointUris("connect/revocation");
 
         options.AllowAuthorizationCodeFlow()
-               .AllowRefreshTokenFlow();
+               .AllowRefreshTokenFlow()
+               .AllowPasswordFlow();
 
         options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
 
@@ -290,8 +293,14 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
                .EnableTokenEndpointPassthrough()
+               .EnableIntrospectionEndpointPassthrough()
                .EnableUserInfoEndpointPassthrough()
                .EnableEndSessionEndpointPassthrough();
+
+        options.AddEventHandler<OpenIddictServerEvents.ValidateIntrospectionRequestContext>(builder =>
+        {
+            builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateIntrospectionClientAsync);
+        });
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();

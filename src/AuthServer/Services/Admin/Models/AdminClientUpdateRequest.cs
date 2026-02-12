@@ -8,6 +8,10 @@ public sealed class AdminClientUpdateRequest
     public bool Enabled { get; set; } = true;
     public IReadOnlyList<string> GrantTypes { get; set; } = Array.Empty<string>();
     public bool PkceRequired { get; set; }
+    public string? ClientApplicationType { get; set; }
+    public bool AllowIntrospection { get; set; }
+    public bool AllowUserCredentials { get; set; }
+    public IReadOnlyList<string> AllowedScopesForPasswordGrant { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> Scopes { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> RedirectUris { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> PostLogoutRedirectUris { get; set; } = Array.Empty<string>();

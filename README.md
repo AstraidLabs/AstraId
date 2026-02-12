@@ -15,7 +15,7 @@ It is intended for developers building applications that need OIDC/OAuth2 authen
 
 ## What it does (Description)
 
-- Runs an OpenIddict server with discovery, JWKS, authorize, token, userinfo, end-session, and revocation endpoint URIs.
+- Runs an OpenIddict server with discovery, JWKS, authorize, token, introspection, userinfo, end-session, and revocation endpoint URIs.
 - Supports ASP.NET Identity-backed user authentication, registration, activation, password reset, and account session checks.
 - Supports MFA flows (status, setup, confirm, recovery code regeneration, disable, MFA login challenge completion).
 - Exposes self-service account APIs for password change, email change flow, sign out all sessions, security event listing, export, and deletion request/cancel.
@@ -42,8 +42,8 @@ It is intended for developers building applications that need OIDC/OAuth2 authen
   - `/connect/userinfo`
   - `/connect/logout`
   - `/connect/revocation`
-- Server flow enablement in OpenIddict configuration: **authorization_code** and **refresh_token**.
-- `AuthorizationController` contains logic for `client_credentials`, but this grant is not enabled in the OpenIddict server registration in `Program.cs` (**Partial**).
+- Server flow enablement in OpenIddict configuration: **authorization_code**, **refresh_token**, and restricted **password** (integration-only via server-side policy gates).
+- `client_credentials` and `password` grant handling are both enforced by OpenIddict + runtime client policy checks.
 
 ### Admin & governance
 - Admin APIs under `/admin/api/*` protected by `AdminOnly` policy.
@@ -56,6 +56,60 @@ It is intended for developers building applications that need OIDC/OAuth2 authen
 - `Api` project validates tokens using `AddCompanyAuth` (OpenIddict validation, issuer + audience).
 - Permission checks are enforced via policies and endpoint authorization middleware.
 - Policy map is refreshed from AuthServer admin endpoint using API key auth.
+
+
+### Token Introspection (RFC 7662)
+
+- Introspection endpoint is exposed at `/connect/introspect` and handled by OpenIddict server pipeline.
+- Only confidential clients can introspect, and each client must be explicitly allowed (`allowIntrospection=true`).
+- Admin UI/client config supports the introspection flag.
+
+Example: obtain an access token (client credentials)
+
+```bash
+curl -u resource-api:<client-secret> \
+  -X POST https://localhost:7001/connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&scope=api"
+```
+
+Example: introspect with `client_secret_basic`
+
+```bash
+curl -u resource-api:<client-secret> \
+  -X POST https://localhost:7001/connect/introspect \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=<access-token>"
+```
+
+### Password Grant (Integrations only)
+
+> ⚠️ Security warning: password grant is disabled-by-default and only allowed for trusted confidential integration clients.
+
+Server-side gates:
+- client must be confidential
+- `clientApplicationType` must be `integration`
+- `allowUserCredentials` must be `true`
+- grant type `password` must be permitted for that client
+- requested scopes must be subset of `allowedScopesForPasswordGrant`
+- ASP.NET Identity password validation uses lockout-on-failure and blocks unconfirmed/2FA-required accounts
+
+Example:
+
+```bash
+curl -u integration-client:<client-secret> \
+  -X POST https://localhost:7001/connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=<password>&scope=openid profile api"
+```
+
+### Manual verification checklist
+
+1. Obtain token via `client_credentials` for a valid confidential client.
+2. Introspect token using a client with `allowIntrospection=true` => response contains `"active": true`.
+3. Introspect using a client without introspection permission => `unauthorized_client`.
+4. Request password grant with permitted integration client + allowed scopes => token response succeeds.
+5. Request password grant with non-integration or disallowed client => `unauthorized_client`.
 
 ## Prerequisites
 
@@ -209,9 +263,7 @@ Example:
 - Not a hosted multi-tenant identity SaaS product in this repository.
 - Not a full federation hub for external identity providers (no external IdP federation implementation found).
 - Not a full replacement for all Duende enterprise capabilities out of the box.
-- **Not implemented:** introspection endpoint configuration.
 - **Not implemented:** explicit consent UI/persisted consent flow.
-- **Partial:** `client_credentials` token handling logic exists in controller, but grant is not enabled in OpenIddict server options.
 
 ## Security notes
 

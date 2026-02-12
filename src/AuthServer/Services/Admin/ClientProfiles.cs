@@ -126,6 +126,10 @@ public sealed class ClientConfigComposer
             preset.Version,
             preset.Defaults.ClientType,
             preset.Defaults.PkceRequired,
+            ClientApplicationTypes.Web,
+            false,
+            false,
+            [],
             preset.Defaults.GrantTypes.ToArray(),
             preset.Defaults.RedirectUris.ToArray(),
             preset.Defaults.PostLogoutRedirectUris.ToArray(),
@@ -155,10 +159,34 @@ public sealed class ClientConfigComposer
             clientType = clientTypeElement.GetString() ?? clientType;
         }
 
+        var clientApplicationType = effective.ClientApplicationType;
+        if (node.TryGetProperty("clientApplicationType", out var clientApplicationTypeElement) && clientApplicationTypeElement.ValueKind == JsonValueKind.String)
+        {
+            clientApplicationType = clientApplicationTypeElement.GetString() ?? clientApplicationType;
+        }
+
+        var allowIntrospection = effective.AllowIntrospection;
+        if (node.TryGetProperty("allowIntrospection", out var allowIntrospectionElement) && allowIntrospectionElement.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            allowIntrospection = allowIntrospectionElement.GetBoolean();
+        }
+
+        var allowUserCredentials = effective.AllowUserCredentials;
+        if (node.TryGetProperty("allowUserCredentials", out var allowPasswordElement) && allowPasswordElement.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            allowUserCredentials = allowPasswordElement.GetBoolean();
+        }
+
+        var allowedScopesForPasswordGrant = ReadStringArray(node, "allowedScopesForPasswordGrant") ?? effective.AllowedScopesForPasswordGrant;
+
         return effective with
         {
             ClientType = clientType,
             PkceRequired = pkce,
+            ClientApplicationType = clientApplicationType,
+            AllowIntrospection = allowIntrospection,
+            AllowUserCredentials = allowUserCredentials,
+            AllowedScopesForPasswordGrant = allowedScopesForPasswordGrant,
             GrantTypes = grants,
             RedirectUris = redirects,
             PostLogoutRedirectUris = logoutRedirects,
