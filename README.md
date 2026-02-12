@@ -1,133 +1,226 @@
 # AstraId
 
-![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+Authorization and identity server solution built on ASP.NET Identity, OpenIddict, and a React admin/user UI.
 
-AstraId is an open-source identity and authorization server built with ASP.NET Core Identity, OpenIddict, and a React-based web/admin UI.
+## Introduction
 
-## What is in this repository
+AstraId is a repository containing:
+- **AuthServer** (`src/AuthServer`): authentication, user lifecycle, OIDC server endpoints, and admin APIs.
+- **Api** (`src/Api`): protected sample API using token validation and permission checks.
+- **Web** (`src/Web`): React + Vite frontend for user and admin routes.
+- **Company.Auth.Contracts** (`src/Company.Auth.Contracts`): shared auth constants and contracts.
+- **Company.Auth.Api** (`src/Company.Auth.Api`): reusable API auth wiring for token validation/policies.
 
-- `src/AuthServer`: authorization server, ASP.NET Identity user management, `/auth/*` endpoints, `/connect/*` endpoints, admin APIs, and static hosting for `/admin` when built assets are present.
-- `src/Api`: sample protected API with OpenIddict validation and permission-based authorization.
-- `src/Web`: React + Vite UI for account flows and admin UI routes.
-- `src/Company.Auth.Contracts`: shared auth constants/contracts.
-- `src/Company.Auth.Api`: reusable API auth wiring for token validation and permission policies.
+It is intended for developers building applications that need OIDC/OAuth2 authentication plus first-party account management and an admin surface.
 
-## ✨ Key features (code-backed)
+## What it does (Description)
 
-### AuthServer
-- ASP.NET Identity user store with confirmed account requirement and cookie session auth for first-party UI flows (`AstraId.Auth` cookie). (`src/AuthServer/Program.cs`)
-- First-party auth endpoints under `/auth/*` for login, MFA challenge/setup, register, activation, forgot/reset password, logout, and session checks. (`src/AuthServer/Controllers/AuthController.cs`)
-- Security/account APIs for profile, sessions, security events, privacy, and self-delete flows. (`src/AuthServer/Controllers/SelfServiceController.cs`, `src/AuthServer/Controllers/AccountPrivacyController.cs`, `src/AuthServer/Controllers/SelfDeleteController.cs`)
+- Runs an OpenIddict server with discovery, JWKS, authorize, token, userinfo, end-session, and revocation endpoint URIs.
+- Supports ASP.NET Identity-backed user authentication, registration, activation, password reset, and account session checks.
+- Supports MFA flows (status, setup, confirm, recovery code regeneration, disable, MFA login challenge completion).
+- Exposes self-service account APIs for password change, email change flow, sign out all sessions, security event listing, export, and deletion request/cancel.
+- Provides admin APIs for OIDC clients/scopes/resources, API resources/endpoints, users, roles, permissions, diagnostics, audits, signing keys, token/security policies, revocation, lifecycle/privacy policies, and email outbox.
+- Hosts admin static assets under `/admin` from `wwwroot/admin-ui` when built assets are present.
+- Applies token policy settings (access/identity/refresh lifetimes and clock skew) through governance services and OpenIddict options configuration.
+- Implements refresh-token reuse detection/remediation and incident logging for suspicious token events.
+- Provides a protected API sample that validates bearer tokens with OpenIddict validation and applies permission checks, including a policy-map refresh from AuthServer.
 
-### OIDC / OAuth2
-- OpenIddict endpoints: discovery, JWKS, authorize, token, userinfo, logout, revocation. (`src/AuthServer/Program.cs`)
-- Server-level enabled flows: authorization code + refresh token. (`src/AuthServer/Program.cs`)
-- Token endpoint handler contains additional handling for `client_credentials`, but this grant is not enabled in server configuration by default. (`src/AuthServer/Controllers/AuthorizationController.cs`, `src/AuthServer/Program.cs`)
-- Scope/resource mapping via `AuthServerScopeRegistry` and claims enrichment with permission claims. (`src/AuthServer/Controllers/AuthorizationController.cs`, `src/AuthServer/Authorization/AuthServerScopeRegistry.cs`)
+## Key Features
 
-### Security governance
-- Persisted signing key ring + JWKS materialization + hosted rotation worker and admin rotation/revoke endpoints. (`src/AuthServer/Services/SigningKeys`, `src/AuthServer/Controllers/Admin/AdminSigningKeysController.cs`, `src/AuthServer/Program.cs`)
-- Token policy services and admin APIs for token/security policies. (`src/AuthServer/Services/Tokens`, `src/AuthServer/Controllers/Admin/AdminTokensController.cs`, `src/AuthServer/Controllers/Admin/AdminSecurityPoliciesController.cs`)
-- Refresh token reuse detection/remediation and token incident logging APIs. (`src/AuthServer/Services/Tokens/RefreshTokenReuseDetectionService.cs`, `src/AuthServer/Services/Tokens/RefreshTokenReuseRemediationService.cs`, `src/AuthServer/Controllers/Admin/AdminTokenIncidentsController.cs`)
-- Diagnostics and audit surfaces, including error log persistence/cleanup and admin diagnostics endpoints. (`src/AuthServer/Services/Diagnostics`, `src/AuthServer/Controllers/Admin/AdminDiagnosticsController.cs`, `src/AuthServer/Controllers/Admin/AdminAuditController.cs`)
+### Authentication & user lifecycle
+- `/auth` endpoints for login, register, activate, resend activation, forgot/reset password, logout, and session checks.
+- MFA endpoints under `/auth/mfa/*` for setup and operation.
+- Authenticated self-service endpoints for profile, password/email change, session revocation, security events, and privacy/deletion workflows.
+- Cookie auth for first-party flows (`AstraId.Auth`) with `HttpOnly`, `SameSite=None`, and `SecurePolicy=Always`.
 
-### Admin UI / Admin APIs
-- Admin API domain coverage includes clients, scopes, OIDC resources, API resources/endpoints, users, roles, permissions, signing keys, token policies, revocation, privacy/lifecycle policy, diagnostics, and email outbox. (`src/AuthServer/Controllers/Admin`)
-- Admin SPA routes under `/admin/*` in the React app; AuthServer hosts `/admin` static files from `wwwroot/admin-ui` when available. (`src/Web/src/App.tsx`, `src/AuthServer/Program.cs`)
+### OIDC/OAuth2
+- OpenIddict endpoint URIs configured for:
+  - `/.well-known/openid-configuration`
+  - `/.well-known/jwks`
+  - `/connect/authorize`
+  - `/connect/token`
+  - `/connect/userinfo`
+  - `/connect/logout`
+  - `/connect/revocation`
+- Server flow enablement in OpenIddict configuration: **authorization_code** and **refresh_token**.
+- `AuthorizationController` contains logic for `client_credentials`, but this grant is not enabled in the OpenIddict server registration in `Program.cs` (**Partial**).
+
+### Admin & governance
+- Admin APIs under `/admin/api/*` protected by `AdminOnly` policy.
+- `AdminOnly` policy requires `Admin` role and enforces `system.admin` permission when permission claims are present.
+- Signing key ring, rotation worker, and admin key management APIs exist (including JWKS rollover-oriented handling with active/previous keys).
+- Token/security policy APIs exist with governance guardrails.
+- Audit and diagnostics APIs exist; error logs can be stored and cleaned up by hosted services.
 
 ### API integration
-- API validates tokens using OpenIddict validation (`AddCompanyAuth`) and enforces permission policies (`RequirePermission`). (`src/Company.Auth.Api/CompanyAuthExtensions.cs`, `src/Api/Program.cs`)
-- API includes policy-map refresh integration with AuthServer and an endpoint-authorization middleware. (`src/Api/Program.cs`, `src/Api/Middleware/EndpointAuthorizationMiddleware.cs`, `src/Api/Services/PolicyMapRefreshService.cs`)
+- `Api` project validates tokens using `AddCompanyAuth` (OpenIddict validation, issuer + audience).
+- Permission checks are enforced via policies and endpoint authorization middleware.
+- Policy map is refreshed from AuthServer admin endpoint using API key auth.
 
-### Web UI scope
-- Public/account routes (login/register/reset/activate/account/security/privacy) and admin routes are implemented in React Router. (`src/Web/src/App.tsx`)
-- Web app uses `/auth/*` APIs and OIDC client settings for protocol integration. (`src/Web/src/api/authServer.ts`, `src/Web/src/auth/oidc.ts`)
+## Prerequisites
 
-## 🧭 Architecture overview
+- **.NET SDK** compatible with `net10.0` (AuthServer and Api target `net10.0`).
+- **Node.js + npm** (for `src/Web` Vite frontend).
+- **PostgreSQL** (AuthServer uses `Npgsql.EntityFrameworkCore.PostgreSQL`).
 
-- Browser UI (`src/Web`) uses cookie-backed `/auth/*` APIs for first-party account flows.
-- OAuth2/OIDC clients use `/connect/*` endpoints on AuthServer.
-- Protected APIs (`src/Api`) validate access tokens against AuthServer issuer and enforce permission claims.
-- Admin UI runs as React routes and consumes `/admin/api/*` endpoints.
+## Installation (local development)
 
-Typical local dev ports from launch profiles:
+1. Restore/build .NET projects:
+
+```bash
+dotnet restore
+dotnet build
+```
+
+2. Run AuthServer (launch profile uses HTTPS 7001):
+
+```bash
+dotnet run --project src/AuthServer --launch-profile AuthServer
+```
+
+3. Run Api (launch profile uses HTTPS 7002):
+
+```bash
+dotnet run --project src/Api --launch-profile Api
+```
+
+4. Run Web (Vite dev server on port 5173):
+
+```bash
+cd src/Web
+npm install
+npm run dev
+```
+
+Default local dev URLs:
 - AuthServer: `https://localhost:7001`
 - Api: `https://localhost:7002`
 - Web: `http://localhost:5173`
 
-## 🚀 Quickstart
+## Configuration
 
-### Prerequisites
-- .NET SDK supporting `net10.0`
-- Node.js + npm
-- PostgreSQL (AuthServer EF Core store)
+### Configuration overview
 
-### Run all apps
-
-Option A (script):
-- Bash: `./scripts/dev.sh`
-- PowerShell: `./scripts/dev.ps1`
-
-Option B (manual):
-1. `dotnet run --project src/AuthServer --launch-profile AuthServer`
-2. `dotnet run --project src/Api --launch-profile Api`
-3. `cd src/Web && npm install && npm run dev`
-
-## ⚙️ Configuration (sections used by code)
-
-### AuthServer (`src/AuthServer/appsettings*.json`)
+#### AuthServer (`src/AuthServer/appsettings*.json`)
 - `ConnectionStrings:DefaultConnection`
 - `AuthServer:Issuer`
-- `AuthServer:UiMode`, `AuthServer:UiBaseUrl`
+- `AuthServer:UiMode`, `AuthServer:UiBaseUrl`, `AuthServer:HostedUiPath`
+- `AuthServer:Certificates:*` (encryption/signing certificate descriptors)
 - `AuthServer:SigningKeys:*`
 - `AuthServer:KeyRotationDefaults:*`
 - `AuthServer:Tokens:*`
 - `AuthServer:TokenPolicyDefaults:*`
 - `AuthServer:GovernanceGuardrails:*`
-- `AuthServer:Certificates:*` (encryption certificate loading)
 - `AuthServer:DataProtection:*`
+- `Cors:AllowedOrigins`
 - `Email:*`
 - `Diagnostics:*`
 - `BootstrapAdmin:*`
 
-### Api (`src/Api/appsettings*.json`)
+Example (placeholders only):
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=astra;Username=<user>;Password=<password>"
+  },
+  "AuthServer": {
+    "Issuer": "https://localhost:7001/",
+    "UiMode": "Separate",
+    "UiBaseUrl": "http://localhost:5173",
+    "SigningKeys": {
+      "Mode": "Auto",
+      "RotationIntervalDays": 30,
+      "PreviousKeyRetentionDays": 14
+    },
+    "TokenPolicyDefaults": {
+      "AccessTokenMinutes": 30,
+      "IdentityTokenMinutes": 15,
+      "RefreshTokenDays": 30,
+      "ClockSkewSeconds": 60
+    }
+  },
+  "Email": {
+    "FromEmail": "no-reply@example.com",
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "Username": "<smtp-user>",
+      "Password": "<smtp-password>"
+    }
+  },
+  "Cors": {
+    "AllowedOrigins": ["http://localhost:5173"]
+  }
+}
+```
+
+#### Api (`src/Api/appsettings*.json`)
 - `Auth:Issuer`, `Auth:Audience`, `Auth:Scopes`
-- `Api:AuthServer:*`
+- `Api:AuthServer:*` (policy-map source)
 - `Services:AuthServer:*`, `Services:Cms:*`
 - `Http:*`
 - `Swagger:OAuthClientId`
 
-> Do not commit real secrets in configuration values (DB passwords, SMTP passwords, API keys).
+Example:
 
-## 🔐 Security notes
+```json
+{
+  "Auth": {
+    "Issuer": "https://localhost:7001/",
+    "Audience": "api",
+    "Scopes": ["api"]
+  },
+  "Api": {
+    "AuthServer": {
+      "BaseUrl": "https://localhost:7001",
+      "ApiName": "api",
+      "ApiKey": "<api-key>",
+      "RefreshMinutes": 5
+    }
+  }
+}
+```
 
-- First-party web UX is cookie-based (`AstraId.Auth`), while API protection is token-based via OpenIddict validation.
-- Production startup enforces HTTPS issuer for AuthServer.
-- Email settings are required and validated at startup.
-- Signing key rotation is implemented as a hosted service with persisted key metadata and admin management endpoints.
-- Data protection key persistence can be configured to filesystem path and read-only mode.
+#### Web (`src/Web/.env.example`)
+- `VITE_API_BASE_URL`
+- `VITE_AUTHSERVER_BASE_URL`
+- `VITE_AUTH_AUTHORITY`
+- `VITE_AUTH_CLIENT_ID`
+- `VITE_AUTH_REDIRECT_URI`
+- `VITE_AUTH_POST_LOGOUT_REDIRECT_URI`
+- `VITE_AUTH_SCOPE`
+- `VITE_ADMIN_ENTRY_URL`
 
-## Duende vs AstraId (Truthful comparison)
+## AstraId vs Duende (Truthful comparison)
 
-- Feature: Authorization code flow — AstraId: Implemented — Notes: OpenIddict server enables authorization code and exposes `/connect/authorize` + `/connect/token`. — Evidence: `src/AuthServer/Program.cs`, `src/AuthServer/Controllers/AuthorizationController.cs`
-- Feature: Refresh tokens — AstraId: Implemented — Notes: Refresh flow is enabled and guarded by token policy logic with absolute/sliding policy application. — Evidence: `src/AuthServer/Program.cs`, `src/AuthServer/Controllers/AuthorizationController.cs`, `src/AuthServer/Services/Tokens/TokenPolicyApplier.cs`
-- Feature: Client credentials flow — AstraId: Partially — Notes: Token controller contains handling, but server configuration does not enable the grant by default. — Evidence: `src/AuthServer/Controllers/AuthorizationController.cs`, `src/AuthServer/Program.cs`
-- Feature: Revocation endpoint — AstraId: Implemented — Notes: `/connect/revocation` is configured, with admin revocation APIs for user/client grant revocation. — Evidence: `src/AuthServer/Program.cs`, `src/AuthServer/Controllers/Admin/AdminRevocationController.cs`
-- Feature: Introspection endpoint — AstraId: Missing — Notes: No introspection endpoint URI is configured; API sample uses JWT validation. — Evidence: `src/AuthServer/Program.cs`, `src/Company.Auth.Api/CompanyAuthExtensions.cs`
-- Feature: Consent screen/persisted consent UX — AstraId: Missing — Notes: No consent controller/page or consent persistence flow appears in the web/auth endpoints. — Evidence: `src/AuthServer/Controllers/AuthorizationController.cs`, `src/Web/src/App.tsx`
-- Feature: Logout propagation (front/back-channel SLO) — AstraId: Partially — Notes: End-session endpoint exists, but no explicit front-channel/back-channel logout propagation implementation is present. — Evidence: `src/AuthServer/Program.cs`, `src/AuthServer/Controllers/AuthorizationController.cs`
-- Feature: Signing key management/rotation — AstraId: Implemented — Notes: Key ring, rotation worker, and admin rotate/revoke/jwks endpoints are present. — Evidence: `src/AuthServer/Services/SigningKeys`, `src/AuthServer/Controllers/Admin/AdminSigningKeysController.cs`, `src/AuthServer/Program.cs`
-- Feature: Session/account security controls — AstraId: Implemented — Notes: Account session/security endpoints plus user lifecycle/inactivity/privacy governance APIs are included. — Evidence: `src/AuthServer/Controllers/SelfServiceController.cs`, `src/AuthServer/Controllers/Admin/AdminUserLifecycleController.cs`, `src/AuthServer/Controllers/Admin/AdminInactivityPolicyController.cs`, `src/AuthServer/Controllers/Admin/AdminPrivacyPolicyController.cs`
+- AstraId implements OIDC discovery/JWKS/authorize/token/userinfo/logout/revocation endpoint wiring in code. Duende typically provides OIDC/OAuth endpoint infrastructure as part of a commercial identity server offering.
+- AstraId implements authorization code + refresh flows in OpenIddict server setup. Duende typically supports core OAuth2/OIDC flows with configurable clients/scopes.
+- AstraId has refresh-token reuse detection and remediation logic (including token/authorization revocation and incident logging). Duende enterprise offerings typically include advanced token/security controls.
+- AstraId has an admin API/UI surface for clients, scopes, resources, users, roles, and permissions. Duende typically provides admin/operational tooling via ecosystem and commercial components.
+- AstraId includes signing key ring and rotation workers with active/previous key handling for JWKS rollover. Duende typically includes key management options in enterprise deployments.
+- AstraId includes diagnostics and audit APIs backed by persisted logs. Duende deployments typically include operational observability options via platform integrations.
+- AstraId includes first-party account lifecycle APIs (registration, activation, password reset, MFA, sessions). Duende is generally protocol-focused and commonly paired with custom account UX.
+- AstraId includes a sample protected API that validates tokens and enforces permission mapping. Duende commonly integrates with APIs via standards-based token validation.
 
-## Roadmap / gaps
+## What AstraId is NOT
 
-See **Duende vs AstraId (Truthful comparison)** for parity-oriented gaps.
+- Not a CMS platform.
+- Not a hosted multi-tenant identity SaaS product in this repository.
+- Not a full federation hub for external identity providers (no external IdP federation implementation found).
+- Not a full replacement for all Duende enterprise capabilities out of the box.
+- **Not implemented:** introspection endpoint configuration.
+- **Not implemented:** explicit consent UI/persisted consent flow.
+- **Partial:** `client_credentials` token handling logic exists in controller, but grant is not enabled in OpenIddict server options.
 
-- Introspection endpoint is not implemented in the current server pipeline.
-- Consent UX and persisted consent management are not implemented.
-- Explicit front-channel/back-channel logout propagation is not implemented.
-- External identity provider federation is not implemented in the current baseline.
-- Distributed deployment hardening (shared cache/session strategy and operational playbooks) is not documented as implemented in this repo.
+## Security notes
+
+- In production, AuthServer startup enforces HTTPS for `AuthServer:Issuer`.
+- Auth cookie settings are explicitly hardened (`HttpOnly`, `SecurePolicy=Always`, `SameSite=None`).
+- Token policy defaults include access/identity/refresh lifetimes and clock skew configuration.
+- Refresh token rotation/reuse detection settings are configurable and checked during refresh exchanges.
+- Signing keys can be certificate-based or DB key-ring based (mode-resolved), with hosted rotation checks and key retention/grace handling.
+- Data Protection keys can be persisted to filesystem and optionally set read-only.
 
 ## License
 
