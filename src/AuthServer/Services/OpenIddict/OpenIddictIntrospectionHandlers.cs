@@ -2,6 +2,7 @@ using AuthServer.Data;
 using AuthServer.Services;
 using AuthServer.Services.Admin;
 using AuthServer.Services.Governance;
+using Microsoft.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
