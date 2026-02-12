@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
+using OpenIddict.Validation;
 using OpenIddict.Validation.AspNetCore;
 
 namespace Company.Auth.Api;
@@ -32,6 +33,15 @@ public static class CompanyAuthExtensions
                 options.UseSystemNetHttp();
                 options.UseAspNetCore();
             });
+
+        var clockSkewSeconds = configuration.GetValue<int?>("Auth:ClockSkewSeconds");
+        if (clockSkewSeconds is > 0)
+        {
+            services.Configure<OpenIddictValidationOptions>(options =>
+            {
+                options.TokenValidationParameters.ClockSkew = TimeSpan.FromSeconds(clockSkewSeconds.Value);
+            });
+        }
 
         services.AddAuthorization(options =>
         {

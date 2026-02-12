@@ -15,13 +15,47 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var configuredIssuer = builder.Configuration["Auth:Issuer"];
+var configuredAudience = builder.Configuration["Auth:Audience"];
+
+if (!builder.Environment.IsDevelopment())
+{
+    if (string.IsNullOrWhiteSpace(configuredIssuer))
+    {
+        throw new InvalidOperationException("Auth:Issuer must be configured outside Development.");
+    }
+
+    if (!Uri.TryCreate(configuredIssuer, UriKind.Absolute, out var issuerUri))
+    {
+        throw new InvalidOperationException("Auth:Issuer must be a valid absolute URI outside Development.");
+    }
+
+    if (!string.Equals(issuerUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Auth:Issuer must use HTTPS outside Development.");
+    }
+
+    if (string.IsNullOrWhiteSpace(configuredAudience))
+    {
+        throw new InvalidOperationException("Auth:Audience must be configured outside Development.");
+    }
+}
+
+var effectiveIssuer = string.IsNullOrWhiteSpace(configuredIssuer)
+    ? AuthConstants.DefaultIssuer
+    : configuredIssuer;
+var effectiveAudience = string.IsNullOrWhiteSpace(configuredAudience)
+    ? "api"
+    : configuredAudience;
+var effectiveScopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
+
 var mapsterConfig = new TypeAdapterConfig();
 mapsterConfig.NewConfig<UserProfileModel, MeDto>();
 
 builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 
-builder.Services.AddCompanyAuth(builder.Configuration, builder.Configuration["Auth:Audience"] ?? "api");
+builder.Services.AddCompanyAuth(builder.Configuration, effectiveAudience);
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("RequireSystemAdmin", policy =>
@@ -48,8 +82,7 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    var issuer = builder.Configuration["Auth:Issuer"] ?? AuthConstants.DefaultIssuer;
-    var scopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
+    var scopes = effectiveScopes;
 
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Api", Version = "v1" });
 
@@ -60,8 +93,8 @@ builder.Services.AddSwaggerGen(options =>
         {
             AuthorizationCode = new OpenApiOAuthFlow
             {
-                AuthorizationUrl = new Uri(new Uri(issuer), "connect/authorize"),
-                TokenUrl = new Uri(new Uri(issuer), "connect/token"),
+                AuthorizationUrl = new Uri(new Uri(effectiveIssuer), "connect/authorize"),
+                TokenUrl = new Uri(new Uri(effectiveIssuer), "connect/token"),
                 Scopes = scopes.ToDictionary(scope => scope, scope => scope)
             }
         }
@@ -180,13 +213,12 @@ if (enableSwagger)
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
-        var scopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
         var clientId = builder.Configuration["Swagger:OAuthClientId"] ?? "web-spa";
 
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Api v1");
         options.OAuthClientId(clientId);
         options.OAuthUsePkce();
-        options.OAuthScopes(scopes);
+        options.OAuthScopes(effectiveScopes);
     });
 }
 
@@ -251,6 +283,24 @@ api.MapGet("/integrations/authserver/ping", async (AuthServerClient client, Canc
 
 api.MapGet("/integrations/cms/ping", async (CmsClient client, CancellationToken cancellationToken) =>
     Results.Ok(await client.PingAsync(cancellationToken)))
+    .RequireAuthorization("RequireSystemAdmin");
+
+api.MapGet("/integrations/auth/contract", (PolicyMapClient policyMapClient) =>
+    {
+        var policyMapDiagnostics = policyMapClient.GetDiagnostics();
+        return Results.Ok(new
+        {
+            issuer = effectiveIssuer,
+            audience = effectiveAudience,
+            permissionClaimType = AuthConstants.ClaimTypes.Permission,
+            scopes = effectiveScopes,
+            policyMapEndpointUrl = policyMapDiagnostics.EndpointUrl,
+            policyMapLastRefreshUtc = policyMapDiagnostics.LastRefreshUtc,
+            policyMapEntryCount = policyMapDiagnostics.EntryCount,
+            policyMapLastFailureUtc = policyMapDiagnostics.LastFailureUtc,
+            validationMode = "discovery+jwks"
+        });
+    })
     .RequireAuthorization("RequireSystemAdmin");
 
 app.Run();
