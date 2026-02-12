@@ -78,6 +78,7 @@ builder.Services.AddControllers()
         };
     });
 builder.Services.AddRazorPages();
+builder.Services.AddAntiforgery();
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     options.DefaultRequestCulture = new RequestCulture(SupportedCultures.Default);
@@ -278,6 +279,7 @@ builder.Services.AddOpenIddict()
 
         options.AllowAuthorizationCodeFlow()
                .AllowRefreshTokenFlow()
+               .AllowClientCredentialsFlow()
                .AllowPasswordFlow();
 
         options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
@@ -301,6 +303,11 @@ builder.Services.AddOpenIddict()
         {
             builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateIntrospectionClientAsync);
         });
+
+        options.AddEventHandler<OpenIddictServerEvents.ValidateRevocationRequestContext>(builder =>
+        {
+            builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateRevocationClientAsync);
+        });
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
@@ -318,6 +325,25 @@ var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Val
 ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
+if (app.Environment.IsProduction())
+{
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+        context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self';";
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 app.UseRequestLocalization();
 app.Use(async (context, next) =>
 {

@@ -1,10 +1,11 @@
 using AuthServer.Data;
+using AuthServer.Services;
 using AuthServer.Services.Admin;
+using AuthServer.Services.Governance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
-using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.OpenIddict;
 
@@ -20,11 +21,20 @@ public static class OpenIddictIntrospectionHandlers
             return;
         }
 
-        var dbContext = context.Transaction.GetHttpRequest()?.HttpContext.RequestServices.GetService<ApplicationDbContext>();
-        var applicationManager = context.Transaction.GetHttpRequest()?.HttpContext.RequestServices.GetService<IOpenIddictApplicationManager>();
-        if (dbContext is null || applicationManager is null)
+        var httpContext = context.Transaction.GetHttpRequest()?.HttpContext;
+        var dbContext = httpContext?.RequestServices.GetService<ApplicationDbContext>();
+        var applicationManager = httpContext?.RequestServices.GetService<IOpenIddictApplicationManager>();
+        var clientStateService = httpContext?.RequestServices.GetService<IClientStateService>();
+        if (dbContext is null || applicationManager is null || clientStateService is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
+            return;
+        }
+
+        if (!await clientStateService.IsClientEnabledAsync(context.ClientId, context.CancellationToken))
+        {
+            context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "The client is disabled.");
+            await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "client_disabled", context.CancellationToken);
             return;
         }
 
@@ -32,6 +42,7 @@ public static class OpenIddictIntrospectionHandlers
         if (application is null)
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Unknown client.");
+            await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "unknown_client", context.CancellationToken);
             return;
         }
 
@@ -39,6 +50,7 @@ public static class OpenIddictIntrospectionHandlers
         if (!string.Equals(clientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal))
         {
             context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Only confidential clients can introspect tokens.");
+            await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "public_client", context.CancellationToken);
             return;
         }
 
@@ -56,6 +68,73 @@ public static class OpenIddictIntrospectionHandlers
             context.Reject(
                 error: OpenIddictConstants.Errors.UnauthorizedClient,
                 description: "The client is not allowed to use the introspection endpoint.");
+            await LogIncidentAsync(httpContext, "oidc_introspection_rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
+            return;
         }
+
+        await LogIncidentAsync(httpContext, "oidc_introspection_accepted", context.ClientId, null, context.CancellationToken);
+    }
+
+    public static async ValueTask ValidateRevocationClientAsync(OpenIddictServerEvents.ValidateRevocationRequestContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.ClientId))
+        {
+            context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Client authentication is required.");
+            return;
+        }
+
+        var httpContext = context.Transaction.GetHttpRequest()?.HttpContext;
+        var dbContext = httpContext?.RequestServices.GetService<ApplicationDbContext>();
+        var applicationManager = httpContext?.RequestServices.GetService<IOpenIddictApplicationManager>();
+        var clientStateService = httpContext?.RequestServices.GetService<IClientStateService>();
+        if (dbContext is null || applicationManager is null || clientStateService is null)
+        {
+            context.Reject(error: OpenIddictConstants.Errors.ServerError, description: "Client policy services are unavailable.");
+            return;
+        }
+
+        if (!await clientStateService.IsClientEnabledAsync(context.ClientId, context.CancellationToken))
+        {
+            context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "The client is disabled.");
+            await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "client_disabled", context.CancellationToken);
+            return;
+        }
+
+        var application = await applicationManager.FindByClientIdAsync(context.ClientId, context.CancellationToken);
+        if (application is null)
+        {
+            context.Reject(error: OpenIddictConstants.Errors.InvalidClient, description: "Unknown client.");
+            await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "unknown_client", context.CancellationToken);
+            return;
+        }
+
+        var permissions = await applicationManager.GetPermissionsAsync(application, context.CancellationToken);
+        if (!permissions.Contains(OpenIddictConstants.Permissions.Endpoints.Revocation, StringComparer.Ordinal))
+        {
+            context.Reject(
+                error: OpenIddictConstants.Errors.UnauthorizedClient,
+                description: "The client is not allowed to use the revocation endpoint.");
+            await LogIncidentAsync(httpContext, "oidc_revocation_rejected", context.ClientId, "endpoint_not_allowed", context.CancellationToken);
+            return;
+        }
+
+        await LogIncidentAsync(httpContext, "oidc_revocation_accepted", context.ClientId, null, context.CancellationToken);
+    }
+
+    private static async Task LogIncidentAsync(HttpContext? httpContext, string type, string? clientId, string? reason, CancellationToken cancellationToken)
+    {
+        var incidentService = httpContext?.RequestServices.GetService<TokenIncidentService>();
+        if (incidentService is null)
+        {
+            return;
+        }
+
+        await incidentService.LogIncidentAsync(
+            type,
+            reason is null ? "low" : "medium",
+            userId: null,
+            clientId,
+            detail: new { reason, path = httpContext?.Request.Path.Value, traceId = httpContext?.TraceIdentifier },
+            cancellationToken: cancellationToken);
     }
 }
