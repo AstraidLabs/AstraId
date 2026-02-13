@@ -2,9 +2,11 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AuthServer.Data;
+using AuthServer.Models;
 using AuthServer.Services.Admin.Models;
 using AuthServer.Services.Admin.Validation;
 using AuthServer.Services.Governance;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
@@ -27,7 +29,10 @@ public sealed class AdminClientService : IAdminClientService
     private readonly TokenIncidentService _incidentService;
     private readonly IClientPresetRegistry _presetRegistry;
     private readonly ClientConfigComposer _configComposer;
+    private const string BrandingPropertyName = "branding";
+
     private readonly ClientConfigValidator _configValidator;
+    private readonly IWebHostEnvironment _hostEnvironment;
 
     public AdminClientService(
         IOpenIddictApplicationManager applicationManager,
@@ -37,7 +42,8 @@ public sealed class AdminClientService : IAdminClientService
         TokenIncidentService incidentService,
         IClientPresetRegistry presetRegistry,
         ClientConfigComposer configComposer,
-        ClientConfigValidator configValidator)
+        ClientConfigValidator configValidator,
+        IWebHostEnvironment hostEnvironment)
     {
         _applicationManager = applicationManager;
         _scopeManager = scopeManager;
@@ -47,6 +53,7 @@ public sealed class AdminClientService : IAdminClientService
         _presetRegistry = presetRegistry;
         _configComposer = configComposer;
         _configValidator = configValidator;
+        _hostEnvironment = hostEnvironment;
     }
 
     public async Task<PagedResult<AdminClientListItem>> GetClientsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken)
@@ -74,13 +81,15 @@ public sealed class AdminClientService : IAdminClientService
             var id = await _applicationManager.GetIdAsync(application, cancellationToken) ?? string.Empty;
             var clientType = await _applicationManager.GetClientTypeAsync(application, cancellationToken) ?? string.Empty;
             var enabled = ResolveEnabled(id, clientStates);
+            var branding = await GetBrandingAsync(application, cancellationToken);
 
             items.Add(new AdminClientListItem(
                 id,
                 clientId,
                 displayName,
                 clientType,
-                enabled));
+                enabled,
+                HasBranding(branding)));
         }
 
         var totalCount = items.Count;
@@ -143,6 +152,8 @@ public sealed class AdminClientService : IAdminClientService
             clientSecret = GenerateSecret();
             descriptor.ClientSecret = clientSecret;
         }
+
+        SetBranding(descriptor, config.Branding);
 
         await _applicationManager.CreateAsync(descriptor, cancellationToken);
 
@@ -245,6 +256,8 @@ public sealed class AdminClientService : IAdminClientService
         {
             descriptor.ClientSecret = null;
         }
+
+        SetBranding(descriptor, config.Branding);
 
         await _applicationManager.UpdateAsync(application, descriptor, cancellationToken);
 
@@ -397,6 +410,7 @@ public sealed class AdminClientService : IAdminClientService
         var scopes = ParseScopes(permissions);
         var pkceRequired = requirements.Contains(OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange, StringComparer.Ordinal);
         var policy = ClientPolicySnapshot.From(state?.OverridesJson);
+        var branding = await GetBrandingAsync(application, cancellationToken);
 
         return new AdminClientDetail(
             id,
@@ -416,7 +430,8 @@ public sealed class AdminClientService : IAdminClientService
             state?.Profile,
             state?.AppliedPresetId,
             state?.AppliedPresetVersion,
-            state?.SystemManaged ?? false);
+            state?.SystemManaged ?? false,
+            branding);
     }
 
     private async Task<AdminClientConfiguration> NormalizeAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
@@ -439,6 +454,7 @@ public sealed class AdminClientService : IAdminClientService
             request.PresetId,
             request.PresetVersion,
             request.Overrides,
+            request.Branding,
             cancellationToken);
     }
 
@@ -462,6 +478,7 @@ public sealed class AdminClientService : IAdminClientService
             request.PresetId,
             request.PresetVersion,
             request.Overrides,
+            request.Branding,
             cancellationToken);
     }
 
@@ -483,6 +500,7 @@ public sealed class AdminClientService : IAdminClientService
         string? presetId,
         int? presetVersion,
         JsonElement? overrides,
+        ClientBranding? branding,
         CancellationToken cancellationToken)
     {
         var errors = new AdminValidationErrors();
@@ -549,6 +567,12 @@ public sealed class AdminClientService : IAdminClientService
 
         var normalizedRedirectUris = OidcValidationSpec.NormalizeRedirectUris(effective.RedirectUris, errors, "redirectUris", "Redirect URI");
         var normalizedPostLogoutUris = OidcValidationSpec.NormalizeRedirectUris(effective.PostLogoutRedirectUris, errors, "postLogoutRedirectUris", "Post logout redirect URI");
+        var normalizedBranding = NormalizeBranding(branding, errors);
+
+        if (errors.HasErrors)
+        {
+            throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
+        }
 
         return new AdminClientConfiguration(
             normalizedClientId!,
@@ -571,7 +595,8 @@ public sealed class AdminClientService : IAdminClientService
             preset.Profile,
             preset.Id,
             preset.Version,
-            mergedOverrides?.GetRawText());
+            mergedOverrides?.GetRawText(),
+            normalizedBranding);
     }
 
     private static JsonElement? BuildOverrides(
@@ -607,6 +632,95 @@ public sealed class AdminClientService : IAdminClientService
         };
 
         return JsonSerializer.SerializeToElement(payload);
+    }
+
+    private ClientBranding? NormalizeBranding(ClientBranding? branding, AdminValidationErrors errors)
+    {
+        if (branding is null)
+        {
+            return null;
+        }
+
+        var displayName = NormalizeOptionalText(branding.DisplayName);
+        var logoUrl = NormalizeBrandingUrl(branding.LogoUrl, errors, "branding.logoUrl", "Logo URL");
+        var homeUrl = NormalizeBrandingUrl(branding.HomeUrl, errors, "branding.homeUrl", "Home URL");
+        var privacyUrl = NormalizeBrandingUrl(branding.PrivacyUrl, errors, "branding.privacyUrl", "Privacy URL");
+        var termsUrl = NormalizeBrandingUrl(branding.TermsUrl, errors, "branding.termsUrl", "Terms URL");
+
+        var normalized = new ClientBranding(displayName, logoUrl, homeUrl, privacyUrl, termsUrl);
+        return HasBranding(normalized) ? normalized : null;
+    }
+
+    private string? NormalizeBrandingUrl(string? rawUrl, AdminValidationErrors errors, string field, string label)
+    {
+        var normalized = NormalizeOptionalText(rawUrl);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
+        {
+            errors.Add(field, $"{label} must be an absolute URL.");
+            return null;
+        }
+
+        if (string.Equals(uri.Scheme, "javascript", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Scheme, "data", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Scheme, "file", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add(field, $"{label} uses a prohibited URL scheme.");
+            return null;
+        }
+
+        var allowHttp = _hostEnvironment.IsDevelopment();
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && !(allowHttp && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
+        {
+            var requirement = allowHttp ? "HTTPS (HTTP allowed in development only)" : "HTTPS";
+            errors.Add(field, $"{label} must use {requirement}.");
+            return null;
+        }
+
+        return uri.ToString();
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static bool HasBranding(ClientBranding? branding)
+    {
+        return branding is not null
+            && (!string.IsNullOrWhiteSpace(branding.DisplayName)
+                || !string.IsNullOrWhiteSpace(branding.LogoUrl)
+                || !string.IsNullOrWhiteSpace(branding.HomeUrl)
+                || !string.IsNullOrWhiteSpace(branding.PrivacyUrl)
+                || !string.IsNullOrWhiteSpace(branding.TermsUrl));
+    }
+
+    private static void SetBranding(OpenIddictApplicationDescriptor descriptor, ClientBranding? branding)
+    {
+        descriptor.Properties.Remove(BrandingPropertyName);
+        if (HasBranding(branding))
+        {
+            descriptor.Properties[BrandingPropertyName] = JsonSerializer.SerializeToElement(branding);
+        }
+    }
+
+    private async Task<ClientBranding?> GetBrandingAsync(object application, CancellationToken cancellationToken)
+    {
+        var properties = await _applicationManager.GetPropertiesAsync(application, cancellationToken);
+        if (!properties.TryGetValue(BrandingPropertyName, out var element)
+            || element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var branding = element.Deserialize<ClientBranding>();
+        return HasBranding(branding) ? branding : null;
     }
 
     private static IEnumerable<string> BuildPermissions(AdminClientConfiguration config)
@@ -831,5 +945,6 @@ public sealed class AdminClientService : IAdminClientService
         string Profile,
         string PresetId,
         int PresetVersion,
-        string? OverridesJson);
+        string? OverridesJson,
+        ClientBranding? Branding);
 }

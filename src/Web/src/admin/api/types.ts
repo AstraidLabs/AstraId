@@ -1,3 +1,11 @@
+export type ClientBranding = {
+  displayName?: string | null;
+  logoUrl?: string | null;
+  homeUrl?: string | null;
+  privacyUrl?: string | null;
+  termsUrl?: string | null;
+};
+
 export type PagedResult<T> = {
   items: T[];
   totalCount: number;
@@ -11,6 +19,7 @@ export type AdminClientListItem = {
   displayName?: string | null;
   clientType: string;
   enabled: boolean;
+  hasBranding: boolean;
 };
 
 export type AdminClientDetail = {
@@ -32,6 +41,7 @@ export type AdminClientDetail = {
   presetId?: string | null;
   presetVersion?: number | null;
   systemManaged: boolean;
+  branding?: ClientBranding | null;
 };
 
 export type AdminClientProfileRule = {

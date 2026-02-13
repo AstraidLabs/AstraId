@@ -1,3 +1,5 @@
+using AuthServer.Models;
+
 namespace AuthServer.Services.Admin.Models;
 
 public sealed class AdminClientCreateRequest
@@ -19,4 +21,5 @@ public sealed class AdminClientCreateRequest
     public string? PresetId { get; set; }
     public int? PresetVersion { get; set; }
     public System.Text.Json.JsonElement? Overrides { get; set; }
+    public ClientBranding? Branding { get; set; }
 }

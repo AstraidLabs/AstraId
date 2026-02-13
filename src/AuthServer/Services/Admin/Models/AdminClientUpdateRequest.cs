@@ -1,3 +1,5 @@
+using AuthServer.Models;
+
 namespace AuthServer.Services.Admin.Models;
 
 public sealed class AdminClientUpdateRequest
@@ -20,4 +22,5 @@ public sealed class AdminClientUpdateRequest
     public int? PresetVersion { get; set; }
     public System.Text.Json.JsonElement? Overrides { get; set; }
     public bool ForceSystemManagedEdit { get; set; }
+    public ClientBranding? Branding { get; set; }
 }

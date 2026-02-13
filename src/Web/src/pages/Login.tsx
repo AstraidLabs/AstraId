@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Eye,
@@ -14,7 +14,7 @@ import Alert from "../components/Alert";
 import Card from "../components/Card";
 import DiagnosticsPanel from "../components/DiagnosticsPanel";
 import FieldError from "../components/FieldError";
-import { login, resolveReturnUrl } from "../api/authServer";
+import { getLoginContext, login, resolveReturnUrl, type LoginContext } from "../api/authServer";
 import { AppError, type FieldErrors } from "../api/errors";
 import LanguagePillPopover from "../components/LanguagePillPopover";
 import useDocumentMeta from "../hooks/useDocumentMeta";
@@ -37,6 +37,24 @@ const Login = () => {
   const [error, setError] = useState<AppError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginContext, setLoginContext] = useState<LoginContext | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getLoginContext(returnUrl).then((context) => {
+      if (mounted) {
+        setLoginContext(context);
+      }
+    }).catch(() => {
+      if (mounted) {
+        setLoginContext(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [returnUrl]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +122,20 @@ const Login = () => {
               {t("auth.backToHome")}
             </Link>
           </div>
+
+          {loginContext?.hasOidcContext && loginContext.appName ? (
+            <header className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-3" aria-live="polite">
+              <h2 className="text-sm font-semibold text-indigo-100">Signing in to {loginContext.appName}</h2>
+              {loginContext.logoUrl ? (
+                <img src={loginContext.logoUrl} alt={`${loginContext.appName} logo`} loading="lazy" className="mt-2 h-10 w-auto rounded bg-white/10 p-1" />
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                {loginContext.homeUrl ? <a href={loginContext.homeUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-200 hover:text-indigo-100">Home</a> : null}
+                {loginContext.privacyUrl ? <a href={loginContext.privacyUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-200 hover:text-indigo-100">Privacy</a> : null}
+                {loginContext.termsUrl ? <a href={loginContext.termsUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-200 hover:text-indigo-100">Terms</a> : null}
+              </div>
+            </header>
+          ) : null}
 
           {error ? (
             <div className="flex flex-col gap-3" role="alert" aria-live="polite">

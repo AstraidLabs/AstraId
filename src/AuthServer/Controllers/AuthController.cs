@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
+using OpenIddict.Abstractions;
+using System.Text.Json;
 
 namespace AuthServer.Controllers;
 
@@ -35,6 +37,8 @@ public class AuthController : ControllerBase
     private readonly UserLifecycleService _userLifecycleService;
     private readonly LoginHistoryService _loginHistoryService;
     private readonly NotificationService _notificationService;
+    private readonly IOpenIddictApplicationManager _applicationManager;
+    private readonly IClientStateService _clientStateService;
     private readonly IStringLocalizer<AuthMessages> _localizer;
 
     private static readonly TimeSpan LoginWindow = TimeSpan.FromMinutes(5);
@@ -61,6 +65,8 @@ public class AuthController : ControllerBase
         UserLifecycleService userLifecycleService,
         LoginHistoryService loginHistoryService,
         NotificationService notificationService,
+        IOpenIddictApplicationManager applicationManager,
+        IClientStateService clientStateService,
         IConfiguration configuration,
         IStringLocalizer<AuthMessages> localizer)
     {
@@ -77,8 +83,52 @@ public class AuthController : ControllerBase
         _userLifecycleService = userLifecycleService;
         _loginHistoryService = loginHistoryService;
         _notificationService = notificationService;
+        _applicationManager = applicationManager;
+        _clientStateService = clientStateService;
         _issuerName = ResolveIssuerName(configuration);
         _localizer = localizer;
+    }
+
+
+    [HttpGet("login-context")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginContextResponse>> GetLoginContext([FromQuery] string? returnUrl)
+    {
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Pragma = "no-cache";
+
+        if (!TryParseAuthorizeReturnUrl(returnUrl, out _, out var query))
+        {
+            return Ok(new LoginContextResponse(false, null, null, null, null, null, null, Array.Empty<string>()));
+        }
+
+        var clientId = query.TryGetValue("client_id", out var clientValues)
+            ? clientValues.ToString().Trim()
+            : null;
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return Ok(new LoginContextResponse(false, null, null, null, null, null, null, Array.Empty<string>()));
+        }
+
+        var app = await _applicationManager.FindByClientIdAsync(clientId, HttpContext.RequestAborted);
+        if (app is null || !await _clientStateService.IsClientEnabledAsync(clientId, HttpContext.RequestAborted))
+        {
+            return Ok(new LoginContextResponse(true, null, L("Oidc.Client.Unknown", "Unknown application"), null, null, null, null, Array.Empty<string>()));
+        }
+
+        var displayName = await _applicationManager.GetDisplayNameAsync(app, HttpContext.RequestAborted);
+        var branding = await GetClientBrandingAsync(app, HttpContext.RequestAborted);
+        var scopes = ResolveRequestedScopes(query);
+
+        return Ok(new LoginContextResponse(
+            true,
+            clientId,
+            branding?.DisplayName ?? displayName ?? clientId,
+            branding?.LogoUrl,
+            branding?.HomeUrl,
+            branding?.PrivacyUrl,
+            branding?.TermsUrl,
+            scopes));
     }
 
     [HttpPost("login")]
@@ -903,6 +953,65 @@ public class AuthController : ControllerBase
             : _uiUrlBuilder.BuildLoginUrl(returnUrl);
 
         return new AuthResponse(true, redirectTo, null);
+    }
+
+
+    private static IReadOnlyCollection<string> ResolveRequestedScopes(Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        if (!query.TryGetValue("scope", out var scopeValues))
+        {
+            return Array.Empty<string>();
+        }
+
+        return scopeValues
+            .ToString()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal)
+            .Take(10)
+            .ToArray();
+    }
+
+    private static bool TryParseAuthorizeReturnUrl(
+        string? returnUrl,
+        out Uri authorizeUri,
+        out Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        authorizeUri = default!;
+        query = new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(returnUrl)
+            || !returnUrl.StartsWith('/', StringComparison.Ordinal)
+            || returnUrl.StartsWith("//", StringComparison.Ordinal)
+            || returnUrl.StartsWith("/\\", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate($"https://local{returnUrl}", UriKind.Absolute, out authorizeUri))
+        {
+            return false;
+        }
+
+        if (!string.Equals(authorizeUri.AbsolutePath, "/connect/authorize", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        query = QueryHelpers.ParseQuery(authorizeUri.Query)
+            .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+        return true;
+    }
+
+    private async Task<ClientBranding?> GetClientBrandingAsync(object application, CancellationToken cancellationToken)
+    {
+        var properties = await _applicationManager.GetPropertiesAsync(application, cancellationToken);
+        if (!properties.TryGetValue("branding", out var raw)
+            || raw.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return raw.Deserialize<ClientBranding>();
     }
 
     private string ResolveEmailCulture(ApplicationUser? user)

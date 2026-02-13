@@ -58,6 +58,26 @@ export const authFetch = async <T>(
   return (await response.json()) as T;
 };
 
+
+export type LoginContext = {
+  hasOidcContext: boolean;
+  clientId?: string | null;
+  appName?: string | null;
+  logoUrl?: string | null;
+  homeUrl?: string | null;
+  privacyUrl?: string | null;
+  termsUrl?: string | null;
+  requestedScopes: string[];
+};
+
+export const getLoginContext = (returnUrl?: string | null) => {
+  const params = new URLSearchParams();
+  if (returnUrl) {
+    params.set("returnUrl", returnUrl);
+  }
+  return authFetch<LoginContext>(`/auth/login-context?${params.toString()}`);
+};
+
 export const login = (payload: {
   emailOrUsername: string;
   password: string;

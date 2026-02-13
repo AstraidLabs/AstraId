@@ -131,7 +131,12 @@ export default function ClientsList() {
             {result?.items.map((client) => (
               <tr key={client.id} className="text-slate-100">
                 <td className="px-4 py-3 font-medium">{client.clientId}</td>
-                <td className="px-4 py-3 text-slate-300">{client.displayName ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <span>{client.displayName ?? "-"}</span>
+                    {client.hasBranding ? <span className="rounded-full border border-indigo-400/50 px-2 py-0.5 text-[11px] uppercase tracking-wide text-indigo-200">Brand</span> : null}
+                  </div>
+                </td>
                 <td className="px-4 py-3 capitalize text-slate-300">{client.clientType}</td>
                 <td className="px-4 py-3">
                   <span
@@ -151,6 +156,14 @@ export default function ClientsList() {
                     >
                       {client.enabled ? "Disable" : "Enable"}
                     </button>
+                    <a
+                      href={`/login?returnUrl=${encodeURIComponent(`/connect/authorize?client_id=${encodeURIComponent(client.clientId)}&response_type=code&scope=openid&redirect_uri=${encodeURIComponent(`${window.location.origin}/auth/callback`)}`)}`}
+                      className="text-sm font-semibold text-emerald-300 hover:text-emerald-200"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Preview login
+                    </a>
                     <Link
                       to={toAdminRoute(`/oidc/clients/${client.id}`)}
                       className="text-sm font-semibold text-indigo-300 hover:text-indigo-200"
