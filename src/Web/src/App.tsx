@@ -57,6 +57,9 @@ import UserLifecyclePolicy from "./admin/pages/UserLifecyclePolicy";
 import InactivityPolicy from "./admin/pages/InactivityPolicy";
 import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
+import AdminCategoryLandingPage from "./admin/pages/AdminCategoryLandingPage";
+import AdminPermissionGuard from "./admin/AdminPermissionGuard";
+import { ADMIN_PERMISSION, GDPR_PERMISSIONS, GOVERNANCE_PERMISSIONS } from "./auth/adminAccess";
 import Callback from "./pages/Callback";
 import { adminRoutePattern, adminRoutePrefix } from "./routing";
 import AnonymousOnlyRoute from "./auth/AnonymousOnlyRoute";
@@ -113,6 +116,12 @@ const App = () => {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="directory" element={<AdminCategoryLandingPage categoryId="directory" />} />
+        <Route path="apps" element={<AdminCategoryLandingPage categoryId="applications" />} />
+        <Route path="security" element={<AdminCategoryLandingPage categoryId="security" />} />
+        <Route path="integrations" element={<AdminCategoryLandingPage categoryId="integrations" />} />
+        <Route path="diagnostics" element={<AdminCategoryLandingPage categoryId="diagnostics" />} />
+        <Route path="governance" element={<AdminCategoryLandingPage categoryId="governance" />} />
         <Route path="oidc/clients" element={<ClientsList />} />
         <Route path="oidc/clients/new" element={<ClientCreate />} />
         <Route path="oidc/clients/:id" element={<ClientEdit />} />
@@ -146,9 +155,9 @@ const App = () => {
         <Route path="security/incidents" element={<SecurityIncidents />} />
         <Route path="security/revocation" element={<SecurityRevocation />} />
         <Route path="security/dataprotection" element={<SecurityDataProtection />} />
-        <Route path="security/user-lifecycle" element={<UserLifecyclePolicy />} />
-        <Route path="security/inactivity" element={<InactivityPolicy />} />
-        <Route path="security/privacy" element={<SecurityPrivacy />} />
+        <Route path="security/user-lifecycle" element={<AdminPermissionGuard required={[ADMIN_PERMISSION, GOVERNANCE_PERMISSIONS.userLifecycleManage]}><UserLifecyclePolicy /></AdminPermissionGuard>} />
+        <Route path="security/inactivity" element={<AdminPermissionGuard required={[ADMIN_PERMISSION, GOVERNANCE_PERMISSIONS.inactivityManage]}><InactivityPolicy /></AdminPermissionGuard>} />
+        <Route path="security/privacy" element={<AdminPermissionGuard required={GDPR_PERMISSIONS}><SecurityPrivacy /></AdminPermissionGuard>} />
         <Route path="security/signing-keys" element={<Navigate to="security/keys" replace />} />
         <Route path="security/token-policies" element={<Navigate to="security/tokens" replace />} />
         <Route

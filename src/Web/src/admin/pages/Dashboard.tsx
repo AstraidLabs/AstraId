@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiRequest } from "../api/http";
 import type { AdminSessionInfo } from "../api/types";
-import { Link } from "react-router-dom";
 import { toAdminRoute } from "../../routing";
+import { ADMIN_CATEGORIES } from "../adminNavigation";
 
 export default function Dashboard() {
   const [session, setSession] = useState<AdminSessionInfo | null>(null);
@@ -33,55 +34,48 @@ export default function Dashboard() {
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <h1 className="text-2xl font-semibold text-white">Admin Dashboard</h1>
         <p className="mt-2 text-sm text-slate-300">
-          Manage OAuth clients, scopes, users, and audit activity for the AuthServer.
+          Manage directory, applications, security controls, integrations and governance from one place.
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Session</h2>
-          {loading && <p className="mt-3 text-sm text-slate-400">Loading session...</p>}
-          {!loading && session && (
-            <div className="mt-3 space-y-2 text-sm text-slate-300">
-              <div>
-                <span className="text-slate-400">Signed in as:</span>{" "}
-                {session.email ?? session.userName ?? session.userId}
-              </div>
-              <div>
-                <span className="text-slate-400">Roles:</span>{" "}
-                {session.roles.length ? session.roles.join(", ") : "None"}
-              </div>
-              <div>
-                <span className="text-slate-400">Permissions:</span>{" "}
-                {session.permissions.length ? session.permissions.join(", ") : "None"}
-              </div>
-            </div>
-          )}
-        </div>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {ADMIN_CATEGORIES.map((category) => {
+          const Icon = category.icon;
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Quick links</h2>
-          <div className="mt-3 flex flex-col gap-2 text-sm">
+          return (
             <Link
-              className="text-indigo-300 hover:text-indigo-200"
-              to={toAdminRoute("/oidc/clients")}
+              key={category.id}
+              to={toAdminRoute(category.path)}
+              className="rounded-xl border border-slate-800 bg-slate-900/30 p-5 transition hover:border-indigo-500/60 hover:bg-slate-900/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
             >
-              Manage clients
+              <div className="flex items-center gap-3">
+                <span className="rounded-lg bg-slate-800/80 p-2 text-indigo-300">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <h2 className="text-base font-semibold text-white">{category.label}</h2>
+              </div>
+              <p className="mt-3 text-sm text-slate-400">{category.description}</p>
             </Link>
-            <Link
-              className="text-indigo-300 hover:text-indigo-200"
-              to={toAdminRoute("/oidc/scopes")}
-            >
-              Manage scopes
-            </Link>
-            <Link className="text-indigo-300 hover:text-indigo-200" to={toAdminRoute("/users")}>
-              Review users
-            </Link>
-            <Link className="text-indigo-300 hover:text-indigo-200" to={toAdminRoute("/audit")}>
-              Audit log
-            </Link>
+          );
+        })}
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+        <h2 className="text-lg font-semibold text-white">Session</h2>
+        {loading && <p className="mt-3 text-sm text-slate-400">Loading session...</p>}
+        {!loading && session && (
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
+            <div>
+              <span className="text-slate-400">Signed in as:</span> {session.email ?? session.userName ?? session.userId}
+            </div>
+            <div>
+              <span className="text-slate-400">Roles:</span> {session.roles.length ? session.roles.join(", ") : "None"}
+            </div>
+            <div>
+              <span className="text-slate-400">Permissions:</span> {session.permissions.length ? session.permissions.join(", ") : "None"}
+            </div>
           </div>
-        </div>
+        )}
       </section>
     </div>
   );
