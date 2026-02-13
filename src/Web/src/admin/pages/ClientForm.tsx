@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AlertTriangle, CircleAlert, Info, OctagonX, ShieldAlert } from "lucide-react";
 import { AppError, apiRequest } from "../api/http";
 import type {
   AdminClientDetail,
@@ -10,6 +11,9 @@ import type {
   AdminOidcScopeListItem,
   PagedResult,
   AdminFeaturesResponse,
+  AdminClientPreviewResponse,
+  AdminClientSaveResponse,
+  FindingDto,
 } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import MultiLineListInput from "../components/MultiLineListInput";
@@ -118,9 +122,24 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [presetDetail, setPresetDetail] = useState<AdminClientPresetDetail | null>(null);
   const [profile, setProfile] = useState<string>("SpaPublic");
   const [enablePasswordGrant, setEnablePasswordGrant] = useState(false);
+  const [findings, setFindings] = useState<FindingDto[]>([]);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const previewAbortRef = useRef<AbortController | null>(null);
 
   const isConfidential = form.clientType === "confidential";
   const activeProfileRule = useMemo(() => profiles.find((item) => item.profile === profile), [profiles, profile]);
+  const severityOrder = ["error", "risk", "warning", "deprecated", "info"] as const;
+  const severityCounts = useMemo(() => {
+    const counts: Record<string, number> = { error: 0, risk: 0, warning: 0, deprecated: 0, info: 0 };
+    findings.forEach((finding) => { counts[finding.severity] = (counts[finding.severity] ?? 0) + 1; });
+    return counts;
+  }, [findings]);
+  const blockingFindings = useMemo(() => findings.filter((finding) => finding.severity === "error"), [findings]);
+  const findingsByField = useMemo(() => findings.reduce<Record<string, FindingDto[]>>((acc, finding) => {
+    if (!finding.field) return acc;
+    acc[finding.field] = [...(acc[finding.field] ?? []), finding];
+    return acc;
+  }, {}), [findings]);
 
   const grantTypeOptions = useMemo(
     () => [
@@ -242,6 +261,99 @@ export default function ClientForm({ mode, clientId }: Props) {
     };
   }, [clientId, mode]);
 
+  const severityMeta: Record<string, { icon: typeof AlertTriangle; color: string }> = {
+    error: { icon: OctagonX, color: "text-rose-300" },
+    risk: { icon: ShieldAlert, color: "text-amber-300" },
+    warning: { icon: AlertTriangle, color: "text-yellow-300" },
+    deprecated: { icon: CircleAlert, color: "text-orange-300" },
+    info: { icon: Info, color: "text-sky-300" },
+  };
+
+  const renderInlineFindings = (field: string) => (
+    <div className="mt-2 space-y-2">
+      {(findingsByField[field] ?? []).map((finding) => {
+        const meta = severityMeta[finding.severity] ?? severityMeta.info;
+        const Icon = meta.icon;
+        return (
+          <div key={`${finding.code}-${finding.message}`} className="rounded-md border border-slate-700 bg-slate-950/80 p-2 text-xs text-slate-200">
+            <p className="flex items-start gap-2"><Icon className={`h-4 w-4 ${meta.color}`} />{finding.title}: {finding.message}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const scrollToField = (field: string) => {
+    const target = document.querySelector(`[data-lint-field="${field}"]`) as HTMLElement | null;
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    const focusable = target.querySelector("input, select, textarea") as HTMLElement | null;
+    focusable?.focus();
+  };
+
+  const buildPayload = (currentForm: FormState) => ({
+    clientId: currentForm.clientId.trim(),
+    displayName: currentForm.displayName.trim() || null,
+    clientType: currentForm.clientType,
+    enabled: currentForm.enabled,
+    grantTypes: currentForm.grantTypes,
+    pkceRequired: currentForm.clientType === "public" ? currentForm.pkceRequired : false,
+    clientApplicationType: currentForm.clientApplicationType,
+    allowIntrospection: currentForm.allowIntrospection,
+    allowUserCredentials: currentForm.allowUserCredentials,
+    allowedScopesForPasswordGrant: currentForm.allowedScopesForPasswordGrant,
+    scopes: currentForm.scopes,
+    redirectUris: parseRedirectUris(currentForm.redirectUrisText),
+    postLogoutRedirectUris: parseRedirectUris(currentForm.postLogoutRedirectUrisText),
+    profile,
+    presetId,
+    presetVersion: presetDetail?.version,
+    overrides: {
+      clientType: currentForm.clientType,
+      pkceRequired: currentForm.pkceRequired,
+      grantTypes: currentForm.grantTypes,
+      clientApplicationType: currentForm.clientApplicationType,
+      allowIntrospection: currentForm.allowIntrospection,
+      allowUserCredentials: currentForm.allowUserCredentials,
+      allowedScopesForPasswordGrant: currentForm.allowedScopesForPasswordGrant,
+      scopes: currentForm.scopes,
+      redirectUris: parseRedirectUris(currentForm.redirectUrisText),
+      postLogoutRedirectUris: parseRedirectUris(currentForm.postLogoutRedirectUrisText),
+    },
+    branding: {
+      displayName: currentForm.brandingDisplayName.trim() || null,
+      logoUrl: currentForm.brandingLogoUrl.trim() || null,
+      homeUrl: currentForm.brandingHomeUrl.trim() || null,
+      privacyUrl: currentForm.brandingPrivacyUrl.trim() || null,
+      termsUrl: currentForm.brandingTermsUrl.trim() || null,
+    },
+  });
+
+  useEffect(() => {
+    if (!presetId) return;
+    const timeout = window.setTimeout(async () => {
+      previewAbortRef.current?.abort();
+      const controller = new AbortController();
+      previewAbortRef.current = controller;
+      setPreviewBusy(true);
+      try {
+        const response = await apiRequest<AdminClientPreviewResponse>("/admin/api/clients/preview", {
+          method: "POST",
+          body: JSON.stringify(buildPayload(form)),
+          signal: controller.signal,
+          suppressToast: true,
+        });
+        setFindings(response.findings ?? []);
+      } catch {
+        // ignore transient preview failures
+      } finally {
+        setPreviewBusy(false);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timeout);
+  }, [form, presetId, presetDetail?.version, profile]);
+
   const runValidation = (nextForm: FormState) => {
     const nextErrors: FormErrors = {};
     const clientIdResult = validateClientId(nextForm.clientId);
@@ -327,50 +439,15 @@ export default function ClientForm({ mode, clientId }: Props) {
     setFormDiagnostics(undefined);
     setSaving(true);
     try {
-      const payload = {
-        clientId: form.clientId.trim(),
-        displayName: form.displayName.trim() || null,
-        clientType: form.clientType,
-        enabled: form.enabled,
-        grantTypes: form.grantTypes,
-        pkceRequired: form.clientType === "public" ? form.pkceRequired : false,
-        clientApplicationType: form.clientApplicationType,
-        allowIntrospection: form.allowIntrospection,
-        allowUserCredentials: form.allowUserCredentials,
-        allowedScopesForPasswordGrant: form.allowedScopesForPasswordGrant,
-        scopes: form.scopes,
-        redirectUris: parseRedirectUris(form.redirectUrisText),
-        postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
-        profile,
-        presetId,
-        presetVersion: presetDetail?.version,
-        overrides: {
-          clientType: form.clientType,
-          pkceRequired: form.pkceRequired,
-          grantTypes: form.grantTypes,
-          clientApplicationType: form.clientApplicationType,
-          allowIntrospection: form.allowIntrospection,
-          allowUserCredentials: form.allowUserCredentials,
-          allowedScopesForPasswordGrant: form.allowedScopesForPasswordGrant,
-          scopes: form.scopes,
-          redirectUris: parseRedirectUris(form.redirectUrisText),
-          postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
-        },
-        branding: {
-          displayName: form.brandingDisplayName.trim() || null,
-          logoUrl: form.brandingLogoUrl.trim() || null,
-          homeUrl: form.brandingHomeUrl.trim() || null,
-          privacyUrl: form.brandingPrivacyUrl.trim() || null,
-          termsUrl: form.brandingTermsUrl.trim() || null,
-        },
-      };
+      const payload = buildPayload(form);
 
       if (mode === "create") {
-        const response = await apiRequest<AdminClientSecretResponse>("/admin/api/clients", {
+        const response = await apiRequest<AdminClientSaveResponse>("/admin/api/clients", {
           method: "POST",
           body: JSON.stringify(payload),
           suppressToast: true,
         });
+        setFindings(response.findings ?? []);
         if (response.clientSecret) {
           setSecret(response.clientSecret);
           setShowSecret(true);
@@ -391,11 +468,12 @@ export default function ClientForm({ mode, clientId }: Props) {
         return;
       }
 
-      await apiRequest<AdminClientDetail>(`/admin/api/clients/${clientId}`, {
+      const response = await apiRequest<AdminClientSaveResponse>(`/admin/api/clients/${clientId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
         suppressToast: true,
       });
+      setFindings(response.findings ?? []);
       pushToast({ message: "Client updated.", tone: "success" });
     } catch (error) {
       if (error instanceof AppError) {
@@ -477,7 +555,7 @@ export default function ClientForm({ mode, clientId }: Props) {
           )}
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || blockingFindings.length > 0}
             className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-60"
           >
             {saving ? "Saving..." : "Save"}
@@ -487,6 +565,34 @@ export default function ClientForm({ mode, clientId }: Props) {
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
       <FormError message={formError} diagnostics={formDiagnostics} />
+        <div className="mb-4 rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-white">Configuration Health</h2>
+            {previewBusy && <span className="text-xs text-slate-400">Analyzing...</span>}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
+            {severityOrder.map((severity) => (
+              <span key={severity} className="rounded-full border border-slate-700 px-2 py-1">{severity}: {severityCounts[severity]}</span>
+            ))}
+          </div>
+          {severityCounts.risk > 0 && <p className="mt-2 text-xs text-amber-300">Proceed with caution.</p>}
+          <div className="mt-3 space-y-2">
+            {findings.map((finding) => {
+              const meta = severityMeta[finding.severity] ?? severityMeta.info;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={`${finding.code}-${finding.field ?? "global"}-${finding.message}`}
+                  type="button"
+                  className="w-full rounded-md border border-slate-700 bg-slate-950/80 p-2 text-left text-xs text-slate-200"
+                  onClick={() => finding.field && scrollToField(finding.field)}
+                >
+                  <span className="flex items-start gap-2"><Icon className={`h-4 w-4 ${meta.color}`} />{finding.title}: {finding.message}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {mode === "create" && (
           <div className="mb-6 grid gap-5 md:grid-cols-2">
             <p className="md:col-span-2 text-xs uppercase tracking-wide text-indigo-300">Step 1: Profile → Step 2: Preset → Step 3: Configure</p>
@@ -623,6 +729,7 @@ export default function ClientForm({ mode, clientId }: Props) {
 
       {(activeProfileRule?.sections.grants ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+          <div data-lint-field="grantTypes">
           <Field
             label="Grant types"
             tooltip="Grant types definují, jak klient získá token. Pro SPA typicky authorization_code + refresh_token."
@@ -685,6 +792,7 @@ export default function ClientForm({ mode, clientId }: Props) {
           </div>
         </Field>
         {form.clientType === "public" && (
+          <div data-lint-field="pkceRequired">
           <Field
             label="PKCE"
             tooltip="PKCE zvyšuje bezpečnost Authorization Code flow u public klientů. Pokud je zapnuto, musí být povolen authorization_code."
@@ -713,6 +821,8 @@ export default function ClientForm({ mode, clientId }: Props) {
               Require PKCE
             </label>
           </Field>
+          {renderInlineFindings("pkceRequired")}
+          </div>
         )}
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -740,12 +850,15 @@ export default function ClientForm({ mode, clientId }: Props) {
               Restricted integration-only password grant
             </label>
           </Field>
+          {renderInlineFindings("postLogoutRedirectUris")}
+          </div>
         </div>
       </section>
       )}
 
       {(activeProfileRule?.sections.scopes ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+        <div data-lint-field="scopes">
         <Field
           label="Scopes"
           tooltip="Vyber scope, které může klient požadovat. Scopes jsou navázané na API resources."
@@ -779,6 +892,8 @@ export default function ClientForm({ mode, clientId }: Props) {
             )}
           </div>
         </Field>
+        {renderInlineFindings("scopes")}
+        </div>
 
         {form.allowUserCredentials && (
           <Field
@@ -814,6 +929,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       {(activeProfileRule?.sections.redirectUris ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <div className="grid gap-5 md:grid-cols-2">
+          <div data-lint-field="redirectUris">
           <Field
             label="Redirect URIs"
             tooltip="URL, kam se vrací uživatel po přihlášení. Musí být absolutní, HTTPS (v dev povol http://localhost)."
@@ -831,7 +947,10 @@ export default function ClientForm({ mode, clientId }: Props) {
               minRows={5}
             />
           </Field>
+          {renderInlineFindings("redirectUris")}
+          </div>
 
+          <div data-lint-field="postLogoutRedirectUris">
           <Field
             label="Post logout redirect URIs"
             tooltip="URL, kam se vrací uživatel po odhlášení. Musí být absolutní a bez fragmentu."
@@ -850,6 +969,8 @@ export default function ClientForm({ mode, clientId }: Props) {
               minRows={5}
             />
           </Field>
+          {renderInlineFindings("postLogoutRedirectUris")}
+          </div>
         </div>
       </section>
       )}

@@ -1,3 +1,16 @@
+export type FindingSeverity = "info" | "warning" | "risk" | "deprecated" | "error";
+
+export type FindingDto = {
+  severity: FindingSeverity;
+  code: string;
+  title: string;
+  message: string;
+  field?: string | null;
+  tags?: string[] | null;
+  docsUrl?: string | null;
+  recommendedFix?: string | null;
+};
+
 export type ClientBranding = {
   displayName?: string | null;
   logoUrl?: string | null;
@@ -134,6 +147,32 @@ export type AdminOidcResourceUsage = {
 export type AdminClientSecretResponse = {
   client: AdminClientDetail;
   clientSecret?: string | null;
+};
+
+export type AdminClientSaveResponse = {
+  client: AdminClientDetail;
+  findings: FindingDto[];
+  clientSecret?: string | null;
+};
+
+export type AdminClientPreviewResponse = {
+  effectiveConfig: {
+    profile: string;
+    presetId: string;
+    presetVersion: number;
+    clientType: string;
+    pkceRequired: boolean;
+    clientApplicationType: string;
+    allowIntrospection: boolean;
+    allowUserCredentials: boolean;
+    allowedScopesForPasswordGrant: string[];
+    grantTypes: string[];
+    redirectUris: string[];
+    postLogoutRedirectUris: string[];
+    scopes: string[];
+    corsOrigins: string[];
+  };
+  findings: FindingDto[];
 };
 
 export type AdminFeaturesResponse = {

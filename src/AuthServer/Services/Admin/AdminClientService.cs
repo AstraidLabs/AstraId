@@ -32,6 +32,7 @@ public sealed class AdminClientService : IAdminClientService
     private const string BrandingPropertyName = "branding";
 
     private readonly ClientConfigValidator _configValidator;
+    private readonly OidcClientLintService _lintService;
     private readonly IWebHostEnvironment _hostEnvironment;
 
     public AdminClientService(
@@ -43,6 +44,7 @@ public sealed class AdminClientService : IAdminClientService
         IClientPresetRegistry presetRegistry,
         ClientConfigComposer configComposer,
         ClientConfigValidator configValidator,
+        OidcClientLintService lintService,
         IWebHostEnvironment hostEnvironment)
     {
         _applicationManager = applicationManager;
@@ -53,6 +55,7 @@ public sealed class AdminClientService : IAdminClientService
         _presetRegistry = presetRegistry;
         _configComposer = configComposer;
         _configValidator = configValidator;
+        _lintService = lintService;
         _hostEnvironment = hostEnvironment;
     }
 
@@ -108,9 +111,10 @@ public sealed class AdminClientService : IAdminClientService
         return application is null ? null : await BuildDetailAsync(application, cancellationToken);
     }
 
-    public async Task<AdminClientSecretResult> CreateClientAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
+    public async Task<AdminClientSaveResponse> CreateClientAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
     {
-        var config = await NormalizeAsync(request, cancellationToken);
+        var normalized = await NormalizeAsync(request, cancellationToken);
+        var config = normalized.Configuration;
         var existing = await _applicationManager.FindByClientIdAsync(config.ClientId, cancellationToken);
         if (existing is not null)
         {
@@ -189,10 +193,10 @@ public sealed class AdminClientService : IAdminClientService
                 cancellationToken: cancellationToken);
         }
 
-        return new AdminClientSecretResult(detail, null);
+        return new AdminClientSaveResponse(detail, normalized.Findings, null);
     }
 
-    public async Task<AdminClientDetail?> UpdateClientAsync(string id, AdminClientUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<AdminClientSaveResponse?> UpdateClientAsync(string id, AdminClientUpdateRequest request, CancellationToken cancellationToken)
     {
         var application = await _applicationManager.FindByIdAsync(id, cancellationToken);
         if (application is null)
@@ -208,7 +212,8 @@ public sealed class AdminClientService : IAdminClientService
             throw new AdminValidationException("Invalid client configuration.", stateErrors.ToDictionary());
         }
 
-        var config = await NormalizeAsync(request, cancellationToken);
+        var normalized = await NormalizeAsync(request, cancellationToken);
+        var config = normalized.Configuration;
         var existing = await _applicationManager.FindByClientIdAsync(config.ClientId, cancellationToken);
         if (existing is not null)
         {
@@ -278,7 +283,13 @@ public sealed class AdminClientService : IAdminClientService
             detail.PresetVersion
         });
 
-        return detail;
+        return new AdminClientSaveResponse(detail, normalized.Findings);
+    }
+
+    public async Task<AdminClientPreviewResponse> PreviewAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
+    {
+        var normalized = await NormalizeAsync(request, cancellationToken);
+        return new AdminClientPreviewResponse(normalized.Effective, normalized.Findings);
     }
 
     public async Task<AdminClientSecretResult?> RotateSecretAsync(string id, CancellationToken cancellationToken)
@@ -434,7 +445,9 @@ public sealed class AdminClientService : IAdminClientService
             branding);
     }
 
-    private async Task<AdminClientConfiguration> NormalizeAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
+    private sealed record NormalizedClientRequest(AdminClientConfiguration Configuration, AdminClientEffectiveConfig Effective, IReadOnlyList<FindingDto> Findings);
+
+    private async Task<NormalizedClientRequest> NormalizeAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
     {
         return await NormalizeAsync(
             request.ClientId,
@@ -458,7 +471,7 @@ public sealed class AdminClientService : IAdminClientService
             cancellationToken);
     }
 
-    private async Task<AdminClientConfiguration> NormalizeAsync(AdminClientUpdateRequest request, CancellationToken cancellationToken)
+    private async Task<NormalizedClientRequest> NormalizeAsync(AdminClientUpdateRequest request, CancellationToken cancellationToken)
     {
         return await NormalizeAsync(
             request.ClientId,
@@ -482,7 +495,7 @@ public sealed class AdminClientService : IAdminClientService
             cancellationToken);
     }
 
-    private async Task<AdminClientConfiguration> NormalizeAsync(
+    private async Task<NormalizedClientRequest> NormalizeAsync(
         string? clientId,
         string? displayName,
         string? clientType,
@@ -574,7 +587,7 @@ public sealed class AdminClientService : IAdminClientService
             throw new AdminValidationException("Invalid client configuration.", errors.ToDictionary());
         }
 
-        return new AdminClientConfiguration(
+        var configuration = new AdminClientConfiguration(
             normalizedClientId!,
             string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
             effective.ClientType,
@@ -597,6 +610,9 @@ public sealed class AdminClientService : IAdminClientService
             preset.Version,
             mergedOverrides?.GetRawText(),
             normalizedBranding);
+
+        var findings = _lintService.Analyze(effective);
+        return new NormalizedClientRequest(configuration, effective, findings);
     }
 
     private static JsonElement? BuildOverrides(
