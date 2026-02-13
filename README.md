@@ -42,8 +42,8 @@ It is intended for developers building applications that need OIDC/OAuth2 authen
   - `/connect/userinfo`
   - `/connect/logout`
   - `/connect/revocation`
-- Server flow enablement in OpenIddict configuration: **authorization_code**, **refresh_token**, and restricted **password** (integration-only via server-side policy gates).
-- `client_credentials` and `password` grant handling are both enforced by OpenIddict + runtime client policy checks.
+- Supported by default: **authorization_code** (+PKCE), **refresh_token**, and **client_credentials**.
+- Password grant is a legacy flow and is **OFF by default**. It is available only through explicit feature-flag opt-in and server-side policy checks.
 
 ### Admin & governance
 - Admin APIs under `/admin/api/*` protected by `AdminOnly` policy.
@@ -82,34 +82,38 @@ curl -u resource-api:<client-secret> \
   -d "token=<access-token>"
 ```
 
-### Password Grant (Integrations only)
+### Password Grant (legacy opt-in only)
 
-> ⚠️ Security warning: password grant is disabled-by-default and only allowed for trusted confidential integration clients.
+> ⚠️ Not recommended. Password grant (ROPC) is disabled by default in all environments.
+
+Enable only when you explicitly need legacy integration compatibility:
+
+```json
+{
+  "AuthServer": {
+    "Features": {
+      "EnablePasswordGrant": true
+    }
+  }
+}
+```
 
 Server-side gates:
 - client must be confidential
 - `clientApplicationType` must be `integration`
 - `allowUserCredentials` must be `true`
-- grant type `password` must be permitted for that client
+- grant type `password` must be explicitly permitted for that client
 - requested scopes must be subset of `allowedScopesForPasswordGrant`
 - ASP.NET Identity password validation uses lockout-on-failure and blocks unconfirmed/2FA-required accounts
-
-Example:
-
-```bash
-curl -u integration-client:<client-secret> \
-  -X POST https://localhost:7001/connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=user@example.com&password=<password>&scope=openid profile api"
-```
 
 ### Manual verification checklist
 
 1. Obtain token via `client_credentials` for a valid confidential client.
 2. Introspect token using a client with `allowIntrospection=true` => response contains `"active": true`.
 3. Introspect using a client without introspection permission => `unauthorized_client`.
-4. Request password grant with permitted integration client + allowed scopes => token response succeeds.
-5. Request password grant with non-integration or disallowed client => `unauthorized_client`.
+4. Request password grant while the feature flag is disabled => `unsupported_grant_type`.
+5. Enable `AuthServer:Features:EnablePasswordGrant=true`, then request password grant with permitted integration client + allowed scopes => token response succeeds.
+6. With feature enabled, request password grant with non-integration or disallowed client => `unauthorized_client`.
 
 ## Prerequisites
 
