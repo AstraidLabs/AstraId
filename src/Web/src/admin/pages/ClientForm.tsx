@@ -160,13 +160,28 @@ export default function ClientForm({ mode, clientId }: Props) {
       return;
     }
 
-    setForm((prev) => ({
-      ...prev,
-      grantTypes: prev.grantTypes.filter((grantType) => grantType !== "password"),
-      allowUserCredentials: false,
-      allowedScopesForPasswordGrant: [],
-    }));
-  }, [enablePasswordGrant]);
+    setForm((prev) => {
+      const hasPasswordGrant = prev.grantTypes.includes("password");
+      const hasUserCredentials = prev.allowUserCredentials;
+      const hasPasswordScopes = prev.allowedScopesForPasswordGrant.length > 0;
+
+      if (!hasPasswordGrant && !hasUserCredentials && !hasPasswordScopes) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        grantTypes: prev.grantTypes.filter((grantType) => grantType !== "password"),
+        allowUserCredentials: false,
+        allowedScopesForPasswordGrant: [],
+      };
+    });
+  }, [
+    enablePasswordGrant,
+    form.allowUserCredentials,
+    form.allowedScopesForPasswordGrant.length,
+    form.grantTypes,
+  ]);
 
   useEffect(() => {
     if (!presetId) return;
