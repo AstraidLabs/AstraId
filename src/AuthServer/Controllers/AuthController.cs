@@ -980,7 +980,7 @@ public class AuthController : ControllerBase
         query = new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>(StringComparer.Ordinal);
 
         if (string.IsNullOrWhiteSpace(returnUrl)
-            || !returnUrl.StartsWith('/', StringComparison.Ordinal)
+            || !returnUrl.StartsWith("/", StringComparison.Ordinal)
             || returnUrl.StartsWith("//", StringComparison.Ordinal)
             || returnUrl.StartsWith("/\\", StringComparison.Ordinal))
         {
