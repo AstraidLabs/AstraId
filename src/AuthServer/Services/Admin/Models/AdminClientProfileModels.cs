@@ -25,6 +25,17 @@ public sealed record AdminClientPresetDetail(
 
 public sealed record AdminClientProfileRulesResponse(int Version, IReadOnlyList<AdminClientProfileRuleItem> Profiles);
 
+public sealed record AdminClientRuleSectionVisibility(
+    bool RedirectUris,
+    bool CorsOrigins,
+    bool Pkce,
+    bool Secrets,
+    bool Grants,
+    bool Scopes,
+    bool TokenOverrides);
+
+public sealed record AdminClientValidationPattern(string Name, string Pattern, string Message);
+
 public sealed record AdminClientProfileRuleItem(
     string Profile,
     string Summary,
@@ -34,7 +45,12 @@ public sealed record AdminClientProfileRuleItem(
     bool AllowsRedirectUris,
     bool AllowOfflineAccess,
     string RedirectPolicy,
-    IReadOnlyList<string> RuleCodes);
+    IReadOnlyList<string> RuleCodes,
+    AdminClientRuleSectionVisibility Sections,
+    IReadOnlyList<string> RequiredFields,
+    IReadOnlyList<string> ForbiddenFields,
+    IReadOnlyList<AdminClientValidationPattern> ValidationPatterns,
+    IReadOnlyDictionary<string, string> Explanations);
 
 public sealed record AdminClientEffectiveConfig(
     string Profile,

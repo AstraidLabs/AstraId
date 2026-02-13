@@ -54,6 +54,19 @@ export type AdminClientProfileRule = {
   allowOfflineAccess: boolean;
   redirectPolicy: string;
   ruleCodes: string[];
+  sections: {
+    redirectUris: boolean;
+    corsOrigins: boolean;
+    pkce: boolean;
+    secrets: boolean;
+    grants: boolean;
+    scopes: boolean;
+    tokenOverrides: boolean;
+  };
+  requiredFields: string[];
+  forbiddenFields: string[];
+  validationPatterns: Array<{ name: string; pattern: string; message: string }>;
+  explanations: Record<string, string>;
 };
 
 export type AdminClientProfileRulesResponse = {

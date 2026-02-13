@@ -30,15 +30,23 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
             return (true, string.Empty, string.Empty, string.Empty);
         }
 
-        if (policy.PkceRequired && string.IsNullOrWhiteSpace(request.CodeChallenge))
+        if (policy.RequiresPkceForPublicCodeFlow && string.IsNullOrWhiteSpace(request.CodeChallenge))
         {
             return (false, OpenIddictConstants.Errors.InvalidRequest, "PKCE code_challenge is required for this client.", "RULE_SPA_REQUIRE_PKCE");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.RedirectUri)
-            && !policy.RedirectUris.Contains(request.RedirectUri, StringComparer.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(request.RedirectUri))
         {
-            return (false, OpenIddictConstants.Errors.InvalidRequest, "Invalid redirect_uri for this client.", "RULE_REDIRECT_EXACT_MATCH");
+            if (!policy.RedirectUris.Contains(request.RedirectUri, StringComparer.OrdinalIgnoreCase))
+            {
+                return (false, OpenIddictConstants.Errors.InvalidRequest, "Invalid redirect_uri for this client.", "RULE_REDIRECT_EXACT_MATCH");
+            }
+
+            if (string.Equals(policy.Profile, ClientProfileIds.DesktopNativePublic, StringComparison.Ordinal)
+                && !IsDesktopRedirectAllowed(request.RedirectUri))
+            {
+                return (false, OpenIddictConstants.Errors.InvalidRequest, "Desktop clients require loopback http(s) or custom scheme redirects.", "RULE_NATIVE_REDIRECT");
+            }
         }
 
         if (request.HasResponseType(OpenIddictConstants.ResponseTypes.Code)
@@ -61,6 +69,12 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
         if (!policy.GrantTypes.Contains(request.GrantType, StringComparer.OrdinalIgnoreCase))
         {
             return (false, OpenIddictConstants.Errors.UnauthorizedClient, "The client is not allowed to use this grant_type.", "RULE_GRANT_NOT_ALLOWED");
+        }
+
+        if (string.Equals(policy.Profile, ClientProfileIds.ServiceConfidential, StringComparison.Ordinal)
+            && !string.Equals(request.GrantType, OpenIddictConstants.GrantTypes.ClientCredentials, StringComparison.Ordinal))
+        {
+            return (false, OpenIddictConstants.Errors.UnauthorizedClient, "Service clients only support client_credentials.", "RULE_SERVICE_ONLY_CLIENT_CREDENTIALS");
         }
 
         if (string.Equals(request.GrantType, OpenIddictConstants.GrantTypes.Password, StringComparison.Ordinal)
@@ -117,6 +131,7 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
         var policySnapshot = ClientPolicySnapshot.From(state?.OverridesJson);
 
         return new RuntimeClientPolicy(
+            state?.Profile,
             grants,
             pkceRequired,
             redirectUris.Select(x => x.ToString()).ToArray(),
@@ -126,9 +141,25 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
             policySnapshot.AllowedScopesForPasswordGrant);
     }
 
+    private static bool IsDesktopRedirectAllowed(string uriString)
+    {
+        if (!Uri.TryCreate(uriString, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (uri.IsLoopback && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return true;
+        }
+
+        return uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps;
+    }
+
     private sealed record RuntimeClientPolicy(
+        string? Profile,
         IReadOnlyList<string> GrantTypes,
-        bool PkceRequired,
+        bool RequiresPkceForPublicCodeFlow,
         IReadOnlyList<string> RedirectUris,
         bool IsConfidential,
         string ClientApplicationType,
