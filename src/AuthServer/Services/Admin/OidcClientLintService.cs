@@ -2,6 +2,7 @@ using AuthServer.Options;
 using AuthServer.Services.Admin.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
+using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
@@ -72,7 +73,7 @@ public sealed class OidcClientLintService
         }
 
         if (string.Equals(effective.Profile, ClientProfileIds.SpaPublic, StringComparison.Ordinal)
-            && string.Equals(effective.ClientType, OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(effective.ClientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase))
         {
             findings.Add(new FindingDto(
                 "error",
@@ -133,7 +134,7 @@ public sealed class OidcClientLintService
                 recommendedFix: "Enable refresh_token grant type or remove offline_access."));
         }
 
-        var accessTokenMinutes = string.Equals(effective.ClientType, OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase)
+        var accessTokenMinutes = string.Equals(effective.ClientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase)
             ? _tokenOptions.Value.Confidential.AccessTokenMinutes
             : _tokenOptions.Value.Public.AccessTokenMinutes;
         if (accessTokenMinutes >= 240)
