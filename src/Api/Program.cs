@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuredIssuer = builder.Configuration["Auth:Issuer"];
 var configuredAudience = builder.Configuration["Auth:Audience"];
+var configuredRequiredScope = builder.Configuration["Auth:RequiredScope"];
 var configuredValidationModeRaw = builder.Configuration["Auth:ValidationMode"];
 var configuredValidationMode = AuthValidationModeParser.Parse(configuredValidationModeRaw);
 var introspectionClientId = builder.Configuration["Auth:Introspection:ClientId"];
@@ -44,6 +45,11 @@ if (!builder.Environment.IsDevelopment())
         throw new InvalidOperationException("Auth:Audience must be configured outside Development.");
     }
 
+    if (string.IsNullOrWhiteSpace(configuredRequiredScope))
+    {
+        throw new InvalidOperationException("Auth:RequiredScope must be configured outside Development.");
+    }
+
     if (!string.IsNullOrWhiteSpace(configuredValidationModeRaw)
         && !AuthValidationModeParser.TryParse(configuredValidationModeRaw, out _))
     {
@@ -63,8 +69,23 @@ var effectiveIssuer = string.IsNullOrWhiteSpace(configuredIssuer)
 var effectiveAudience = string.IsNullOrWhiteSpace(configuredAudience)
     ? "api"
     : configuredAudience;
-var effectiveScopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
+var effectiveRequiredScope = string.IsNullOrWhiteSpace(configuredRequiredScope)
+    ? "api"
+    : configuredRequiredScope;
+var configuredScopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>();
+var effectiveScopes = (configuredScopes is { Length: > 0 }
+    ? configuredScopes
+    : ["api"])
+    .Concat([effectiveRequiredScope])
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
 var effectiveClockSkew = builder.Configuration.GetValue<int?>("Auth:ClockSkewSeconds") ?? 0;
+
+// Compatibility contract with AuthServer:
+// - Issuer: Auth:Issuer (must be absolute URI and HTTPS outside Development).
+// - Audience/resource: Auth:Audience (must match AuthServer protected API resource, canonical 'api').
+// - Required scope baseline: Auth:RequiredScope (defaults to AuthServerScopeRegistry.ApiScope = 'api').
+// - Permission claim type: AuthConstants.ClaimTypes.Permission ('permission').
 
 var mapsterConfig = new TypeAdapterConfig();
 mapsterConfig.NewConfig<UserProfileModel, MeDto>();
@@ -73,6 +94,10 @@ builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 
 builder.Services.AddCompanyAuth(builder.Configuration, effectiveAudience);
+builder.Services.Configure<EndpointAuthorizationOptions>(options =>
+{
+    options.RequiredScope = effectiveRequiredScope;
+});
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("RequireSystemAdmin", policy =>
@@ -225,6 +250,12 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 
 var enableSwagger = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:EnableInProduction");
+var authScheme = configuredValidationMode switch
+{
+    AuthValidationMode.Jwt => CompanyAuthExtensions.JwtScheme,
+    AuthValidationMode.Introspection => CompanyAuthExtensions.IntrospectionScheme,
+    _ => CompanyAuthExtensions.HybridScheme
+};
 if (enableSwagger)
 {
     app.UseSwagger();
@@ -315,7 +346,40 @@ api.MapGet("/integrations/authserver/contract", (PolicyMapClient policyMapClient
         {
             issuer = effectiveIssuer,
             audience = effectiveAudience,
+            requiredScope = effectiveRequiredScope,
             permissionClaimType = AuthConstants.ClaimTypes.Permission,
+            schemeName = authScheme,
+            policyMapEndpointUrl = policyMapDiagnostics.EndpointUrl,
+            policyMapLastRefreshUtc = policyMapDiagnostics.LastRefreshUtc,
+            policyMapLastFailureUtc = policyMapDiagnostics.LastFailureUtc,
+            policyMapLastFailureReason = policyMapDiagnostics.LastFailureReason,
+            policyMapRefreshStatus = policyMapDiagnostics.RefreshStatus,
+            policyMapEntryCount = policyMapDiagnostics.EntryCount,
+            swaggerEnabled = enableSwagger,
+            environmentName = app.Environment.EnvironmentName,
+            validationMode = configuredValidationMode.ToString(),
+            clockSkewSeconds = effectiveClockSkew
+        });
+    })
+    .RequireAuthorization("RequireSystemAdmin");
+
+
+api.MapGet("/admin/auth/contract", (PolicyMapClient policyMapClient, ILoggerFactory loggerFactory) =>
+    {
+        var logger = loggerFactory.CreateLogger("AuthContractDiagnostics");
+        var policyMapDiagnostics = policyMapClient.GetDiagnostics();
+        logger.LogInformation(
+            "AuthServer contract diagnostics requested for environment {EnvironmentName} with policy map status {RefreshStatus}.",
+            app.Environment.EnvironmentName,
+            policyMapDiagnostics.RefreshStatus);
+
+        return Results.Ok(new
+        {
+            issuer = effectiveIssuer,
+            audience = effectiveAudience,
+            requiredScope = effectiveRequiredScope,
+            permissionClaimType = AuthConstants.ClaimTypes.Permission,
+            schemeName = authScheme,
             policyMapEndpointUrl = policyMapDiagnostics.EndpointUrl,
             policyMapLastRefreshUtc = policyMapDiagnostics.LastRefreshUtc,
             policyMapLastFailureUtc = policyMapDiagnostics.LastFailureUtc,
