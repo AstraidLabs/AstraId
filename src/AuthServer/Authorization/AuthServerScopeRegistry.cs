@@ -6,6 +6,8 @@ namespace AuthServer.Authorization;
 public static class AuthServerScopeRegistry
 {
     public const string ApiScope = "api";
+    public const string ContentReadScope = "content.read";
+    public const string ContentWriteScope = "content.write";
 
     public static readonly IReadOnlySet<string> AllowedScopes = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -13,12 +15,16 @@ public static class AuthServerScopeRegistry
         AuthConstants.Scopes.Profile,
         AuthConstants.Scopes.Email,
         AuthConstants.Scopes.OfflineAccess,
-        ApiScope
+        ApiScope,
+        ContentReadScope,
+        ContentWriteScope
     };
 
     public static readonly IReadOnlyList<string> ApiResources =
     [
-        ApiScope
+        ApiScope,
+        ContentReadScope,
+        ContentWriteScope
     ];
 
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> ScopeClaimMap =

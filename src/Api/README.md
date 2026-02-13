@@ -37,3 +37,25 @@ The API is configured to align with the AuthServer OpenIddict contract while pre
   - Never includes secrets, API keys, or token contents.
 
 - Swagger enablement flag and environment name are included for compatibility troubleshooting.
+
+## Variant B internal token forwarding (API -> ContentServer)
+
+- API validates end-user AuthServer tokens (issuer/signature/lifetime/audience) using `AddCompanyAuth`.
+- API **does not** forward AuthServer bearer tokens to ContentServer.
+- API issues an internal short-lived JWT (`InternalTokens`) and forwards that token downstream.
+- Content operations are exposed through:
+  - `GET /content/items` (`content.read` scope required)
+  - `POST /content/items` (`content.write` scope required)
+
+Required API config:
+
+```json
+{
+  "InternalTokens": {
+    "Issuer": "astraid-api",
+    "Audience": "astraid-content",
+    "LifetimeMinutes": 2,
+    "SigningKey": "<set-via-env-or-user-secrets>"
+  }
+}
+```
