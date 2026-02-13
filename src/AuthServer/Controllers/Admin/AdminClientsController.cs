@@ -37,15 +37,14 @@ public sealed class AdminClientsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<AdminClientSecretResponse>> CreateClient(
+    public async Task<ActionResult<AdminClientSaveResponse>> CreateClient(
         [FromBody] AdminClientCreateRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
             var result = await _clientService.CreateClientAsync(request, cancellationToken);
-            var response = new AdminClientSecretResponse(result.Client, result.ClientSecret);
-            return CreatedAtAction(nameof(GetClient), new { id = result.Client.Id }, response);
+            return CreatedAtAction(nameof(GetClient), new { id = result.Client.Id }, result);
         }
         catch (AdminValidationException exception)
         {
@@ -54,7 +53,7 @@ public sealed class AdminClientsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<AdminClientDetail>> UpdateClient(
+    public async Task<ActionResult<AdminClientSaveResponse>> UpdateClient(
         string id,
         [FromBody] AdminClientUpdateRequest request,
         CancellationToken cancellationToken)
@@ -63,6 +62,22 @@ public sealed class AdminClientsController : ControllerBase
         {
             var result = await _clientService.UpdateClientAsync(id, request, cancellationToken);
             return result is null ? NotFound() : Ok(result);
+        }
+        catch (AdminValidationException exception)
+        {
+            return ValidationProblem(exception.ToProblemDetails().ApplyDefaults(HttpContext));
+        }
+    }
+
+    [HttpPost("preview")]
+    public async Task<ActionResult<AdminClientPreviewResponse>> Preview(
+        [FromBody] AdminClientCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _clientService.PreviewAsync(request, cancellationToken);
+            return Ok(result);
         }
         catch (AdminValidationException exception)
         {

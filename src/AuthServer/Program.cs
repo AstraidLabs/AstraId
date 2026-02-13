@@ -115,6 +115,7 @@ builder.Services.AddSingleton<IClientProfileRegistry, ClientProfileRegistry>();
 builder.Services.AddSingleton<IClientPresetRegistry, ClientPresetRegistry>();
 builder.Services.AddSingleton<ClientConfigComposer>();
 builder.Services.AddSingleton<ClientConfigValidator>();
+builder.Services.AddSingleton<OidcClientLintService>();
 builder.Services.AddScoped<IAdminOidcScopeService, AdminOidcScopeService>();
 builder.Services.AddScoped<IAdminOidcResourceService, AdminOidcResourceService>();
 builder.Services.AddScoped<AdminSigningKeyService>();
