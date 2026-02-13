@@ -176,6 +176,7 @@ builder.Services.Configure<AuthServerDataProtectionOptions>(builder.Configuratio
 builder.Services.Configure<KeyRotationDefaultsOptions>(builder.Configuration.GetSection(KeyRotationDefaultsOptions.SectionName));
 builder.Services.Configure<TokenPolicyDefaultsOptions>(builder.Configuration.GetSection(TokenPolicyDefaultsOptions.SectionName));
 builder.Services.Configure<GovernanceGuardrailsOptions>(builder.Configuration.GetSection(GovernanceGuardrailsOptions.SectionName));
+builder.Services.Configure<AuthServerAuthFeaturesOptions>(builder.Configuration.GetSection(AuthServerAuthFeaturesOptions.SectionName));
 builder.Services.AddOptions<AuthServerSigningKeyOptions>()
     .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
     .Validate(options =>
@@ -254,6 +255,9 @@ builder.Services.AddOpenIddict()
     })
     .AddServer(options =>
     {
+        var authFeatures = builder.Configuration
+            .GetSection(AuthServerAuthFeaturesOptions.SectionName)
+            .Get<AuthServerAuthFeaturesOptions>() ?? new AuthServerAuthFeaturesOptions();
         var issuer = builder.Configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
         if (!Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
         {
@@ -279,8 +283,12 @@ builder.Services.AddOpenIddict()
 
         options.AllowAuthorizationCodeFlow()
                .AllowRefreshTokenFlow()
-               .AllowClientCredentialsFlow()
-               .AllowPasswordFlow();
+               .AllowClientCredentialsFlow();
+
+        if (authFeatures.EnablePasswordGrant)
+        {
+            options.AllowPasswordFlow();
+        }
 
         options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
 
@@ -319,6 +327,12 @@ builder.Services.AddHostedService<DeletionExecutorService>();
 builder.Services.AddHostedService<EmailOutboxDispatcherService>();
 
 var app = builder.Build();
+
+var authFeaturesOptions = app.Services.GetRequiredService<IOptions<AuthServerAuthFeaturesOptions>>().Value;
+if (authFeaturesOptions.EnablePasswordGrant)
+{
+    app.Logger.LogWarning("Password grant enabled (legacy, not recommended).");
+}
 
 var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Value;
 ValidateEmailOptions(emailOptions, app.Environment);

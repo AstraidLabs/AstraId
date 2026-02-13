@@ -9,6 +9,7 @@ import type {
   AdminClientProfileRulesResponse,
   AdminOidcScopeListItem,
   PagedResult,
+  AdminFeaturesResponse,
 } from "../api/types";
 import { Field, FormError } from "../components/Field";
 import MultiLineListInput from "../components/MultiLineListInput";
@@ -116,6 +117,7 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [presetId, setPresetId] = useState<string>("");
   const [presetDetail, setPresetDetail] = useState<AdminClientPresetDetail | null>(null);
   const [profile, setProfile] = useState<string>("SpaPublic");
+  const [enablePasswordGrant, setEnablePasswordGrant] = useState(false);
 
   const isConfidential = form.clientType === "confidential";
 
@@ -124,7 +126,6 @@ export default function ClientForm({ mode, clientId }: Props) {
       { value: "authorization_code", label: "Authorization Code" },
       { value: "refresh_token", label: "Refresh Token" },
       { value: "client_credentials", label: "Client Credentials" },
-      { value: "password", label: "Password (Integrations only)" },
     ],
     []
   );
@@ -141,7 +142,9 @@ export default function ClientForm({ mode, clientId }: Props) {
     const fetchRules = async () => {
       const rules = await apiRequest<AdminClientProfileRulesResponse>("/admin/api/client-profiles/rules");
       const presetList = await apiRequest<AdminClientPresetListItem[]>("/admin/api/client-presets");
+      const features = await apiRequest<AdminFeaturesResponse>("/admin/api/features");
       setProfiles(rules.profiles);
+      setEnablePasswordGrant(features.enablePasswordGrant);
       setPresets(presetList);
       if (presetList.length > 0) {
         setPresetId(presetList[0].id);
@@ -150,6 +153,20 @@ export default function ClientForm({ mode, clientId }: Props) {
     };
     fetchRules();
   }, []);
+
+
+  useEffect(() => {
+    if (enablePasswordGrant) {
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      grantTypes: prev.grantTypes.filter((grantType) => grantType !== "password"),
+      allowUserCredentials: false,
+      allowedScopesForPasswordGrant: [],
+    }));
+  }, [enablePasswordGrant]);
 
   useEffect(() => {
     if (!presetId) return;
@@ -278,6 +295,10 @@ export default function ClientForm({ mode, clientId }: Props) {
     validateOptionalAbsoluteUrl(nextForm.brandingHomeUrl, "brandingHomeUrl", "Home URL");
     validateOptionalAbsoluteUrl(nextForm.brandingPrivacyUrl, "brandingPrivacyUrl", "Privacy URL");
     validateOptionalAbsoluteUrl(nextForm.brandingTermsUrl, "brandingTermsUrl", "Terms URL");
+
+    if (!enablePasswordGrant && (nextForm.allowUserCredentials || nextForm.grantTypes.includes("password"))) {
+      nextErrors.grantTypes = "Password grant is disabled by server feature flag.";
+    }
 
     if (nextForm.allowUserCredentials) {
       if (nextForm.clientType !== "confidential" || nextForm.clientApplicationType !== "integration") {
@@ -623,11 +644,38 @@ export default function ClientForm({ mode, clientId }: Props) {
                       grantTypes: validateGrantTypes(nextGrantTypes) ?? undefined,
                     }));
                   }}
-                  disabled={presetDetail?.lockedFields.includes("grantTypes") || (form.clientType === "public" && (option.value === "client_credentials" || option.value === "password"))}
+                  disabled={presetDetail?.lockedFields.includes("grantTypes") || (form.clientType === "public" && option.value === "client_credentials")}
                 />
                 {option.label}
               </label>
             ))}
+            {enablePasswordGrant && (
+              <label className="col-span-full flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-amber-500/60 bg-slate-950 text-amber-400"
+                  checked={form.grantTypes.includes("password")}
+                  onChange={(event) => {
+                    const nextGrantTypes = event.target.checked
+                      ? [...form.grantTypes, "password"]
+                      : form.grantTypes.filter((item) => item !== "password");
+                    setForm((prev) => ({
+                      ...prev,
+                      grantTypes: nextGrantTypes,
+                    }));
+                    setErrors((current) => ({
+                      ...current,
+                      grantTypes: validateGrantTypes(nextGrantTypes) ?? undefined,
+                    }));
+                  }}
+                  disabled={presetDetail?.lockedFields.includes("grantTypes") || form.clientType === "public"}
+                />
+                <span>Advanced / Legacy: Password grant <strong>(Legacy / not recommended)</strong></span>
+              </label>
+            )}
+            {!enablePasswordGrant && (
+              <p className="col-span-full text-xs text-slate-400">Password grant is disabled by server feature flag.</p>
+            )}
           </div>
         </Field>
         {form.clientType === "public" && (
@@ -674,13 +722,14 @@ export default function ClientForm({ mode, clientId }: Props) {
             </label>
           </Field>
 
-          <Field label="Allow user credentials (password grant)" error={errors.allowUserCredentials}>
+          <Field label="Allow user credentials (password grant)" tooltip="Legacy flow. Increases phishing/password exposure risk and is not recommended." error={errors.allowUserCredentials}>
             <label className="flex items-center gap-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-indigo-500"
                 checked={form.allowUserCredentials}
                 onChange={(event) => setForm((prev) => ({ ...prev, allowUserCredentials: event.target.checked }))}
+                disabled={!enablePasswordGrant}
               />
               Restricted integration-only password grant
             </label>

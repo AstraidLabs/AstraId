@@ -123,6 +123,10 @@ export type AdminClientSecretResponse = {
   clientSecret?: string | null;
 };
 
+export type AdminFeaturesResponse = {
+  enablePasswordGrant: boolean;
+};
+
 export type AdminUserListItem = {
   id: string;
   email?: string | null;

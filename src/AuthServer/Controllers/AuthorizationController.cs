@@ -12,6 +12,7 @@ using AuthServer.Services.Tokens;
 using AuthServer.Services.Security;
 using Microsoft.EntityFrameworkCore;
 using AuthServer.Services.Admin;
+using AuthServer.Options;
 using AuthServer.Localization;
 using Microsoft.Extensions.Localization;
 using Company.Auth.Contracts;
@@ -21,6 +22,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.Extensions.Options;
 
 namespace AuthServer.Controllers;
 
@@ -46,6 +48,7 @@ public class AuthorizationController : ControllerBase
     private readonly IAntiforgery _antiforgery;
     private readonly ILogger<AuthorizationController> _logger;
     private readonly IStringLocalizer<AuthMessages> _localizer;
+    private readonly AuthServerAuthFeaturesOptions _authFeatures;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
@@ -63,6 +66,7 @@ public class AuthorizationController : ControllerBase
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictAuthorizationManager authorizationManager,
         IAntiforgery antiforgery,
+        IOptions<AuthServerAuthFeaturesOptions> authFeatures,
         ILogger<AuthorizationController> logger,
         IStringLocalizer<AuthMessages> localizer)
     {
@@ -81,6 +85,7 @@ public class AuthorizationController : ControllerBase
         _applicationManager = applicationManager;
         _authorizationManager = authorizationManager;
         _antiforgery = antiforgery;
+        _authFeatures = authFeatures.Value;
         _logger = logger;
         _localizer = localizer;
     }
@@ -235,9 +240,17 @@ public class AuthorizationController : ControllerBase
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType())
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
+            var supportedGrantTypes = _authFeatures.EnablePasswordGrant
+                ? "Only authorization_code, refresh_token, client_credentials, and password grants are supported."
+                : "Only authorization_code, refresh_token, and client_credentials grants are supported.";
             return BadRequest(CreateErrorResponse(
                 OpenIddictConstants.Errors.UnsupportedGrantType,
-                "Only authorization_code, refresh_token, client_credentials, and password grants are supported."));
+                supportedGrantTypes));
+        }
+
+        if (request.IsPasswordGrantType() && !_authFeatures.EnablePasswordGrant)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "The password grant is disabled."));
         }
 
         var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -372,6 +385,11 @@ public class AuthorizationController : ControllerBase
 
     private async Task<IActionResult> HandlePasswordGrantAsync(OpenIddictRequest request, string? clientId)
     {
+        if (!_authFeatures.EnablePasswordGrant)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "The password grant is disabled."));
+        }
+
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
             return Forbid(CreateInvalidGrant("The username/password credentials are invalid."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);

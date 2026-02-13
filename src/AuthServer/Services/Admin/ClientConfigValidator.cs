@@ -1,11 +1,20 @@
 using AuthServer.Services.Admin.Models;
 using AuthServer.Services.Admin.Validation;
+using AuthServer.Options;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
 public sealed class ClientConfigValidator
 {
+    private readonly AuthServerAuthFeaturesOptions _authFeatures;
+
+    public ClientConfigValidator(IOptions<AuthServerAuthFeaturesOptions> authFeatures)
+    {
+        _authFeatures = authFeatures.Value;
+    }
+
     public void Validate(AdminClientEffectiveConfig effective, AdminValidationErrors errors)
     {
         var grants = OidcValidationSpec.NormalizeGrantTypes(effective.GrantTypes, errors, "grantTypes");
@@ -77,6 +86,12 @@ public sealed class ClientConfigValidator
             && !string.Equals(effective.ClientApplicationType, ClientApplicationTypes.Integration, StringComparison.OrdinalIgnoreCase))
         {
             errors.Add("allowUserCredentials", "Password grant is only allowed for integration clients.");
+        }
+
+        if (!_authFeatures.EnablePasswordGrant
+            && (rule.Contains(OpenIddictConstants.GrantTypes.Password) || effective.AllowUserCredentials))
+        {
+            errors.Add("grantTypes", "Password grant is disabled by server feature flag.");
         }
 
         if (effective.AllowUserCredentials
