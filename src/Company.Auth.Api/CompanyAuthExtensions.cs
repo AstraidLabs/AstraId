@@ -268,7 +268,7 @@ public sealed class AuthIntrospectionHandler : AuthenticationHandler<Authenticat
 
                 await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
                 using var document = await JsonDocument.ParseAsync(stream, cancellationToken: timeout.Token);
-                return ParseIntrospectionResponse(document.RootElement);
+                return ParseIntrospectionResponse(document.RootElement, settings);
             }
             catch (HttpRequestException) when (attempt == 1)
             {
@@ -296,11 +296,16 @@ public sealed class AuthIntrospectionHandler : AuthenticationHandler<Authenticat
         return payload;
     }
 
-    private static AuthIntrospectionResult ParseIntrospectionResponse(JsonElement root)
+    private static AuthIntrospectionResult ParseIntrospectionResponse(JsonElement root, AuthValidationOptions settings)
     {
         if (!root.TryGetProperty("active", out var activeElement) || activeElement.ValueKind != JsonValueKind.True)
         {
             return AuthIntrospectionResult.Fail("Token is inactive.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.Audience) && !HasAudience(root, settings.Audience))
+        {
+            return AuthIntrospectionResult.Fail("Token audience is invalid.");
         }
 
         var claims = new List<Claim>();
@@ -320,6 +325,35 @@ public sealed class AuthIntrospectionHandler : AuthenticationHandler<Authenticat
 
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CompanyAuthExtensions.IntrospectionScheme));
         return AuthIntrospectionResult.Success(principal);
+    }
+
+    private static bool HasAudience(JsonElement root, string expectedAudience)
+    {
+        if (!root.TryGetProperty(OpenIddictConstants.Claims.Audience, out var audienceElement))
+        {
+            return false;
+        }
+
+        if (audienceElement.ValueKind == JsonValueKind.String)
+        {
+            return string.Equals(audienceElement.GetString(), expectedAudience, StringComparison.Ordinal);
+        }
+
+        if (audienceElement.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        foreach (var item in audienceElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String
+                && string.Equals(item.GetString(), expectedAudience, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string? GetString(JsonElement root, string propertyName)
