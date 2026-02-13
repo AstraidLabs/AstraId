@@ -34,7 +34,12 @@ public sealed class AdminClientProfilesController : ControllerBase
                     rule.AllowsRedirectUris,
                     rule.AllowOfflineAccess,
                     rule.RedirectPolicy,
-                    rule.RuleCodes))
+                    rule.RuleCodes,
+                    rule.Sections,
+                    rule.RequiredFields,
+                    rule.ForbiddenFields,
+                    rule.ValidationPatterns,
+                    rule.Explanations))
                 .ToList());
 
         return Ok(response);

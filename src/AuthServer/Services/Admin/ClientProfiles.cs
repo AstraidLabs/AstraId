@@ -22,7 +22,12 @@ public sealed record ClientProfileRule(
     bool AllowsRedirectUris,
     bool AllowOfflineAccess,
     string RedirectPolicy,
-    IReadOnlyList<string> RuleCodes);
+    IReadOnlyList<string> RuleCodes,
+    AdminClientRuleSectionVisibility Sections,
+    IReadOnlyList<string> RequiredFields,
+    IReadOnlyList<string> ForbiddenFields,
+    IReadOnlyList<AdminClientValidationPattern> ValidationPatterns,
+    IReadOnlyDictionary<string, string> Explanations);
 
 public sealed record ClientPresetDefinition(
     string Id,
@@ -51,22 +56,62 @@ public sealed class ClientProfileRegistry : IClientProfileRegistry
 {
     private static readonly IReadOnlyList<ClientProfileRule> Rules =
     [
-        new(ClientProfileIds.SpaPublic, "Single-page app using Authorization Code + PKCE.",
+        BuildRule(ClientProfileIds.SpaPublic, "Single-page app using Authorization Code + PKCE.",
             ["authorization_code", "refresh_token"], true, false, true, true,
-            "absolute_https_or_loopback", ["RULE_PUBLIC_NO_SECRET", "RULE_SPA_REQUIRE_PKCE", "RULE_SPA_NO_CLIENT_CREDENTIALS"]),
-        new(ClientProfileIds.WebConfidential, "Server-side web app with client secret.",
+            "absolute_https_or_loopback", ["RULE_PUBLIC_NO_SECRET", "RULE_SPA_REQUIRE_PKCE", "RULE_SPA_NO_CLIENT_CREDENTIALS"],
+            new(true, true, true, false, true, true, false),
+            ["redirectUris", "pkceRequired", "grantTypes"], ["clientSecret"],
+            [
+                new("corsOrigins", "origin-only", "CORS origins must contain scheme + host (+ optional port) only."),
+                new("redirectUris", "exact-match", "Redirect URIs must be exact; wildcards are forbidden.")
+            ],
+            new Dictionary<string, string> { ["pkce"] = "PKCE is always required for browser public clients.", ["secrets"] = "Public SPA clients must not use a client secret." }),
+        BuildRule(ClientProfileIds.WebConfidential, "Server-side web app with client secret.",
             ["authorization_code", "refresh_token"], false, true, true, true,
-            "absolute_https", ["RULE_CONFIDENTIAL_REQUIRE_SECRET"]),
-        new(ClientProfileIds.MobileNativePublic, "Native mobile app using PKCE and native redirects.",
+            "absolute_https", ["RULE_CONFIDENTIAL_REQUIRE_SECRET"],
+            new(true, false, false, true, true, true, true),
+            ["redirectUris", "grantTypes"], [],
+            [new("redirectUris", "https-only-in-prod", "HTTPS redirect URIs are required outside development.")],
+            new Dictionary<string, string> { ["secrets"] = "Confidential clients require secret authentication." }),
+        BuildRule(ClientProfileIds.MobileNativePublic, "Native mobile app using PKCE and native redirects.",
             ["authorization_code", "refresh_token"], true, false, true, true,
-            "native_loopback_or_custom_scheme", ["RULE_NATIVE_REDIRECT"]),
-        new(ClientProfileIds.DesktopNativePublic, "Desktop app using PKCE and native redirects.",
+            "native_loopback_or_custom_scheme", ["RULE_NATIVE_REDIRECT"],
+            new(true, false, true, false, true, true, false),
+            ["redirectUris", "pkceRequired"], ["clientSecret"],
+            [new("redirectUris", "loopback-or-custom-scheme", "Use loopback HTTP(S) or a custom URI scheme.")],
+            new Dictionary<string, string>()),
+        BuildRule(ClientProfileIds.DesktopNativePublic, "Desktop app using PKCE and native redirects.",
             ["authorization_code", "refresh_token"], true, false, true, true,
-            "native_loopback_or_custom_scheme", ["RULE_NATIVE_REDIRECT"]),
-        new(ClientProfileIds.ServiceConfidential, "Machine to machine client credentials flow.",
+            "native_loopback_or_custom_scheme", ["RULE_NATIVE_REDIRECT"],
+            new(true, false, true, false, true, true, false),
+            ["redirectUris", "pkceRequired"], ["clientSecret"],
+            [new("redirectUris", "loopback-or-custom-scheme", "Desktop redirects must be loopback HTTP(S) or custom scheme.")],
+            new Dictionary<string, string>()),
+        BuildRule(ClientProfileIds.ServiceConfidential, "Machine to machine client credentials flow.",
             ["client_credentials"], false, true, false, false,
-            "none", ["RULE_SERVICE_ONLY_CLIENT_CREDENTIALS", "RULE_SERVICE_NO_REDIRECT"])
+            "none", ["RULE_SERVICE_ONLY_CLIENT_CREDENTIALS", "RULE_SERVICE_NO_REDIRECT"],
+            new(false, false, false, true, true, true, true),
+            ["grantTypes"], ["redirectUris", "postLogoutRedirectUris", "pkceRequired"],
+            [],
+            new Dictionary<string, string> { ["redirectUris"] = "Service clients do not involve browser redirects." })
     ];
+
+    private static ClientProfileRule BuildRule(
+        string profile,
+        string summary,
+        IReadOnlyList<string> grants,
+        bool pkce,
+        bool requiresSecret,
+        bool allowsRedirect,
+        bool allowOffline,
+        string redirectPolicy,
+        IReadOnlyList<string> ruleCodes,
+        AdminClientRuleSectionVisibility sections,
+        IReadOnlyList<string> required,
+        IReadOnlyList<string> forbidden,
+        IReadOnlyList<AdminClientValidationPattern> patterns,
+        IReadOnlyDictionary<string, string> explanations)
+        => new(profile, summary, grants, pkce, requiresSecret, allowsRedirect, allowOffline, redirectPolicy, ruleCodes, sections, required, forbidden, patterns, explanations);
 
     public IReadOnlyList<ClientProfileRule> GetRules() => Rules;
 

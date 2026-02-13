@@ -24,7 +24,7 @@ public sealed class ClientConfigValidator
         {
             if (rule.Except([OpenIddictConstants.GrantTypes.ClientCredentials, OpenIddictConstants.GrantTypes.Password], StringComparer.Ordinal).Any())
             {
-                errors.Add("grantTypes", "ServiceConfidential supports only client_credentials and password.");
+                errors.Add("grantTypes", "ServiceConfidential supports only client_credentials.");
             }
 
             if (effective.RedirectUris.Count > 0)
@@ -37,6 +37,40 @@ public sealed class ClientConfigValidator
             && rule.Contains(OpenIddictConstants.GrantTypes.ClientCredentials))
         {
             errors.Add("grantTypes", "Public clients cannot use client_credentials.");
+        }
+
+        if (string.Equals(effective.Profile, ClientProfileIds.SpaPublic, StringComparison.Ordinal))
+        {
+            if (!effective.PkceRequired)
+            {
+                errors.Add("pkceRequired", "SpaPublic requires PKCE.");
+            }
+
+            if (effective.CorsOrigins.Count == 0)
+            {
+                errors.Add("redirectUris", "SpaPublic requires at least one redirect URI so CORS origins can be derived.");
+            }
+
+            if (effective.CorsOrigins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var parsed)
+                || !string.IsNullOrEmpty(parsed.AbsolutePath.Trim('/'))
+                || !string.IsNullOrEmpty(parsed.Query)
+                || !string.IsNullOrEmpty(parsed.Fragment)))
+            {
+                errors.Add("redirectUris", "SPA CORS origins must be origin-only values.");
+            }
+        }
+
+        var profileAllowedGrants = effective.Profile switch
+        {
+            ClientProfileIds.ServiceConfidential => new[] { OpenIddictConstants.GrantTypes.ClientCredentials },
+            ClientProfileIds.WebConfidential or ClientProfileIds.SpaPublic or ClientProfileIds.MobileNativePublic or ClientProfileIds.DesktopNativePublic
+                => new[] { OpenIddictConstants.GrantTypes.AuthorizationCode, OpenIddictConstants.GrantTypes.RefreshToken },
+            _ => Array.Empty<string>()
+        };
+
+        if (profileAllowedGrants.Length > 0 && rule.Except(profileAllowedGrants, StringComparer.Ordinal).Any())
+        {
+            errors.Add("grantTypes", $"Grant types do not match profile {effective.Profile}.");
         }
 
         if (string.Equals(effective.ClientType, OpenIddictConstants.ClientTypes.Public, StringComparison.OrdinalIgnoreCase)

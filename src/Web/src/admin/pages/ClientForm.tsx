@@ -120,6 +120,7 @@ export default function ClientForm({ mode, clientId }: Props) {
   const [enablePasswordGrant, setEnablePasswordGrant] = useState(false);
 
   const isConfidential = form.clientType === "confidential";
+  const activeProfileRule = useMemo(() => profiles.find((item) => item.profile === profile), [profiles, profile]);
 
   const grantTypeOptions = useMemo(
     () => [
@@ -488,6 +489,7 @@ export default function ClientForm({ mode, clientId }: Props) {
       <FormError message={formError} diagnostics={formDiagnostics} />
         {mode === "create" && (
           <div className="mb-6 grid gap-5 md:grid-cols-2">
+            <p className="md:col-span-2 text-xs uppercase tracking-wide text-indigo-300">Step 1: Profile → Step 2: Preset → Step 3: Configure</p>
             <Field label="Client profile" hint="Server-published profile rules.">
               <select
                 className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
@@ -518,6 +520,9 @@ export default function ClientForm({ mode, clientId }: Props) {
               </select>
             </Field>
           </div>
+        )}
+        {activeProfileRule && (
+          <p className="mb-4 text-xs text-slate-400">{activeProfileRule.explanations.pkce ?? activeProfileRule.summary}</p>
         )}
         <div className="grid gap-5 md:grid-cols-2">
           <Field
@@ -616,6 +621,7 @@ export default function ClientForm({ mode, clientId }: Props) {
         </div>
       </section>
 
+      {(activeProfileRule?.sections.grants ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
           <Field
             label="Grant types"
@@ -736,7 +742,9 @@ export default function ClientForm({ mode, clientId }: Props) {
           </Field>
         </div>
       </section>
+      )}
 
+      {(activeProfileRule?.sections.scopes ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <Field
           label="Scopes"
@@ -801,7 +809,9 @@ export default function ClientForm({ mode, clientId }: Props) {
           </Field>
         )}
       </section>
+      )}
 
+      {(activeProfileRule?.sections.redirectUris ?? true) && (
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <div className="grid gap-5 md:grid-cols-2">
           <Field
@@ -842,6 +852,7 @@ export default function ClientForm({ mode, clientId }: Props) {
           </Field>
         </div>
       </section>
+      )}
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
         <h2 className="text-lg font-semibold text-white">Branding</h2>
