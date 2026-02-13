@@ -46,6 +46,11 @@ type FormState = {
   scopes: string[];
   redirectUrisText: string;
   postLogoutRedirectUrisText: string;
+  brandingDisplayName: string;
+  brandingLogoUrl: string;
+  brandingHomeUrl: string;
+  brandingPrivacyUrl: string;
+  brandingTermsUrl: string;
 };
 
 type FormErrors = {
@@ -59,6 +64,10 @@ type FormErrors = {
   clientApplicationType?: string;
   allowUserCredentials?: string;
   allowedScopesForPasswordGrant?: string;
+  brandingLogoUrl?: string;
+  brandingHomeUrl?: string;
+  brandingPrivacyUrl?: string;
+  brandingTermsUrl?: string;
 };
 
 const defaultState: FormState = {
@@ -75,6 +84,11 @@ const defaultState: FormState = {
   scopes: [],
   redirectUrisText: "",
   postLogoutRedirectUrisText: "",
+  brandingDisplayName: "",
+  brandingLogoUrl: "",
+  brandingHomeUrl: "",
+  brandingPrivacyUrl: "",
+  brandingTermsUrl: "",
 };
 
 export default function ClientForm({ mode, clientId }: Props) {
@@ -187,6 +201,11 @@ export default function ClientForm({ mode, clientId }: Props) {
           scopes: data.scopes,
           redirectUrisText: data.redirectUris.join("\n"),
           postLogoutRedirectUrisText: data.postLogoutRedirectUris.join("\n"),
+          brandingDisplayName: data.branding?.displayName ?? "",
+          brandingLogoUrl: data.branding?.logoUrl ?? "",
+          brandingHomeUrl: data.branding?.homeUrl ?? "",
+          brandingPrivacyUrl: data.branding?.privacyUrl ?? "",
+          brandingTermsUrl: data.branding?.termsUrl ?? "",
         });
         setProfile(data.profile ?? "SpaPublic");
         if (data.presetId) {
@@ -240,6 +259,25 @@ export default function ClientForm({ mode, clientId }: Props) {
     if (postLogoutResult.errors.length > 0) {
       nextErrors.postLogoutRedirectUris = getRedirectErrorMessage(postLogoutResult.errors) ?? undefined;
     }
+
+
+    const validateOptionalAbsoluteUrl = (value: string, field: keyof FormErrors, label: string) => {
+      const normalized = value.trim();
+      if (!normalized) return;
+      try {
+        const parsed = new URL(normalized);
+        if (!/^https?:$/i.test(parsed.protocol)) {
+          nextErrors[field] = `${label} must use HTTP(S).`;
+        }
+      } catch {
+        nextErrors[field] = `${label} must be a valid absolute URL.`;
+      }
+    };
+
+    validateOptionalAbsoluteUrl(nextForm.brandingLogoUrl, "brandingLogoUrl", "Logo URL");
+    validateOptionalAbsoluteUrl(nextForm.brandingHomeUrl, "brandingHomeUrl", "Home URL");
+    validateOptionalAbsoluteUrl(nextForm.brandingPrivacyUrl, "brandingPrivacyUrl", "Privacy URL");
+    validateOptionalAbsoluteUrl(nextForm.brandingTermsUrl, "brandingTermsUrl", "Terms URL");
 
     if (nextForm.allowUserCredentials) {
       if (nextForm.clientType !== "confidential" || nextForm.clientApplicationType !== "integration") {
@@ -296,6 +334,13 @@ export default function ClientForm({ mode, clientId }: Props) {
           redirectUris: parseRedirectUris(form.redirectUrisText),
           postLogoutRedirectUris: parseRedirectUris(form.postLogoutRedirectUrisText),
         },
+        branding: {
+          displayName: form.brandingDisplayName.trim() || null,
+          logoUrl: form.brandingLogoUrl.trim() || null,
+          homeUrl: form.brandingHomeUrl.trim() || null,
+          privacyUrl: form.brandingPrivacyUrl.trim() || null,
+          termsUrl: form.brandingTermsUrl.trim() || null,
+        },
       };
 
       if (mode === "create") {
@@ -344,6 +389,10 @@ export default function ClientForm({ mode, clientId }: Props) {
           clientApplicationType: parsed.fieldErrors.clientApplicationType?.[0],
           allowUserCredentials: parsed.fieldErrors.allowUserCredentials?.[0],
           allowedScopesForPasswordGrant: parsed.fieldErrors.allowedScopesForPasswordGrant?.[0],
+          brandingLogoUrl: parsed.fieldErrors["branding.logoUrl"]?.[0],
+          brandingHomeUrl: parsed.fieldErrors["branding.homeUrl"]?.[0],
+          brandingPrivacyUrl: parsed.fieldErrors["branding.privacyUrl"]?.[0],
+          brandingTermsUrl: parsed.fieldErrors["branding.termsUrl"]?.[0],
         });
         setFormError(parsed.generalError ?? "Unable to save client.");
         setFormDiagnostics(parsed.diagnostics);
@@ -741,6 +790,28 @@ export default function ClientForm({ mode, clientId }: Props) {
               lineErrors={postLogoutErrors}
               minRows={5}
             />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+        <h2 className="text-lg font-semibold text-white">Branding</h2>
+        <p className="mt-1 text-sm text-slate-400">Optional application-specific details shown on login and registration pages.</p>
+        <div className="mt-4 grid gap-5 md:grid-cols-2">
+          <Field label="Display name override" hint="Optional label shown to users during sign-in.">
+            <input className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" value={form.brandingDisplayName} onChange={(event) => setForm((prev) => ({ ...prev, brandingDisplayName: event.target.value }))} />
+          </Field>
+          <Field label="Logo URL" hint="Absolute URL. HTTPS required by server in production." error={errors.brandingLogoUrl}>
+            <input className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" value={form.brandingLogoUrl} onChange={(event) => setForm((prev) => ({ ...prev, brandingLogoUrl: event.target.value }))} />
+          </Field>
+          <Field label="Home URL" error={errors.brandingHomeUrl}>
+            <input className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" value={form.brandingHomeUrl} onChange={(event) => setForm((prev) => ({ ...prev, brandingHomeUrl: event.target.value }))} />
+          </Field>
+          <Field label="Privacy URL" error={errors.brandingPrivacyUrl}>
+            <input className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" value={form.brandingPrivacyUrl} onChange={(event) => setForm((prev) => ({ ...prev, brandingPrivacyUrl: event.target.value }))} />
+          </Field>
+          <Field label="Terms URL" error={errors.brandingTermsUrl}>
+            <input className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" value={form.brandingTermsUrl} onChange={(event) => setForm((prev) => ({ ...prev, brandingTermsUrl: event.target.value }))} />
           </Field>
         </div>
       </section>

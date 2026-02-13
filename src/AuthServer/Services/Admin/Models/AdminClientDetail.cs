@@ -1,3 +1,5 @@
+using AuthServer.Models;
+
 namespace AuthServer.Services.Admin.Models;
 
 public sealed record AdminClientDetail(
@@ -18,4 +20,5 @@ public sealed record AdminClientDetail(
     string? Profile,
     string? PresetId,
     int? PresetVersion,
-    bool SystemManaged);
+    bool SystemManaged,
+    ClientBranding? Branding);

@@ -112,3 +112,13 @@ public sealed record DeletionRequestResponse(
 public sealed record LanguagePreferenceResponse(string? PreferredLanguage, string EffectiveLanguage);
 
 public sealed record UpdateLanguagePreferenceRequest(string Language);
+
+public sealed record LoginContextResponse(
+    bool HasOidcContext,
+    string? ClientId,
+    string? AppName,
+    string? LogoUrl,
+    string? HomeUrl,
+    string? PrivacyUrl,
+    string? TermsUrl,
+    IReadOnlyCollection<string> RequestedScopes);

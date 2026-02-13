@@ -1,3 +1,5 @@
+using AuthServer.Models;
+
 namespace AuthServer.Services.Admin.Models;
 
 public sealed record AdminClientListItem(
@@ -5,4 +7,5 @@ public sealed record AdminClientListItem(
     string ClientId,
     string? DisplayName,
     string ClientType,
-    bool Enabled);
+    bool Enabled,
+    bool HasBranding);
