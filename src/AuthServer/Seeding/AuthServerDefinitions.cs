@@ -57,7 +57,7 @@ public static class AuthServerDefinitions
         {
             Name = "api",
             DisplayName = "Core API",
-            Scopes = ["api"],
+            Scopes = ["api", "content.read", "content.write"],
             Resource = "api"
         }
     ];
@@ -86,7 +86,9 @@ public static class AuthServerDefinitions
                 AuthConstants.Scopes.Profile,
                 AuthConstants.Scopes.Email,
                 AuthConstants.Scopes.OfflineAccess,
-                "api"
+                "api",
+                "content.read",
+                "content.write"
             ],
             AllowedGrantTypes =
             [
@@ -103,7 +105,7 @@ public static class AuthServerDefinitions
             ClientSecret = "resource-api-local-secret",
             RedirectUris = [],
             PostLogoutRedirectUris = [],
-            Scopes = ["api"],
+            Scopes = ["api", "content.read", "content.write"],
             AllowedGrantTypes =
             [
                 OpenIddictConstants.GrantTypes.ClientCredentials

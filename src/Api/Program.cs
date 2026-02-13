@@ -4,7 +4,9 @@ using Api.Integrations;
 using Api.Middleware;
 using Api.Models;
 using Api.Options;
+using Api.Security;
 using Api.Services;
+using Company.Auth.Api.Scopes;
 using Company.Auth.Api;
 using Company.Auth.Contracts;
 using Mapster;
@@ -22,6 +24,9 @@ var configuredValidationModeRaw = builder.Configuration["Auth:ValidationMode"];
 var configuredValidationMode = AuthValidationModeParser.Parse(configuredValidationModeRaw);
 var introspectionClientId = builder.Configuration["Auth:Introspection:ClientId"];
 var introspectionClientSecret = builder.Configuration["Auth:Introspection:ClientSecret"];
+var internalTokensSection = builder.Configuration.GetSection(InternalTokenOptions.SectionName);
+var internalTokenLifetime = internalTokensSection.GetValue<int?>("LifetimeMinutes") ?? 2;
+var internalTokenSigningKey = internalTokensSection["SigningKey"];
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -63,6 +68,16 @@ if (!builder.Environment.IsDevelopment())
     }
 }
 
+if (string.IsNullOrWhiteSpace(internalTokenSigningKey))
+{
+    throw new InvalidOperationException("InternalTokens:SigningKey must be configured.");
+}
+
+if (internalTokenLifetime is < 1 or > 5)
+{
+    throw new InvalidOperationException("InternalTokens:LifetimeMinutes must be between 1 and 5.");
+}
+
 var effectiveIssuer = string.IsNullOrWhiteSpace(configuredIssuer)
     ? AuthConstants.DefaultIssuer
     : configuredIssuer;
@@ -94,6 +109,18 @@ builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 
 builder.Services.AddCompanyAuth(builder.Configuration, effectiveAudience);
+builder.Services.AddOptions<InternalTokenOptions>()
+    .Bind(internalTokensSection)
+    .PostConfigure(options =>
+    {
+        options.Issuer = string.IsNullOrWhiteSpace(options.Issuer) ? "astraid-api" : options.Issuer;
+        options.Audience = string.IsNullOrWhiteSpace(options.Audience) ? "astraid-content" : options.Audience;
+        options.LifetimeMinutes = options.LifetimeMinutes <= 0 ? 2 : options.LifetimeMinutes;
+    })
+    .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
+    .Validate(options => options.LifetimeMinutes is >= 1 and <= 5, "Internal token lifetime must be in range 1-5 minutes.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IInternalTokenService, InternalTokenService>();
 builder.Services.Configure<EndpointAuthorizationOptions>(options =>
 {
     options.RequiredScope = effectiveRequiredScope;
@@ -102,6 +129,12 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("RequireSystemAdmin", policy =>
         policy.RequirePermission("system.admin"));
+
+    options.AddPolicy("RequireContentRead", policy =>
+        policy.RequireAssertion(context => ScopeParser.GetScopes(context.User).Contains("content.read")));
+
+    options.AddPolicy("RequireContentWrite", policy =>
+        policy.RequireAssertion(context => ScopeParser.GetScopes(context.User).Contains("content.write")));
 
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
@@ -171,6 +204,7 @@ builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Confi
 builder.Services.Configure<HttpOptions>(builder.Configuration.GetSection("Http"));
 
 builder.Services.AddTransient<CorrelationIdHandler>();
+builder.Services.AddTransient<InternalTokenHandler>();
 
 builder.Services.AddHttpClient<AuthServerClient>((sp, client) =>
     {
@@ -202,6 +236,21 @@ builder.Services.AddHttpClient<CmsClient>((sp, client) =>
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddHttpMessageHandler(sp =>
         new ApiKeyHandler(ServiceNames.Cms, sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>()))
+    .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
+
+builder.Services.AddHttpClient<ContentServerClient>((sp, client) =>
+    {
+        var options = sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>().Get(ServiceNames.Cms);
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+        {
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+        }
+
+        var httpOptions = sp.GetRequiredService<IOptions<HttpOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(httpOptions.TimeoutSeconds);
+    })
+    .AddHttpMessageHandler<CorrelationIdHandler>()
+    .AddHttpMessageHandler<InternalTokenHandler>()
     .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
 builder.Services.AddHttpClient("HealthCheck", (sp, client) =>
@@ -332,6 +381,27 @@ api.MapGet("/integrations/authserver/ping", async (AuthServerClient client, Canc
 api.MapGet("/integrations/cms/ping", async (CmsClient client, CancellationToken cancellationToken) =>
     Results.Ok(await client.PingAsync(cancellationToken)))
     .RequireAuthorization("RequireSystemAdmin");
+
+var content = app.MapGroup("/content");
+
+content.MapGet("/items", async (ContentServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var response = await client.GetItemsAsync(cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        context.Response.StatusCode = (int)response.StatusCode;
+        return Results.Text(payload, "application/json");
+    })
+    .RequireAuthorization("RequireContentRead");
+
+content.MapPost("/items", async (ContentServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var body = await context.Request.ReadFromJsonAsync<object>(cancellationToken: cancellationToken) ?? new { };
+        var response = await client.CreateItemAsync(body, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        context.Response.StatusCode = (int)response.StatusCode;
+        return Results.Text(payload, "application/json");
+    })
+    .RequireAuthorization("RequireContentWrite");
 
 api.MapGet("/integrations/authserver/contract", (PolicyMapClient policyMapClient, ILoggerFactory loggerFactory) =>
     {
