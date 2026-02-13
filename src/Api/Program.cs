@@ -17,6 +17,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuredIssuer = builder.Configuration["Auth:Issuer"];
 var configuredAudience = builder.Configuration["Auth:Audience"];
+var configuredValidationModeRaw = builder.Configuration["Auth:ValidationMode"];
+var configuredValidationMode = AuthValidationModeParser.Parse(configuredValidationModeRaw);
+var introspectionClientId = builder.Configuration["Auth:Introspection:ClientId"];
+var introspectionClientSecret = builder.Configuration["Auth:Introspection:ClientSecret"];
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -39,6 +43,18 @@ if (!builder.Environment.IsDevelopment())
     {
         throw new InvalidOperationException("Auth:Audience must be configured outside Development.");
     }
+
+    if (!string.IsNullOrWhiteSpace(configuredValidationModeRaw)
+        && !AuthValidationModeParser.TryParse(configuredValidationModeRaw, out _))
+    {
+        throw new InvalidOperationException("Auth:ValidationMode must be one of: Jwt, Introspection, Hybrid.");
+    }
+
+    if ((configuredValidationMode is AuthValidationMode.Introspection or AuthValidationMode.Hybrid)
+        && (string.IsNullOrWhiteSpace(introspectionClientId) || string.IsNullOrWhiteSpace(introspectionClientSecret)))
+    {
+        throw new InvalidOperationException("Auth:Introspection:ClientId and Auth:Introspection:ClientSecret must be configured when introspection is enabled outside Development.");
+    }
 }
 
 var effectiveIssuer = string.IsNullOrWhiteSpace(configuredIssuer)
@@ -48,6 +64,7 @@ var effectiveAudience = string.IsNullOrWhiteSpace(configuredAudience)
     ? "api"
     : configuredAudience;
 var effectiveScopes = builder.Configuration.GetSection("Auth:Scopes").Get<string[]>() ?? ["api"];
+var effectiveClockSkew = builder.Configuration.GetValue<int?>("Auth:ClockSkewSeconds") ?? 0;
 
 var mapsterConfig = new TypeAdapterConfig();
 mapsterConfig.NewConfig<UserProfileModel, MeDto>();
@@ -307,7 +324,8 @@ api.MapGet("/integrations/authserver/contract", (PolicyMapClient policyMapClient
             policyMapEntryCount = policyMapDiagnostics.EntryCount,
             swaggerEnabled = enableSwagger,
             environmentName = app.Environment.EnvironmentName,
-            validationMode = "discovery+jwks"
+            validationMode = configuredValidationMode.ToString(),
+            clockSkewSeconds = effectiveClockSkew
         });
     })
     .RequireAuthorization("RequireSystemAdmin");
