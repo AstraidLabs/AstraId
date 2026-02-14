@@ -36,7 +36,7 @@ public sealed class InternalTokenHandler : DelegatingHandler
             "Bearer",
             _internalTokenService.CreateToken(context.User, grantedScopes));
 
-        _logger.LogInformation("Forwarding request to ContentServer with internal token. Method: {Method}, Path: {Path}", request.Method, request.RequestUri?.AbsolutePath);
+        _logger.LogInformation("Forwarding request to AppServer with internal token. Method: {Method}, Path: {Path}", request.Method, request.RequestUri?.AbsolutePath);
 
         return base.SendAsync(request, cancellationToken);
     }

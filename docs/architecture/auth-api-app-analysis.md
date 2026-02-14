@@ -1,4 +1,4 @@
-# AuthServer <-> API <-> ContentServer analysis (Variant B)
+# AuthServer <-> API <-> AppServer analysis (Variant B)
 
 ## Current state discovered
 
@@ -7,12 +7,12 @@ Projects in solution:
 - `src/Api` (gateway/BFF-style API)
 - `src/Company.Auth.Api` (shared auth validation wiring)
 - `src/Company.Auth.Contracts` (shared constants)
-- `src/ContentServer` (added in this change)
+- `src/AppServer` (added in this change)
 
 Authentication before this change:
 - `AuthServer` issued JWT access tokens (access token encryption disabled, discovery/JWKS exposed).
 - `Api` validated AuthServer tokens (JWT and optional introspection/hybrid support via `Company.Auth.Api`).
-- No dedicated `ContentServer` boundary existed in the repo; API had only a CMS ping integration.
+- No dedicated `AppServer` boundary existed in the repo; API had only a CMS ping integration.
 
 ## AuthServer capability findings
 
@@ -25,12 +25,12 @@ Authentication before this change:
 
 Partially before this change (AuthServer + API existed), but **not fully**:
 - API token validation existed.
-- No strict ContentServer boundary with internal-token-only trust.
-- No internal API-issued token flow from API to ContentServer.
+- No strict AppServer boundary with internal-token-only trust.
+- No internal API-issued token flow from API to AppServer.
 
 ## Gaps found
 
-- Missing ContentServer component with isolated trust boundary.
+- Missing AppServer component with isolated trust boundary.
 - Missing internal short-lived token issuer in API.
 - Missing enforcement that downstream accepts only API-issued internal tokens.
 - Content scopes for read/write were not pre-seeded.
@@ -45,8 +45,8 @@ Partially before this change (AuthServer + API existed), but **not fully**:
   - `content.read` for GET
   - `content.write` for POST
 - Added API content forwarding endpoints:
-  - `GET /content/items`
-  - `POST /content/items`
+  - `GET /app/items`
+  - `POST /app/items`
 - Added audit-safe forwarding logs (method/path only, no token value logging).
 
 Changed files:
@@ -54,12 +54,12 @@ Changed files:
 - `src/Api/Security/InternalTokenService.cs`
 - `src/Api/Options/InternalTokenOptions.cs`
 - `src/Api/Integrations/InternalTokenHandler.cs`
-- `src/Api/Integrations/ContentServerClient.cs`
+- `src/Api/Integrations/AppServerClient.cs`
 - `src/Api/appsettings.json`
 - `src/Api/appsettings.Development.json`
 
-### 2) ContentServer (new) validates INTERNAL tokens only
-- Added new `src/ContentServer` ASP.NET Core API project.
+### 2) AppServer (new) validates INTERNAL tokens only
+- Added new `src/AppServer` ASP.NET Core API project.
 - Configured JWT bearer validation to trust only internal token settings:
   - issuer = `InternalTokens:Issuer`
   - audience = `InternalTokens:Audience`
@@ -68,18 +68,18 @@ Changed files:
 - Added `ICurrentUser` abstraction for business-facing user context.
 - Added endpoints:
   - `GET /health`
-  - `GET /content/items` (`content.read`)
-  - `POST /content/items` (`content.write`)
+  - `GET /app/items` (`content.read`)
+  - `POST /app/items` (`content.write`)
 
 Changed files:
-- `src/ContentServer/ContentServer.csproj`
-- `src/ContentServer/Program.cs`
-- `src/ContentServer/Security/InternalTokenOptions.cs`
-- `src/ContentServer/Security/ScopeParser.cs`
-- `src/ContentServer/Security/CurrentUser.cs`
-- `src/ContentServer/appsettings.json`
-- `src/ContentServer/appsettings.Development.json`
-- `src/ContentServer/Properties/launchSettings.json`
+- `src/AppServer/AppServer.csproj`
+- `src/AppServer/Program.cs`
+- `src/AppServer/Security/InternalTokenOptions.cs`
+- `src/AppServer/Security/ScopeParser.cs`
+- `src/AppServer/Security/CurrentUser.cs`
+- `src/AppServer/appsettings.json`
+- `src/AppServer/appsettings.Development.json`
+- `src/AppServer/Properties/launchSettings.json`
 
 ### 3) AuthServer scopes/resources alignment
 - Added `content.read` and `content.write` to allowed scopes and seeded clients/resources.
@@ -89,7 +89,7 @@ Changed files:
 - `src/AuthServer/Seeding/AuthServerDefinitions.cs`
 
 ### 4) Solution and docs
-- Added ContentServer project to solution.
+- Added AppServer project to solution.
 - Added API README section for Variant B internal forwarding.
 - Added root README section for local 3-tier wiring.
 
@@ -101,8 +101,8 @@ Changed files:
 ## Removed/forbidden coupling check
 
 Search outcome:
-- No ContentServer integration with AuthServer introspection/userinfo/JWKS.
-- ContentServer trust is local internal token validation only.
+- No AppServer integration with AuthServer introspection/userinfo/JWKS.
+- AppServer trust is local internal token validation only.
 
 ## Smoke usage examples (placeholders only)
 
@@ -112,12 +112,12 @@ curl -k https://localhost:7002/health
 curl -k https://localhost:7003/health
 
 # API entrypoint with AuthServer access token (placeholder)
-curl -k https://localhost:7002/content/items \
+curl -k https://localhost:7002/app/items \
   -H "Authorization: Bearer <authserver_access_token>" \
   -H "X-Correlation-ID: <correlation-id>"
 
 # Write through API (placeholder)
-curl -k -X POST https://localhost:7002/content/items \
+curl -k -X POST https://localhost:7002/app/items \
   -H "Authorization: Bearer <authserver_access_token>" \
   -H "Content-Type: application/json" \
   -d '{"title":"example"}'
@@ -128,13 +128,13 @@ curl -k -X POST https://localhost:7002/content/items \
 - [x] API validates AuthServer end-user access tokens.
 - [x] API enforces content read/write scope policies before downstream call.
 - [x] API issues short-lived internal JWT (1-5 min) and forwards only that token.
-- [x] ContentServer validates internal JWT issuer/audience/signature/lifetime.
-- [x] ContentServer rejects AuthServer-issued tokens (fail-closed).
-- [x] ContentServer business endpoints can use `ICurrentUser` abstraction.
+- [x] AppServer validates internal JWT issuer/audience/signature/lifetime.
+- [x] AppServer rejects AuthServer-issued tokens (fail-closed).
+- [x] AppServer business endpoints can use `ICurrentUser` abstraction.
 
 ## Missing / next steps
 
 - Infrastructure key management/rotation for internal signing key (currently shared secret via config/env).
-- Network policy hardening (ensure ContentServer is not publicly exposed, API is entrypoint).
+- Network policy hardening (ensure AppServer is not publicly exposed, API is entrypoint).
 - End-to-end integration tests once .NET SDK is available in CI/runtime.
 - Optional migration to asymmetric internal signing + JWKS exposure from API for rotation at scale.

@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Company.Auth.Contracts;
 
-namespace ContentServer.Security;
+namespace AppServer.Security;
 
 public interface ICurrentUser
 {

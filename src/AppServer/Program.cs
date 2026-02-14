@@ -1,5 +1,5 @@
 using System.Text;
-using ContentServer.Security;
+using AppServer.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -69,7 +69,7 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
-var content = app.MapGroup("/content");
+var content = app.MapGroup("/app");
 
 content.MapGet("/items", (ICurrentUser currentUser) =>
     Results.Ok(new { owner = currentUser.Subject, permissions = currentUser.Permissions, items = new[] { "sample-item" } }))

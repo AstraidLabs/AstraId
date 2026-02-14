@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace ContentServer.Security;
+namespace AppServer.Security;
 
 public static class ScopeParser
 {
