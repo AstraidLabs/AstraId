@@ -156,11 +156,11 @@ Default local dev URLs:
 - Web: `http://localhost:5173`
 
 
-## 3-tier local wiring (AuthServer -> API -> ContentServer)
+## 3-tier local wiring (AuthServer -> API -> AppServer)
 
-Variant B is supported: API validates AuthServer user tokens and issues a short-lived internal token for ContentServer.
+Variant B is supported: API validates AuthServer user tokens and issues a short-lived internal token for AppServer.
 
-1. Configure the same internal signing key for API and ContentServer through environment variables (example):
+1. Configure the same internal signing key for API and AppServer through environment variables (example):
 
 ```bash
 export InternalTokens__SigningKey="<32+ char random secret>"
@@ -171,17 +171,17 @@ export InternalTokens__SigningKey="<32+ char random secret>"
 ```bash
 dotnet run --project src/AuthServer --launch-profile AuthServer
 dotnet run --project src/Api --launch-profile Api
-dotnet run --project src/ContentServer --launch-profile ContentServer
+dotnet run --project src/AppServer --launch-profile AppServer
 ```
 
 3. Call content through API only:
 
 ```bash
-curl -k https://localhost:7002/content/items \
+curl -k https://localhost:7002/app/items \
   -H "Authorization: Bearer <authserver-access-token>"
 ```
 
-ContentServer only accepts internal tokens (`iss=astraid-api`, `aud=astraid-content`) and rejects AuthServer-issued tokens.
+AppServer only accepts internal tokens (`iss=astraid-api`, `aud=astraid-app`) and rejects AuthServer-issued tokens.
 
 ## Configuration
 

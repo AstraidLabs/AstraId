@@ -10,7 +10,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Company.Auth.Contracts", "s
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Company.Auth.Api", "src/Company.Auth.Api/Company.Auth.Api.csproj", "{465B621E-B671-4C30-846D-AA2021C7384C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ContentServer", "src/ContentServer/ContentServer.csproj", "{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AppServer", "src/AppServer/AppServer.csproj", "{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

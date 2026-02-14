@@ -114,7 +114,7 @@ builder.Services.AddOptions<InternalTokenOptions>()
     .PostConfigure(options =>
     {
         options.Issuer = string.IsNullOrWhiteSpace(options.Issuer) ? "astraid-api" : options.Issuer;
-        options.Audience = string.IsNullOrWhiteSpace(options.Audience) ? "astraid-content" : options.Audience;
+        options.Audience = string.IsNullOrWhiteSpace(options.Audience) ? "astraid-app" : options.Audience;
         options.LifetimeMinutes = options.LifetimeMinutes <= 0 ? 2 : options.LifetimeMinutes;
     })
     .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
@@ -201,6 +201,7 @@ builder.Services.AddHttpClient(PolicyMapClient.HttpClientName, (sp, client) =>
 
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.AuthServer, builder.Configuration.GetSection("Services:AuthServer"));
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Configuration.GetSection("Services:Cms"));
+builder.Services.Configure<ServiceClientOptions>(ServiceNames.AppServer, builder.Configuration.GetSection("Services:AppServer"));
 builder.Services.Configure<HttpOptions>(builder.Configuration.GetSection("Http"));
 
 builder.Services.AddTransient<CorrelationIdHandler>();
@@ -238,9 +239,9 @@ builder.Services.AddHttpClient<CmsClient>((sp, client) =>
         new ApiKeyHandler(ServiceNames.Cms, sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>()))
     .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
-builder.Services.AddHttpClient<ContentServerClient>((sp, client) =>
+builder.Services.AddHttpClient<AppServerClient>((sp, client) =>
     {
-        var options = sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>().Get(ServiceNames.Cms);
+        var options = sp.GetRequiredService<IOptionsMonitor<ServiceClientOptions>>().Get(ServiceNames.AppServer);
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
         {
             client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
@@ -268,6 +269,11 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["Services:AuthServer:BaseUr
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Services:Cms:BaseUrl"]))
 {
     healthChecks.AddCheck<CmsHealthCheck>("cms");
+}
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Services:AppServer:BaseUrl"]))
+{
+    healthChecks.AddCheck<CmsHealthCheck>("appserver");
 }
 
 builder.Services.AddCors(options =>
@@ -382,9 +388,9 @@ api.MapGet("/integrations/cms/ping", async (CmsClient client, CancellationToken 
     Results.Ok(await client.PingAsync(cancellationToken)))
     .RequireAuthorization("RequireSystemAdmin");
 
-var content = app.MapGroup("/content");
+var content = app.MapGroup("/app");
 
-content.MapGet("/items", async (ContentServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+content.MapGet("/items", async (AppServerClient client, HttpContext context, CancellationToken cancellationToken) =>
     {
         var response = await client.GetItemsAsync(cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -393,7 +399,7 @@ content.MapGet("/items", async (ContentServerClient client, HttpContext context,
     })
     .RequireAuthorization("RequireContentRead");
 
-content.MapPost("/items", async (ContentServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+content.MapPost("/items", async (AppServerClient client, HttpContext context, CancellationToken cancellationToken) =>
     {
         var body = await context.Request.ReadFromJsonAsync<object>(cancellationToken: cancellationToken) ?? new { };
         var response = await client.CreateItemAsync(body, cancellationToken);
