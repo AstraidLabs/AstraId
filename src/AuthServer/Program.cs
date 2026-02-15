@@ -1,3 +1,10 @@
+using StackExchange.Redis;
+using MediatR;
+using Hangfire.InMemory;
+using Hangfire;
+using AuthServer.Services.Jobs;
+using AuthServer.Services.Events;
+using AuthServer.Application.Commands;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
@@ -33,6 +40,8 @@ using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
@@ -101,6 +110,17 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 
 builder.Services.AddMemoryCache();
+if (string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    throw new InvalidOperationException("Redis:ConnectionString must be configured.");
+}
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
+builder.Services.AddSingleton<IEventPublisher, RedisEventPublisher>();
+builder.Services.AddScoped<SecurityMaintenanceJobs>();
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<SendEmailCommand>());
+builder.Services.AddHangfire(configuration => configuration.UseInMemoryStorage());
+builder.Services.AddHangfireServer();
 var dataProtectionBuilder = builder.Services.AddDataProtection();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
@@ -406,6 +426,10 @@ app.UseCors("Web");
 app.UseAuthentication();
 app.UseMiddleware<UserActivityTrackingMiddleware>();
 app.UseAuthorization();
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = [new LocalDashboardAuthorizationFilter()]
+});
 app.UseStatusCodePages(async statusCodeContext =>
 {
     var context = statusCodeContext.HttpContext;
@@ -450,7 +474,9 @@ app.UseStatusCodePages(async statusCodeContext =>
     await context.Response.WriteAsJsonAsync(problemDetails);
 });
 
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapControllers();
+RecurringJob.AddOrUpdate<SecurityMaintenanceJobs>("auth-security-cleanup", job => job.CleanupAsync(), Cron.Daily);
 app.MapRazorPages();
 
 if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(adminUiRoot))

@@ -1,3 +1,8 @@
+using StackExchange.Redis;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Api.Hubs;
+using Api.Events;
+using AstraId.Contracts;
 using Api.Contracts;
 using Api.HealthChecks;
 using Api.Integrations;
@@ -24,6 +29,9 @@ var configuredValidationModeRaw = builder.Configuration["Auth:ValidationMode"];
 var configuredValidationMode = AuthValidationModeParser.Parse(configuredValidationModeRaw);
 var introspectionClientId = builder.Configuration["Auth:Introspection:ClientId"];
 var introspectionClientSecret = builder.Configuration["Auth:Introspection:ClientSecret"];
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+var enableSignalRBackplane = builder.Configuration.GetValue<bool>("Redis:EnableSignalRBackplane");
+
 var internalTokensSection = builder.Configuration.GetSection(InternalTokenOptions.SectionName);
 var internalTokenLifetime = internalTokensSection.GetValue<int?>("LifetimeMinutes") ?? 2;
 var internalTokenSigningKey = internalTokensSection["SigningKey"];
@@ -139,6 +147,54 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+});
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+{
+    if (string.IsNullOrWhiteSpace(redisConnectionString))
+    {
+        throw new InvalidOperationException("Redis:ConnectionString must be configured.");
+    }
+
+    return ConnectionMultiplexer.Connect(redisConnectionString);
+});
+
+builder.Services.AddHostedService<RedisEventSubscriber>();
+
+var signalRBuilder = builder.Services.AddSignalR();
+if (enableSignalRBackplane)
+{
+    if (string.IsNullOrWhiteSpace(redisConnectionString))
+    {
+        throw new InvalidOperationException("Redis:ConnectionString must be configured when Redis backplane is enabled.");
+    }
+
+    signalRBuilder.AddStackExchangeRedis(redisConnectionString);
+}
+
+builder.Services.PostConfigureAll<JwtBearerOptions>(options =>
+{
+    var prior = options.Events?.OnMessageReceived;
+    options.Events ??= new JwtBearerEvents();
+    options.Events.OnMessageReceived = async context =>
+    {
+        if (prior is not null)
+        {
+            await prior(context);
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.Token))
+        {
+            return;
+        }
+
+        var accessToken = context.Request.Query["access_token"];
+        var path = context.HttpContext.Request.Path;
+        if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments("/hubs/app"))
+        {
+            context.Token = accessToken;
+        }
+    };
 });
 
 builder.Services.AddProblemDetails(options =>
@@ -295,7 +351,8 @@ builder.Services.AddCors(options =>
 
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -353,6 +410,7 @@ app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHub<AppHub>("/hubs/app").RequireAuthorization();
 
 var api = app.MapGroup("/api");
 

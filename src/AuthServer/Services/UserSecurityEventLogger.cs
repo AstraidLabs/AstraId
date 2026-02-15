@@ -1,4 +1,6 @@
 using AuthServer.Data;
+using AuthServer.Services.Events;
+using AstraId.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services;
@@ -12,10 +14,12 @@ public interface IUserSecurityEventLogger
 public sealed class UserSecurityEventLogger : IUserSecurityEventLogger
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IEventPublisher _eventPublisher;
 
-    public UserSecurityEventLogger(ApplicationDbContext dbContext)
+    public UserSecurityEventLogger(ApplicationDbContext dbContext, IEventPublisher eventPublisher)
     {
         _dbContext = dbContext;
+        _eventPublisher = eventPublisher;
     }
 
     public async Task LogAsync(string eventType, Guid? userId, HttpContext httpContext, string? clientId = null, CancellationToken cancellationToken = default)
@@ -33,6 +37,16 @@ public sealed class UserSecurityEventLogger : IUserSecurityEventLogger
         });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (userId.HasValue)
+        {
+            await _eventPublisher.PublishAsync(new AppEvent(
+                Type: $"auth.{eventType}",
+                TenantId: null,
+                UserId: userId.Value.ToString("N"),
+                EntityId: userId.Value.ToString("N"),
+                OccurredAt: DateTimeOffset.UtcNow));
+        }
     }
 
     public async Task<IReadOnlyCollection<UserSecurityEvent>> GetRecentForUserAsync(Guid userId, int take, CancellationToken cancellationToken)

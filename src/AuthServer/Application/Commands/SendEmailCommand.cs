@@ -1,0 +1,21 @@
+using AuthServer.Services.Notifications;
+using MediatR;
+
+namespace AuthServer.Application.Commands;
+
+public sealed record SendEmailCommand(string ToEmail, string Subject, string Body) : IRequest;
+
+public sealed class SendEmailCommandHandler : IRequestHandler<SendEmailCommand>
+{
+    private readonly IEmailSender _emailSender;
+
+    public SendEmailCommandHandler(IEmailSender emailSender)
+    {
+        _emailSender = emailSender;
+    }
+
+    public Task Handle(SendEmailCommand request, CancellationToken cancellationToken)
+    {
+        return _emailSender.SendAsync(request.ToEmail, request.Subject, request.Body, cancellationToken);
+    }
+}
