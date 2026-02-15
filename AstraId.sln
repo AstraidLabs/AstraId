@@ -12,6 +12,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Company.Auth.Api", "src/Com
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AppServer", "src/AppServer/AppServer.csproj", "{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AstraId.Contracts", "src/AstraId.Contracts/AstraId.Contracts.csproj", "{7F1E4D37-8D2D-4F53-9F61-2F4C3A69B611}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1C9B5DD-5A95-4C5D-8A6D-E42C7A2D6B10}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F1E4D37-8D2D-4F53-9F61-2F4C3A69B611}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F1E4D37-8D2D-4F53-9F61-2F4C3A69B611}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F1E4D37-8D2D-4F53-9F61-2F4C3A69B611}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F1E4D37-8D2D-4F53-9F61-2F4C3A69B611}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
