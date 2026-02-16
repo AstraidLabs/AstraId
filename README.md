@@ -4,6 +4,39 @@
 
 AstraId is a multi-service identity and authorization solution built on ASP.NET Core + OpenIddict + React/Vite.
 
+### Purpose, capabilities, and where to use AstraId
+
+#### What this project is and its purpose
+
+AstraId is a multi-service identity and access platform: it combines an OIDC/OAuth2 authority (AuthServer), a gateway/BFF-style API layer (Api), an internal application service (AppServer), and a React UI (Web). Its purpose is to centralize sign-in, authorization management, and secure identity propagation between the public edge and internal services (see *Components and responsibilities* below).
+
+#### What it provides (practical capabilities)
+
+- Provides an OIDC/OAuth2 authority including discovery, JWKS, and token/introspection/revocation endpoints (`/connect/*`).
+- Covers identity flows for login, registration, and self-service account operations in AuthServer.
+- Exposes admin APIs (`/admin/api/*`) for managing users, roles, permissions, clients, scopes/resources, and governance settings.
+- Supports multiple access-token validation modes in Api (JWT, introspection, hybrid).
+- Enforces scopes and a dynamic permission policy map fetched from AuthServer.
+- Implements an internal token pattern: Api mints short-lived internal tokens for AppServer; AppServer accepts only these API-issued internal tokens (HS256) and rejects AuthServer user tokens directly.
+- Uses Redis across AuthServer/Api/AppServer runtime paths (cache/event-related scenarios per component).
+- Uses Hangfire in AppServer for background jobs.
+- Includes a realtime hub endpoint in Api (`/hubs/app`) for SignalR fan-out to clients.
+
+#### Where to use it (typical scenarios)
+
+- When you need SSO for multiple applications (SPA, internal tools, and other clients) behind a single authority.
+- When you want centralized management of clients, scopes, roles, and permission models.
+- In microservice architectures where internal services are not OIDC-aware: edge/API handles auth, internal calls use internal tokens.
+- When adopting a BFF approach for SPA to enforce a stronger backend security boundary.
+- When you need identity governance controls managed in one platform.
+- When you need real-time propagation of updates/notifications through the API hub layer.
+
+#### Short note on what it is not
+
+- It is not a full CMS or business suite; AppServer is an internal application service focused on specific backend operations.
+- It is not a hosted SaaS by default; it is self-hosted infrastructure you operate in your own environment.
+- It is not a single-binary app; it is a composed multi-service architecture that is configured and run together.
+
 ### Components and responsibilities
 
 - **AuthServer (`src/AuthServer`)**
@@ -68,6 +101,7 @@ AstraId is a multi-service identity and authorization solution built on ASP.NET 
 - Api: `https://localhost:7002`.
 - AppServer: `https://localhost:7003` and `http://localhost:5003`.
 - Web (Vite): `http://localhost:5173`.
+
 
 ## 2) Prerequisites
 
