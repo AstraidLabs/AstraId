@@ -127,6 +127,7 @@ builder.Services.AddOptions<InternalTokenOptions>()
     })
     .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
     .Validate(options => options.LifetimeMinutes is >= 1 and <= 5, "Internal token lifetime must be in range 1-5 minutes.")
+    .Validate(options => string.Equals(options.Algorithm, "HS256", StringComparison.OrdinalIgnoreCase), "Only HS256 is supported for internal tokens.")
     .ValidateOnStart();
 builder.Services.AddSingleton<IInternalTokenService, InternalTokenService>();
 builder.Services.Configure<EndpointAuthorizationOptions>(options =>
@@ -242,6 +243,11 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+
+builder.Services.AddOptions<SecurityHeadersOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityHeadersOptions.SectionName))
+    .Validate(options => !builder.Environment.IsProduction() || options.AllowedFrameAncestors.All(value => value.Trim() != "*"), "SecurityHeaders:AllowedFrameAncestors cannot contain '*' in production.")
+    .ValidateOnStart();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<PolicyMapOptions>(builder.Configuration.GetSection("Api:AuthServer"));
@@ -383,7 +389,8 @@ if (enableSwagger)
 }
 
 app.UseHttpsRedirection();
-if (app.Environment.IsProduction())
+var securityHeadersOptions = app.Services.GetRequiredService<IOptions<SecurityHeadersOptions>>().Value;
+if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 {
     app.UseHsts();
 }
@@ -392,13 +399,40 @@ app.UseRouting();
 
 app.Use(async (context, next) =>
 {
+    if (!securityHeadersOptions.Enabled)
+    {
+        await next();
+        return;
+    }
+
     context.Response.OnStarting(() =>
     {
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-        context.Response.Headers["X-Frame-Options"] = "DENY";
-        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
-        context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none';";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), fullscreen=()";
+        context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+        context.Response.Headers["Cross-Origin-Resource-Policy"] = "same-site";
+
+        var frameAncestors = securityHeadersOptions.AllowedFrameAncestors.Length == 0
+            ? "'none'"
+            : string.Join(' ', securityHeadersOptions.AllowedFrameAncestors);
+        var csp = $"default-src 'none'; frame-ancestors {frameAncestors}; base-uri 'none';";
+
+        if (securityHeadersOptions.CspMode == CspMode.Enforce)
+        {
+            context.Response.Headers["Content-Security-Policy"] = csp;
+        }
+        else if (securityHeadersOptions.CspMode == CspMode.ReportOnly)
+        {
+            context.Response.Headers["Content-Security-Policy-Report-Only"] = csp;
+        }
+
+        if (context.Request.Path.StartsWithSegments("/app") || context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+            context.Response.Headers.Pragma = "no-cache";
+        }
+
         return Task.CompletedTask;
     });
 

@@ -38,6 +38,8 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,11 +114,20 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 builder.Services.AddMemoryCache();
 if (string.IsNullOrWhiteSpace(redisConnectionString))
 {
-    throw new InvalidOperationException("Redis:ConnectionString must be configured.");
-}
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("Redis:ConnectionString must be configured outside Development.");
+    }
 
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
-builder.Services.AddSingleton<IEventPublisher, RedisEventPublisher>();
+    builder.Services.AddDistributedMemoryCache();
+    builder.Services.AddSingleton<IEventPublisher, InMemoryEventPublisher>();
+}
+else
+{
+    builder.Services.AddStackExchangeRedisCache(options => options.Configuration = redisConnectionString);
+    builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
+    builder.Services.AddSingleton<IEventPublisher, RedisEventPublisher>();
+}
 builder.Services.AddScoped<SecurityMaintenanceJobs>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<SendEmailCommand>());
 builder.Services.AddHangfire(configuration => configuration.UseInMemoryStorage());
@@ -187,6 +198,16 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
 builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(DiagnosticsOptions.SectionName));
+builder.Services.AddOptions<CorsOptions>()
+    .Bind(builder.Configuration.GetSection(CorsOptions.SectionName))
+    .Validate(options => !options.AllowedOrigins.Any(origin => origin.Trim() == "*"), "Cors:AllowedOrigins cannot contain '*'.")
+    .Validate(options => !options.AllowCredentials || options.AllowedOrigins.Length > 0, "Cors:AllowedOrigins must not be empty when AllowCredentials is true.")
+    .Validate(options => builder.Environment.IsDevelopment() || (!options.AllowCredentials || options.AllowedOrigins.All(origin => origin.Trim() != "*")), "Unsafe CORS configuration for production.")
+    .ValidateOnStart();
+builder.Services.AddOptions<SecurityHeadersOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityHeadersOptions.SectionName))
+    .Validate(options => !builder.Environment.IsProduction() || options.AllowedFrameAncestors.All(value => value.Trim() != "*"), "SecurityHeaders:AllowedFrameAncestors cannot contain '*' in production.")
+    .ValidateOnStart();
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -259,10 +280,58 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Web", policy =>
     {
-        policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .SetIsOriginAllowed(_ => true)
-              .AllowCredentials();
+        var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
+        var origins = corsOptions.AllowedOrigins
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        policy.AllowAnyHeader().AllowAnyMethod();
+        if (origins.Length > 0)
+        {
+            policy.WithOrigins(origins);
+            if (corsOptions.AllowCredentials)
+            {
+                policy.AllowCredentials();
+            }
+        }
+    });
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("RateLimiter")
+            .LogWarning("Rate limit rejected request for path {Path}.", context.HttpContext.Request.Path);
+        return ValueTask.CompletedTask;
+    };
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var key = context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+        if (path.StartsWith("/admin/api", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"admin:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        if (path.StartsWith("/connect/token", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/connect/introspect", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/connect/revocation", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth/login", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth/reset-password", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"auth:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        return RateLimitPartition.GetNoLimiter("default");
     });
 });
 
@@ -359,20 +428,51 @@ var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Val
 ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
-if (app.Environment.IsProduction())
+var securityHeadersOptions = app.Services.GetRequiredService<IOptions<SecurityHeadersOptions>>().Value;
+if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 {
     app.UseHsts();
 }
 
 app.Use(async (context, next) =>
 {
+    if (!securityHeadersOptions.Enabled)
+    {
+        await next();
+        return;
+    }
+
     context.Response.OnStarting(() =>
     {
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-        context.Response.Headers["X-Frame-Options"] = "DENY";
-        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
-        context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self';";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), fullscreen=()";
+        context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+        context.Response.Headers["Cross-Origin-Resource-Policy"] = "same-site";
+
+        var frameAncestors = securityHeadersOptions.AllowedFrameAncestors.Length == 0
+            ? "'none'"
+            : string.Join(' ', securityHeadersOptions.AllowedFrameAncestors);
+        var scriptSources = string.Join(' ', new[] { "'self'" }.Concat(securityHeadersOptions.AdditionalScriptSources ?? []));
+        var csp = $"default-src 'self'; base-uri 'self'; frame-ancestors {frameAncestors}; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src {scriptSources}; connect-src 'self';";
+
+        if (securityHeadersOptions.CspMode == CspMode.Enforce)
+        {
+            context.Response.Headers["Content-Security-Policy"] = csp;
+        }
+        else if (securityHeadersOptions.CspMode == CspMode.ReportOnly)
+        {
+            context.Response.Headers["Content-Security-Policy-Report-Only"] = csp;
+        }
+
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/connect/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth/", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+            context.Response.Headers.Pragma = "no-cache";
+        }
+
         return Task.CompletedTask;
     });
 
@@ -422,13 +522,14 @@ app.UseRouting();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseMiddleware<UserActivityTrackingMiddleware>();
 app.UseAuthorization();
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
 {
-    Authorization = [new LocalDashboardAuthorizationFilter()]
+    Authorization = [new SecureDashboardAuthorizationFilter(app.Environment.IsDevelopment())]
 });
 app.UseStatusCodePages(async statusCodeContext =>
 {

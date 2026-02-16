@@ -7,4 +7,5 @@ public sealed class InternalTokenOptions
     public string Issuer { get; set; } = "astraid-api";
     public string Audience { get; set; } = "astraid-app";
     public string SigningKey { get; set; } = string.Empty;
+    public string Algorithm { get; set; } = "HS256";
 }

@@ -183,6 +183,11 @@ curl -k https://localhost:7002/app/items \
 
 AppServer only accepts internal tokens (`iss=astraid-api`, `aud=astraid-app`) and rejects AuthServer-issued tokens.
 
+
+## Local secret management
+
+Use `dotnet user-secrets` or environment variables for all secret values. See `docs/security/local-secrets.md`.
+
 ## Configuration
 
 ### Configuration overview

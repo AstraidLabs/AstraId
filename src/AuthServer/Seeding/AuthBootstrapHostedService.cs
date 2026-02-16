@@ -361,7 +361,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
         if (!hasBootstrapConfig && isDevelopment)
         {
             adminEmail ??= "admin@local.test";
-            adminPassword ??= "Password123!";
+            adminPassword ??= GeneratePassword();
         }
 
         if (string.IsNullOrWhiteSpace(adminEmail))

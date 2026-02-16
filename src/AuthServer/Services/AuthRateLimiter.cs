@@ -1,16 +1,23 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
+using StackExchange.Redis;
 
 namespace AuthServer.Services;
 
 public sealed class AuthRateLimiter
 {
-    private readonly IMemoryCache _cache;
+    private readonly IMemoryCache _memoryCache;
+    private readonly IDistributedCache _distributedCache;
+    private readonly ILogger<AuthRateLimiter> _logger;
     private static readonly object CacheLock = new();
 
-    public AuthRateLimiter(IMemoryCache cache)
+    public AuthRateLimiter(IMemoryCache memoryCache, IDistributedCache distributedCache, ILogger<AuthRateLimiter> logger)
     {
-        _cache = cache;
+        _memoryCache = memoryCache;
+        _distributedCache = distributedCache;
+        _logger = logger;
     }
 
     public bool IsLimited(HttpContext context, string action, int maxAttempts, TimeSpan window, out int retryAfterSeconds)
@@ -22,17 +29,22 @@ public sealed class AuthRateLimiter
             return false;
         }
 
-        var key = $"{action}:{GetClientKey(context)}";
+        var key = $"auth-rate:{action}:{GetClientKey(context)}";
         var now = DateTimeOffset.UtcNow;
+
+        if (TryUseDistributedLimiter(context, key, maxAttempts, window, now, out retryAfterSeconds))
+        {
+            return true;
+        }
 
         lock (CacheLock)
         {
-            if (_cache.TryGetValue<RateLimitState>(key, out var state))
+            if (_memoryCache.TryGetValue<RateLimitState>(key, out var state))
             {
                 if (now - state.WindowStart >= window)
                 {
                     state = new RateLimitState(1, now);
-                    _cache.Set(key, state, window);
+                    _memoryCache.Set(key, state, window);
                     return false;
                 }
 
@@ -44,11 +56,52 @@ public sealed class AuthRateLimiter
                 }
 
                 state = state with { Count = nextCount };
-                _cache.Set(key, state, window);
+                _memoryCache.Set(key, state, window);
                 return false;
             }
 
-            _cache.Set(key, new RateLimitState(1, now), window);
+            _memoryCache.Set(key, new RateLimitState(1, now), window);
+            return false;
+        }
+    }
+
+    private bool TryUseDistributedLimiter(HttpContext context, string key, int maxAttempts, TimeSpan window, DateTimeOffset now, out int retryAfterSeconds)
+    {
+        retryAfterSeconds = 0;
+
+        if (context.RequestServices.GetService<IConnectionMultiplexer>() is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var existing = _distributedCache.GetString(key);
+            var state = string.IsNullOrWhiteSpace(existing)
+                ? null
+                : JsonSerializer.Deserialize<RateLimitState>(existing);
+
+            if (state is null || now - state.WindowStart >= window)
+            {
+                var reset = JsonSerializer.Serialize(new RateLimitState(1, now));
+                _distributedCache.SetString(key, reset, new DistributedCacheEntryOptions { SlidingExpiration = window });
+                return false;
+            }
+
+            var nextCount = state.Count + 1;
+            if (nextCount > maxAttempts)
+            {
+                retryAfterSeconds = Math.Max(1, (int)Math.Ceiling((state.WindowStart + window - now).TotalSeconds));
+                return true;
+            }
+
+            var updated = JsonSerializer.Serialize(state with { Count = nextCount });
+            _distributedCache.SetString(key, updated, new DistributedCacheEntryOptions { SlidingExpiration = window });
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Distributed auth rate limiter failed. Falling back to in-memory cache.");
             return false;
         }
     }
