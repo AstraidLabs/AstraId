@@ -1,4 +1,5 @@
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using AppServer.Application.Commands;
 using AppServer.Application.Jobs;
 using AppServer.Infrastructure.Caching;
@@ -23,6 +24,7 @@ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 builder.Services.AddOptions<InternalTokenOptions>()
     .Bind(builder.Configuration.GetSection(InternalTokenOptions.SectionName))
     .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
+    .Validate(options => string.Equals(options.Algorithm, "HS256", StringComparison.OrdinalIgnoreCase), "Only HS256 is supported for internal tokens.")
     .ValidateOnStart();
 
 var internalOptions = builder.Configuration.GetSection(InternalTokenOptions.SectionName).Get<InternalTokenOptions>() ?? new InternalTokenOptions();
@@ -61,6 +63,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(internalOptions.SigningKey)),
             ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ClockSkew = TimeSpan.Zero
         };
 
@@ -68,9 +73,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnTokenValidated = context =>
             {
+                if (context.SecurityToken is not JwtSecurityToken jwt
+                    || !string.Equals(jwt.Header.Alg, SecurityAlgorithms.HmacSha256, StringComparison.Ordinal)
+                    || !jwt.Payload.Iat.HasValue
+                    || !jwt.Payload.Exp.HasValue
+                    || !jwt.Payload.Nbf.HasValue)
+                {
+                    context.Fail("Invalid internal token format.");
+                    return Task.CompletedTask;
+                }
+
                 var issuer = context.Principal?.FindFirst("iss")?.Value;
+                var audience = context.Principal?.FindFirst("aud")?.Value;
                 if (string.Equals(issuer, authServerIssuer, StringComparison.OrdinalIgnoreCase)
-                    || !string.Equals(issuer, internalOptions.Issuer, StringComparison.Ordinal))
+                    || !string.Equals(issuer, internalOptions.Issuer, StringComparison.Ordinal)
+                    || !string.Equals(audience, internalOptions.Audience, StringComparison.Ordinal))
                 {
                     context.Fail("Only API-issued internal tokens are accepted.");
                 }
@@ -94,9 +111,9 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
 {
-    Authorization = [new LocalDashboardAuthorizationFilter()]
+    Authorization = [new SecureDashboardAuthorizationFilter(app.Environment.IsDevelopment())]
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();

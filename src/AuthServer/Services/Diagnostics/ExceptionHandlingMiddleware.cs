@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
@@ -15,22 +16,26 @@ public sealed class ExceptionHandlingMiddleware
 {
     private const int MaxStackTraceLength = 12_000;
     private const int MaxInnerExceptionLength = 2000;
+    private static readonly Regex SensitivePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
 
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<DiagnosticsOptions> _diagnosticsOptions;
+    private readonly IWebHostEnvironment _environment;
 
     public ExceptionHandlingMiddleware(
         RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger,
         IServiceScopeFactory scopeFactory,
-        IOptions<DiagnosticsOptions> diagnosticsOptions)
+        IOptions<DiagnosticsOptions> diagnosticsOptions,
+        IWebHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
         _scopeFactory = scopeFactory;
         _diagnosticsOptions = diagnosticsOptions;
+        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -57,11 +62,7 @@ public sealed class ExceptionHandlingMiddleware
         var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
         var statusCode = StatusCodes.Status500InternalServerError;
 
-        _logger.LogError(
-            exception,
-            "Unhandled exception captured. ErrorId: {ErrorId}, TraceId: {TraceId}",
-            errorId,
-            traceId);
+        _logger.LogError(exception, "Unhandled exception captured. ErrorId: {ErrorId}, TraceId: {TraceId}", errorId, traceId);
 
         await StoreErrorLogAsync(context, exception, errorId, traceId, statusCode);
 
@@ -75,11 +76,7 @@ public sealed class ExceptionHandlingMiddleware
             return;
         }
 
-        var problemDetails = new ProblemDetails
-        {
-            Status = statusCode
-        }.ApplyDefaults(context);
-
+        var problemDetails = new ProblemDetails { Status = statusCode }.ApplyDefaults(context);
         problemDetails.Extensions["errorId"] = errorId;
 
         if (_diagnosticsOptions.Value.ExposeToAdmins && AdminAccessEvaluator.IsAdminUser(context.User))
@@ -91,18 +88,15 @@ public sealed class ExceptionHandlingMiddleware
         await context.Response.WriteAsJsonAsync(problemDetails);
     }
 
-    private async Task StoreErrorLogAsync(
-        HttpContext context,
-        Exception exception,
-        Guid errorId,
-        string traceId,
-        int statusCode)
+    private async Task StoreErrorLogAsync(HttpContext context, Exception exception, Guid errorId, string traceId, int statusCode)
     {
         var options = _diagnosticsOptions.Value;
         if (!options.StoreErrorLogs)
         {
             return;
         }
+
+        var includeDetails = !_environment.IsProduction() || options.StoreDetailedExceptionDataInProduction;
 
         try
         {
@@ -122,10 +116,10 @@ public sealed class ExceptionHandlingMiddleware
                 Title = ReasonPhrases.GetReasonPhrase(statusCode),
                 Detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? string.Empty,
                 ExceptionType = exception.GetType().FullName,
-                StackTrace = Truncate(exception.ToString(), MaxStackTraceLength),
-                InnerException = Truncate(exception.InnerException?.Message, MaxInnerExceptionLength),
-                DataJson = SerializeExceptionData(exception),
-                UserAgent = context.Request.Headers.UserAgent.ToString(),
+                StackTrace = includeDetails ? Redact(Truncate(exception.ToString(), MaxStackTraceLength)) : "Exception details hidden in production.",
+                InnerException = includeDetails ? Redact(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength)) : null,
+                DataJson = includeDetails ? Redact(SerializeExceptionData(exception)) : null,
+                UserAgent = Redact(context.Request.Headers.UserAgent.ToString()),
                 RemoteIp = context.Connection.RemoteIpAddress?.ToString()
             };
 
@@ -150,38 +144,20 @@ public sealed class ExceptionHandlingMiddleware
         return $$"""
                <!DOCTYPE html>
                <html lang="en">
-               <head>
-                 <meta charset="utf-8" />
-                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                 <title>Something went wrong</title>
-                 <style>
-                  body { font-family: "Segoe UI", system-ui, sans-serif; margin: 40px; color: #0f172a; }
-                  .card { max-width: 640px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; }
-                  .meta { margin-top: 16px; font-size: 0.9rem; color: #475569; }
-                 </style>
-               </head>
-               <body>
-                 <div class="card">
-                   <h1>We hit a snag</h1>
-                   <p>{{detail}}</p>
-                   <p class="meta">Error ID: {{errorId}}<br/>Trace ID: {{traceId}}</p>
-                 </div>
-               </body>
+               <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Something went wrong</title></head>
+               <body><h1>We hit a snag</h1><p>{{detail}}</p><p>Error ID: {{errorId}}<br/>Trace ID: {{traceId}}</p></body>
                </html>
                """;
     }
 
-    private static object BuildDebugPayload(Exception exception, HttpContext context)
+    private static object BuildDebugPayload(Exception exception, HttpContext context) => new
     {
-        return new
-        {
-            exceptionType = exception.GetType().FullName,
-            stackTrace = Truncate(exception.ToString(), MaxStackTraceLength),
-            innerExceptionSummary = Truncate(exception.InnerException?.Message, MaxInnerExceptionLength),
-            path = context.Request.Path.Value,
-            method = context.Request.Method
-        };
-    }
+        exceptionType = exception.GetType().FullName,
+        stackTrace = Redact(Truncate(exception.ToString(), MaxStackTraceLength)),
+        innerExceptionSummary = Redact(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength)),
+        path = context.Request.Path.Value,
+        method = context.Request.Method
+    };
 
     private static string? SerializeExceptionData(Exception exception)
     {
@@ -190,16 +166,9 @@ public sealed class ExceptionHandlingMiddleware
             return null;
         }
 
-        try
-        {
-            var data = exception.Data.Keys.Cast<object>()
-                .ToDictionary(key => key.ToString() ?? string.Empty, key => exception.Data[key]?.ToString());
-            return JsonSerializer.Serialize(data);
-        }
-        catch
-        {
-            return null;
-        }
+        var data = exception.Data.Keys.Cast<object>()
+            .ToDictionary(key => key.ToString() ?? string.Empty, key => exception.Data[key]?.ToString());
+        return JsonSerializer.Serialize(data);
     }
 
     private static string? Truncate(string? value, int maxLength)
@@ -210,5 +179,15 @@ public sealed class ExceptionHandlingMiddleware
         }
 
         return value.Length <= maxLength ? value : value[..maxLength];
+    }
+
+    private static string? Redact(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return SensitivePairRegex.Replace(value, "$1=[REDACTED]");
     }
 }

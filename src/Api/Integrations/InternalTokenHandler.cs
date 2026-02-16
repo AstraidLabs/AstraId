@@ -1,4 +1,5 @@
 using Api.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Integrations;
 
@@ -26,12 +27,7 @@ public sealed class InternalTokenHandler : DelegatingHandler
             throw new InvalidOperationException("Authenticated user context is required for internal token forwarding.");
         }
 
-        var grantedScopes = context.Request.Method switch
-        {
-            "GET" => new[] { "content.read" },
-            _ => new[] { "content.write" }
-        };
-
+        var grantedScopes = ResolveGrantedScopes(context).ToArray();
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
             "Bearer",
             _internalTokenService.CreateToken(context.User, grantedScopes));
@@ -39,5 +35,27 @@ public sealed class InternalTokenHandler : DelegatingHandler
         _logger.LogInformation("Forwarding request to AppServer with internal token. Method: {Method}, Path: {Path}", request.Method, request.RequestUri?.AbsolutePath);
 
         return base.SendAsync(request, cancellationToken);
+    }
+
+    private static IEnumerable<string> ResolveGrantedScopes(HttpContext context)
+    {
+        var endpoint = context.GetEndpoint();
+        var policies = endpoint?.Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Select(data => data.Policy)
+            .Where(policy => !string.IsNullOrWhiteSpace(policy))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+        if (policies.Contains("RequireContentWrite", StringComparer.Ordinal))
+        {
+            return ["content.write"];
+        }
+
+        if (policies.Contains("RequireContentRead", StringComparer.Ordinal))
+        {
+            return ["content.read"];
+        }
+
+        return [];
     }
 }

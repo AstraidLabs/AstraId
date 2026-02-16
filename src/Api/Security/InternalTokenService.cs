@@ -34,7 +34,7 @@ public sealed class InternalTokenService : IInternalTokenService
         var now = DateTime.UtcNow;
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.SigningKey)),
-            SecurityAlgorithms.HmacSha256);
+            ResolveAlgorithm(settings.Algorithm));
 
         var scopes = grantedScopes
             .Distinct(StringComparer.Ordinal)
@@ -73,4 +73,10 @@ public sealed class InternalTokenService : IInternalTokenService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    private static string ResolveAlgorithm(string? algorithm) => algorithm?.ToUpperInvariant() switch
+    {
+        "HS256" => SecurityAlgorithms.HmacSha256,
+        _ => throw new InvalidOperationException("Unsupported internal token algorithm.")
+    };
 }

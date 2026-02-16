@@ -1,7 +1,9 @@
 using AuthServer.Data;
+using AuthServer.Options;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Cors;
@@ -16,17 +18,20 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
     private readonly IConfiguration _configuration;
     private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly ApplicationDbContext _dbContext;
+    private readonly CorsOptions _corsOptions;
 
     public ClientCorsPolicyProvider(
         IMemoryCache cache,
         IConfiguration configuration,
         IOpenIddictApplicationManager applicationManager,
-        ApplicationDbContext dbContext)
+        ApplicationDbContext dbContext,
+        IOptions<CorsOptions> corsOptions)
     {
         _cache = cache;
         _configuration = configuration;
         _applicationManager = applicationManager;
         _dbContext = dbContext;
+        _corsOptions = corsOptions.Value;
     }
 
     public async Task<CorsPolicy?> GetPolicyAsync(HttpContext context, string? policyName)
@@ -48,12 +53,17 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
             return null;
         }
 
-        return new CorsPolicyBuilder()
+        var builder = new CorsPolicyBuilder()
             .WithOrigins(origin)
             .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials()
-            .Build();
+            .AllowAnyMethod();
+
+        if (_corsOptions.AllowCredentials)
+        {
+            builder.AllowCredentials();
+        }
+
+        return builder.Build();
     }
 
     private async Task<HashSet<string>> GetAllowedOriginsAsync(CancellationToken cancellationToken)
@@ -67,7 +77,7 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
         var configuredOrigins = _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
         foreach (var origin in configuredOrigins)
         {
-            if (!string.IsNullOrWhiteSpace(origin))
+            if (!string.IsNullOrWhiteSpace(origin) && origin.Trim() != "*")
             {
                 allowed.Add(origin.Trim());
             }

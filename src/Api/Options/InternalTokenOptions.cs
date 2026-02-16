@@ -8,4 +8,5 @@ public sealed class InternalTokenOptions
     public string Audience { get; set; } = "astraid-app";
     public int LifetimeMinutes { get; set; } = 2;
     public string SigningKey { get; set; } = string.Empty;
+    public string Algorithm { get; set; } = "HS256";
 }

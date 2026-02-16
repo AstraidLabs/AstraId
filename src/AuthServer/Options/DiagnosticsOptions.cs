@@ -9,4 +9,6 @@ public sealed class DiagnosticsOptions
     public bool StoreErrorLogs { get; set; } = true;
 
     public int MaxStoredDays { get; set; } = 14;
+
+    public bool StoreDetailedExceptionDataInProduction { get; set; } = false;
 }
