@@ -1,6 +1,4 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using StackExchange.Redis;
 
@@ -9,14 +7,35 @@ namespace AuthServer.Services;
 public sealed class AuthRateLimiter
 {
     private readonly IMemoryCache _memoryCache;
-    private readonly IDistributedCache _distributedCache;
     private readonly ILogger<AuthRateLimiter> _logger;
     private static readonly object CacheLock = new();
 
-    public AuthRateLimiter(IMemoryCache memoryCache, IDistributedCache distributedCache, ILogger<AuthRateLimiter> logger)
+    private const string IncrementScript = """
+        local current = redis.call('GET', KEYS[1])
+        if not current then
+            redis.call('SET', KEYS[1], 1, 'PX', ARGV[1], 'NX')
+            return {1, 0}
+        end
+
+        if not tonumber(current) then
+            redis.call('SET', KEYS[1], 1, 'PX', ARGV[1])
+            return {1, 0}
+        end
+
+        local nextCount = redis.call('INCR', KEYS[1])
+        local ttl = redis.call('PTTL', KEYS[1])
+
+        if ttl < 0 then
+            redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            ttl = tonumber(ARGV[1])
+        end
+
+        return {nextCount, ttl}
+        """;
+
+    public AuthRateLimiter(IMemoryCache memoryCache, ILogger<AuthRateLimiter> logger)
     {
         _memoryCache = memoryCache;
-        _distributedCache = distributedCache;
         _logger = logger;
     }
 
@@ -32,7 +51,7 @@ public sealed class AuthRateLimiter
         var key = $"auth-rate:{action}:{GetClientKey(context)}";
         var now = DateTimeOffset.UtcNow;
 
-        if (TryUseDistributedLimiter(context, key, maxAttempts, window, now, out retryAfterSeconds))
+        if (TryUseDistributedLimiter(context, key, maxAttempts, window, out retryAfterSeconds))
         {
             return true;
         }
@@ -65,38 +84,41 @@ public sealed class AuthRateLimiter
         }
     }
 
-    private bool TryUseDistributedLimiter(HttpContext context, string key, int maxAttempts, TimeSpan window, DateTimeOffset now, out int retryAfterSeconds)
+    private bool TryUseDistributedLimiter(HttpContext context, string key, int maxAttempts, TimeSpan window, out int retryAfterSeconds)
     {
         retryAfterSeconds = 0;
 
-        if (context.RequestServices.GetService<IConnectionMultiplexer>() is null)
+        if (context.RequestServices.GetService<IConnectionMultiplexer>() is not { } connectionMultiplexer)
         {
             return false;
         }
 
         try
         {
-            var existing = _distributedCache.GetString(key);
-            var state = string.IsNullOrWhiteSpace(existing)
-                ? null
-                : JsonSerializer.Deserialize<RateLimitState>(existing);
+            var database = connectionMultiplexer.GetDatabase();
+            var result = (RedisResult[]?)database.ScriptEvaluate(
+                IncrementScript,
+                new RedisKey[] { key },
+                new RedisValue[] { (long)window.TotalMilliseconds });
 
-            if (state is null || now - state.WindowStart >= window)
+            if (result is null || result.Length < 2)
             {
-                var reset = JsonSerializer.Serialize(new RateLimitState(1, now));
-                _distributedCache.SetString(key, reset, new DistributedCacheEntryOptions { SlidingExpiration = window });
                 return false;
             }
 
-            var nextCount = state.Count + 1;
+            var nextCount = (long)result[0];
+            var ttlMilliseconds = (long)result[1];
+
             if (nextCount > maxAttempts)
             {
-                retryAfterSeconds = Math.Max(1, (int)Math.Ceiling((state.WindowStart + window - now).TotalSeconds));
+                var ttl = ttlMilliseconds > 0
+                    ? TimeSpan.FromMilliseconds(ttlMilliseconds)
+                    : window;
+
+                retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(ttl.TotalSeconds));
                 return true;
             }
 
-            var updated = JsonSerializer.Serialize(state with { Count = nextCount });
-            _distributedCache.SetString(key, updated, new DistributedCacheEntryOptions { SlidingExpiration = window });
             return false;
         }
         catch (Exception ex)
