@@ -1,15 +1,19 @@
-using System.Text;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using AppServer.Application.Commands;
 using AppServer.Application.Jobs;
 using AppServer.Infrastructure.Caching;
 using AppServer.Infrastructure.Events;
 using AppServer.Infrastructure.Hangfire;
+using AppServer.Modules.Game.Api;
+using AppServer.Modules.Game.Infrastructure;
 using AppServer.Security;
 using Hangfire;
 using Hangfire.InMemory;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
@@ -49,6 +53,24 @@ builder.Services.AddHangfire(configuration => configuration.UseInMemoryStorage()
 builder.Services.AddHangfireServer();
 
 builder.Services.AddScoped<GenerateThumbnailJob>();
+builder.Services.AddGameModule(builder.Configuration);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("game-state", x =>
+    {
+        x.PermitLimit = 30;
+        x.Window = TimeSpan.FromSeconds(30);
+        x.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("game-commands", x =>
+    {
+        x.PermitLimit = 20;
+        x.Window = TimeSpan.FromSeconds(60);
+        x.QueueLimit = 0;
+    });
+});
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -105,11 +127,27 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context => ScopeParser.GetScopes(context.User).Contains("content.write")));
 });
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+    db.Database.Migrate();
+}
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
 {
@@ -140,5 +178,7 @@ content.MapPost("/items", async (ICurrentUser currentUser, IMediator mediator, C
         return Results.Ok(new { createdBy = currentUser.Subject, tenant = currentUser.Tenant ?? "default", result = result.Status, articleId = result.ArticleId });
     })
     .RequireAuthorization("ContentWrite");
+
+app.MapGameEndpoints();
 
 app.Run();
