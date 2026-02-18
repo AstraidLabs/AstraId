@@ -3,6 +3,7 @@ using AppServer.Modules.Game.Contracts;
 using AppServer.Modules.Game.Domain;
 using AppServer.Modules.Game.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AppServer.Modules.Game.Application;
 
@@ -21,7 +22,7 @@ public class GameStateService(GameDbContext dbContext, IGameProcGenService procG
         var player = await dbContext.Players.SingleOrDefaultAsync(x => x.UserSub == userSub, cancellationToken);
         if (player is not null) return player;
 
-        player = new GamePlayer
+        var candidate = new GamePlayer
         {
             Id = Guid.NewGuid(),
             UserSub = userSub,
@@ -31,12 +32,12 @@ public class GameStateService(GameDbContext dbContext, IGameProcGenService procG
             UpdatedUtc = nowUtc
         };
 
-        var starter = procGenService.GeneratePrivateStarterSystem(player);
+        var starter = procGenService.GeneratePrivateStarterSystem(candidate);
 
-        dbContext.Players.Add(player);
+        dbContext.Players.Add(candidate);
         dbContext.ResourceStates.Add(new GameResourceState
         {
-            PlayerId = player.Id,
+            PlayerId = candidate.Id,
             Energy = 100,
             Minerals = 100,
             Alloys = 25,
@@ -45,11 +46,11 @@ public class GameStateService(GameDbContext dbContext, IGameProcGenService procG
             Unity = 0,
             StorageCapsJson = JsonSerializer.Serialize(new { energy = 2000, minerals = 2000, alloys = 800, research = 2000 })
         });
-        dbContext.ResearchStates.Add(new GameResearchState { PlayerId = player.Id, ActiveProjectId = "ftl-theory", Progress = 0, CompletedJson = "[]" });
-        dbContext.EventStates.Add(new GameEventState { PlayerId = player.Id, ActiveEventsJson = "[]", PendingEventsJson = "[]" });
+        dbContext.ResearchStates.Add(new GameResearchState { PlayerId = candidate.Id, ActiveProjectId = "ftl-theory", Progress = 0, CompletedJson = "[]" });
+        dbContext.EventStates.Add(new GameEventState { PlayerId = candidate.Id, ActiveEventsJson = "[]", PendingEventsJson = "[]" });
         dbContext.SystemStates.Add(new GameSystemState
         {
-            PlayerId = player.Id,
+            PlayerId = candidate.Id,
             SystemId = starter.SystemId,
             DiscoveryState = GameDiscoveryState.Known,
             Owned = true,
@@ -60,7 +61,7 @@ public class GameStateService(GameDbContext dbContext, IGameProcGenService procG
         {
             dbContext.PlanetStates.Add(new GamePlanetState
             {
-                PlayerId = player.Id,
+                PlayerId = candidate.Id,
                 SystemId = starter.SystemId,
                 PlanetIndex = planet.PlanetIndex,
                 Colonized = false,
@@ -69,9 +70,23 @@ public class GameStateService(GameDbContext dbContext, IGameProcGenService procG
             });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return player;
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return candidate;
+        }
+        catch (DbUpdateException ex) when (IsDuplicateUserSubViolation(ex))
+        {
+            dbContext.ChangeTracker.Clear();
+
+            var existing = await dbContext.Players.SingleAsync(x => x.UserSub == userSub, cancellationToken);
+            return existing;
+        }
     }
+
+    private static bool IsDuplicateUserSubViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgres
+        && string.Equals(postgres.ConstraintName, "IX_GamePlayers_UserSub", StringComparison.Ordinal);
 
     public async Task<GameStateDto> BuildStateAsync(GamePlayer player, DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {

@@ -24,6 +24,7 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
 var authServerIssuer = builder.Configuration["AuthServer:Issuer"] ?? "https://localhost:7001/";
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+var gameClientOrigin = builder.Configuration["GameClient:Origin"] ?? "http://localhost:5174";
 
 builder.Services.AddOptions<InternalTokenOptions>()
     .Bind(builder.Configuration.GetSection(InternalTokenOptions.SectionName))
@@ -72,6 +73,16 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("game-client", policy =>
+    {
+        policy.WithOrigins(gameClientOrigin)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -79,9 +90,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = internalOptions.Issuer,
-            ValidateAudience = true,
-            ValidAudience = internalOptions.Audience,
+            ValidIssuers = [internalOptions.Issuer, authServerIssuer],
+            ValidateAudience = false,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(internalOptions.SigningKey)),
             ValidateLifetime = true,
@@ -107,11 +117,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
                 var issuer = context.Principal?.FindFirst("iss")?.Value;
                 var audience = context.Principal?.FindFirst("aud")?.Value;
-                if (string.Equals(issuer, authServerIssuer, StringComparison.OrdinalIgnoreCase)
-                    || !string.Equals(issuer, internalOptions.Issuer, StringComparison.Ordinal)
-                    || !string.Equals(audience, internalOptions.Audience, StringComparison.Ordinal))
+                var acceptsInternalToken = string.Equals(issuer, internalOptions.Issuer, StringComparison.Ordinal)
+                    && string.Equals(audience, internalOptions.Audience, StringComparison.Ordinal);
+
+                var acceptsAuthServerToken = string.Equals(issuer, authServerIssuer, StringComparison.OrdinalIgnoreCase);
+
+                if (!acceptsInternalToken && !acceptsAuthServerToken)
                 {
-                    context.Fail("Only API-issued internal tokens are accepted.");
+                    context.Fail("Only API-issued internal tokens or AuthServer tokens are accepted.");
                 }
 
                 return Task.CompletedTask;
@@ -139,6 +152,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("game-client");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

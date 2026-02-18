@@ -4,7 +4,7 @@ import type { GalaxyViewDto, GameStateDto, GameSystemDto } from '../api/types'
 import { userManager } from '../auth/oidc'
 import { GalaxyMap } from '../components/GalaxyMap'
 
-const api = new GameApiClient(import.meta.env.VITE_APP_SERVER_URL ?? 'https://localhost:7003', async () => (await userManager.getUser())?.access_token ?? null)
+const api = new GameApiClient(import.meta.env.VITE_GAME_API_BASE_URL ?? '', async () => (await userManager.getUser())?.access_token ?? null)
 
 export function GamePage() {
   const [state, setState] = useState<GameStateDto>()

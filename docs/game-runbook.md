@@ -16,11 +16,13 @@
   - `InternalTokens__Issuer`
   - `InternalTokens__Audience`
   - `InternalTokens__SigningKey`
+- AppServer CORS:
+  - `GameClient__Origin` (default `http://localhost:5174`)
 - GameClient env:
   - `VITE_AUTH_AUTHORITY`
   - `VITE_AUTH_CLIENT_ID`
   - `VITE_AUTH_REDIRECT_URI`
-  - `VITE_APP_SERVER_URL`
+  - `VITE_GAME_API_BASE_URL` (optional; defaults to same-origin)
 
 ## Database migrations
 
