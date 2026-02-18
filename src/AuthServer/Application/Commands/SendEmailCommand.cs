@@ -1,3 +1,4 @@
+using AuthServer.Services;
 using AuthServer.Services.Notifications;
 using MediatR;
 
