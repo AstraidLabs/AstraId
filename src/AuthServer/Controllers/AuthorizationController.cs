@@ -54,6 +54,7 @@ public class AuthorizationController : ControllerBase
     private readonly ILogger<AuthorizationController> _logger;
     private readonly IStringLocalizer<AuthMessages> _localizer;
     private readonly AuthServerAuthFeaturesOptions _authFeatures;
+    private readonly AuthServerDeviceFlowOptions _deviceFlowOptions;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
@@ -76,6 +77,7 @@ public class AuthorizationController : ControllerBase
         BackChannelLogoutService backChannelLogoutService,
         IAntiforgery antiforgery,
         IOptions<AuthServerAuthFeaturesOptions> authFeatures,
+        IOptions<AuthServerDeviceFlowOptions> deviceFlowOptions,
         ILogger<AuthorizationController> logger,
         IStringLocalizer<AuthMessages> localizer)
     {
@@ -99,6 +101,7 @@ public class AuthorizationController : ControllerBase
         _backChannelLogoutService = backChannelLogoutService;
         _antiforgery = antiforgery;
         _authFeatures = authFeatures.Value;
+        _deviceFlowOptions = deviceFlowOptions.Value;
         _logger = logger;
         _localizer = localizer;
     }
@@ -250,12 +253,13 @@ public class AuthorizationController : ControllerBase
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Token.InvalidRequest", "The token request is invalid.")));
         }
 
-        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType() && !string.Equals(request.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
+        var isDeviceCodeGrant = string.Equals(request.GrantType, OpenIddictConstants.GrantTypes.DeviceCode, StringComparison.Ordinal);
+        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType() && !isDeviceCodeGrant && !string.Equals(request.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
             var supportedGrantTypes = _authFeatures.EnablePasswordGrant
-                ? "Only authorization_code, refresh_token, client_credentials, password, and token_exchange grants are supported."
-                : "Only authorization_code, refresh_token, client_credentials, and token_exchange grants are supported.";
+                ? "Only authorization_code, refresh_token, client_credentials, password, device_code, and token_exchange grants are supported."
+                : "Only authorization_code, refresh_token, client_credentials, device_code, and token_exchange grants are supported.";
             return BadRequest(CreateErrorResponse(
                 OpenIddictConstants.Errors.UnsupportedGrantType,
                 supportedGrantTypes));
@@ -264,6 +268,11 @@ public class AuthorizationController : ControllerBase
         if (request.IsPasswordGrantType() && !_authFeatures.EnablePasswordGrant)
         {
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "The password grant is disabled."));
+        }
+
+        if (isDeviceCodeGrant && !_deviceFlowOptions.Enabled)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "The device_code grant is disabled."));
         }
 
         var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -446,6 +455,11 @@ public class AuthorizationController : ControllerBase
         if (user is null)
         {
             return Challenge();
+        }
+
+        if (!user.IsActive || user.IsAnonymized)
+        {
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
@@ -727,8 +741,11 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
+        var subjectScopes = subjectPrincipal.GetScopes().ToHashSet(StringComparer.Ordinal);
+        var requestedScopes = request.GetScopes().Intersect(AllowedScopes).Intersect(subjectScopes, StringComparer.Ordinal);
+
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
-        var principal = await CreatePrincipalAsync(user, request.GetScopes().Intersect(AllowedScopes), policy, refreshAbsoluteExpiry: null);
+        var principal = await CreatePrincipalAsync(user, requestedScopes, policy, refreshAbsoluteExpiry: null);
         principal.SetResources([requestedAudience]);
         principal.SetClaim(_tokenExchangeService.ActorClaimType, clientId ?? string.Empty);
 
