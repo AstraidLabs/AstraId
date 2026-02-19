@@ -1,0 +1,59 @@
+Security Operations Rotation Runbook
+
+Purpose
+- Rotate high-risk credentials and validate remediations with no secret exposure.
+
+1) Seeded confidential client secret rotation (resource-api)
+- Configuration source:
+  - AuthServer:SeededClientSecrets:SecretsByClientId:resource-api
+- Recommended process:
+  - Generate a new strong secret in approved secret manager.
+  - Set secret in runtime configuration (not source-controlled appsettings).
+  - Restart AuthServer so seeding/update applies.
+  - Validate client credentials flow from trusted caller.
+- Safety notes:
+  - Do not log or copy secret into tickets.
+  - In non-development, warning/audit event is emitted if confidential seed has no secret.
+
+2) API resource key rotation
+- Rotation path:
+  - Use existing admin rotate API key operation for target ApiResource.
+- Behavior:
+  - New keys are hashed with v2 PBKDF2 format.
+  - Legacy SHA-256 hashes auto-upgrade to v2 on successful use.
+- Recommended process:
+  - Rotate key.
+  - Deploy key to calling service via secret manager.
+  - Confirm successful authenticated call.
+  - Remove old key from callers.
+
+3) Legacy HS256 secret rotation (only if break-glass mode is used)
+- Default posture:
+  - Keep InternalTokens:AllowLegacyHs256=false.
+- If emergency fallback is temporarily required:
+  - Set AllowLegacyHs256=true and BreakGlassOverride=true.
+  - In production, set InternalTokens__LegacyHs256Secret from environment/secret manager.
+  - Ensure secret length meets minimum policy.
+  - Restart AppServer.
+- Exit emergency mode:
+  - Restore JWKS path health.
+  - Set AllowLegacyHs256=false.
+  - Remove break-glass override and rotate/remove emergency secret.
+
+4) MFA secret migration behavior
+- Protection scope:
+  - [AspNetUserStore]/AuthenticatorKey
+  - [AspNetUserStore]/RecoveryCodes
+- Migration model:
+  - Read supports both protected and legacy plaintext values.
+  - Legacy values are rewritten to protected format upon successful access.
+- Operational guidance:
+  - No bulk migration required for compatibility.
+  - Optional diagnostics endpoint can report protected vs legacy counts when enabled.
+
+5) OpenIddict confidential client secret posture checks
+- Development startup check logs counts of hashed-looking vs plaintext-looking entries.
+- Optional admin diagnostics endpoint can return same counts when enabled.
+- If plaintext-looking entries are detected:
+  - Perform controlled client secret rotation via admin flow.
+  - Re-check counts after rotation.

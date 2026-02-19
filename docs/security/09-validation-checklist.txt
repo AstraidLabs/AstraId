@@ -1,0 +1,45 @@
+Validation Checklist - Staging
+
+Build and startup checks
+- Confirm service starts with default safe settings.
+- Confirm AppServer startup fails if production profile has AllowLegacyHs256=true without BreakGlassOverride=true.
+- Confirm AppServer startup fails if legacy HS256 is enabled with missing/weak/placeholder secret.
+
+P0-1 seeded client secret checks
+- Verify confidential client seed record exists for resource-api.
+- Verify seeding does not require hardcoded secret in source.
+- In non-development with missing secret, confirm warning/audit event occurs without disclosing values.
+
+P0-2 MFA token protection checks
+- Enable MFA for test user and generate recovery codes.
+- Confirm token rows for authenticator/recovery codes are stored with protected prefix format.
+- For pre-existing legacy plaintext rows, confirm login/recovery workflows still work.
+- Confirm legacy rows are migrated to protected format after successful read path.
+- Confirm logs never output authenticator key/recovery code values.
+
+P0-3 AppServer legacy HS256 guard checks
+- Verify default AllowLegacyHs256 is false.
+- Verify enabling legacy mode in production requires BreakGlassOverride=true.
+- Verify production with legacy mode requires InternalTokens__LegacyHs256Secret.
+- Verify warning log and audit event exist when legacy mode is enabled.
+
+P1-4 API key hashing checks
+- Rotate API key and verify ApiResources.ApiKeyHash uses v2 prefix format.
+- Validate API calls with new key succeed.
+- Validate a resource with legacy hash still authenticates.
+- After legacy-authenticated call, verify stored hash upgrades to v2.
+
+P1-5 OpenIddict client secret posture checks
+- In development startup, inspect aggregate hashed/plaintext posture log output.
+- Optional endpoint test (if enabled): verify counts returned only, no values/hashes.
+- If any plaintext-looking entries are found, rotate affected client secrets and re-validate counts.
+
+Redaction checks
+- Send requests containing sensitive fields in headers/query/body metadata names:
+  - Authorization, Cookie, X-Api-Key, X-Internal-Jwks-Api-Key, client_secret, refresh_token, access_token, id_token, password, assertion
+- Confirm logs display redacted tokens only.
+
+Regression checks
+- Existing routing and endpoint behavior remains intact.
+- Admin API key workflows still function.
+- MFA enrollment/login/recovery flows still function.

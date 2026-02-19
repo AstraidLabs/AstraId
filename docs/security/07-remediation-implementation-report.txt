@@ -1,0 +1,75 @@
+Remediation Implementation Report
+
+Summary of implemented changes
+- P0-1 Seeded confidential client secret hardcoding removed and externalized
+  - Updated src/AuthServer/Seeding/AuthServerDefinitions.cs:
+    - Removed literal secret from resource-api seed definition (ClientSecret now null).
+  - Added src/AuthServer/Options/SeededClientSecretsOptions.cs:
+    - New configuration section AuthServer:SeededClientSecrets:SecretsByClientId.
+  - Updated src/AuthServer/Seeding/AuthBootstrapHostedService.cs:
+    - Resolves confidential client seed secret from configuration map.
+    - Applies secret only when non-empty configured value exists.
+    - Emits warning and security audit event in non-development when secret is missing.
+  - Updated src/AuthServer/Program.cs and appsettings files:
+    - Registered options binding for SeededClientSecretsOptions.
+
+- P0-2 MFA secrets protected at rest with dual-read migration
+  - Added src/AuthServer/Services/Security/ProtectedUserStore.cs:
+    - Replaces default Identity user store.
+    - Protects [AspNetUserStore]/AuthenticatorKey and [AspNetUserStore]/RecoveryCodes with DataProtection purpose AuthServer.IdentityTokens.MfaSecrets.
+    - Writes protected format prefix dpv1:.
+    - Dual-read: unprotects protected values, falls back to legacy plaintext if needed.
+    - Opportunistic migration: rewrites legacy plaintext to protected format on successful read.
+  - Updated src/AuthServer/Program.cs:
+    - Replaced default IUserStore<ApplicationUser> with ProtectedUserStore.
+  - Updated src/AuthServer/Controllers/Admin/AdminDiagnosticsController.cs:
+    - Added optional admin-only endpoint mfa-token-protection returning counts only (no token values).
+  - Added src/AuthServer/Options/SecurityDiagnosticsOptions.cs and appsettings flags for endpoint gating.
+
+- P0-3 AppServer legacy HS256 fallback hardened
+  - Updated src/AppServer/Security/InternalTokenOptions.cs:
+    - Added BreakGlassOverride and LegacyHs256MinSecretLength.
+  - Updated src/AppServer/Program.cs:
+    - Production guard: startup fails if AllowLegacyHs256=true without BreakGlassOverride=true.
+    - Enforces non-placeholder secret and minimum length when fallback enabled.
+    - Requires InternalTokens__LegacyHs256Secret environment variable in production when enabled.
+    - Logs warning and emits security audit event when legacy HS256 enabled.
+    - Startup fallback eligibility now also requires minimum length.
+  - Updated src/AppServer/appsettings.json and appsettings.Development.json:
+    - Added explicit BreakGlassOverride=false and LegacyHs256MinSecretLength=32 defaults.
+
+- P1-4 API resource key hashing upgraded with backward compatibility
+  - Updated src/AuthServer/Services/Admin/ApiKeyHasher.cs:
+    - Added v2 PBKDF2-SHA256 format with per-key random salt.
+    - Added versioned storage format: v2:pbkdf2-sha256:iterations:salt:hash.
+    - Verification now supports v2 and legacy SHA-256 fallback.
+    - On successful legacy verify, returns upgraded hash for write-back.
+  - Updated src/AuthServer/Controllers/ApiManagementController.cs:
+    - API key authorization now supports opportunistic migration from legacy hash to v2.
+    - Saves upgraded hash back to ApiResources.ApiKeyHash on successful legacy verification.
+  - Existing key rotation flow now stores v2 because it uses HashApiKey.
+
+- P1-5 OpenIddict confidential client secret storage checks
+  - Added src/AuthServer/Services/Security/OpenIddictClientSecretInspector.cs:
+    - Reads confidential client secret rows and classifies values as looksHashed vs looksPlaintext.
+    - Returns counts only; no values exposed.
+  - Added src/AuthServer/Services/Security/OpenIddictClientSecretStorageStartupCheck.cs:
+    - Runs in Development at startup and logs aggregate counts.
+    - Emits security audit warning event when plaintext-looking entries are detected.
+  - Updated src/AuthServer/Controllers/Admin/AdminDiagnosticsController.cs:
+    - Added optional admin-only endpoint openiddict-client-secret-storage returning count-based posture.
+  - Updated src/AuthServer/Program.cs:
+    - Registered inspector service and startup check hosted service.
+
+- Phase 4 redaction denylist updates
+  - Updated src/AstraId.Logging/Redaction/LogSanitizer.cs:
+    - Added internal JWKS API key header variant and extra sensitive keys/inline patterns.
+
+Migrations
+- No schema migrations added.
+- Existing column shapes preserved, including ApiResources.ApiKeyHash.
+
+Compatibility notes
+- Existing API key hashes remain valid and upgrade lazily on successful key usage.
+- Existing MFA token plaintext values remain readable and are migrated on access.
+- Seeded confidential client behavior remains additive: client is still seeded; secret is optional and externally supplied.

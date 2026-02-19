@@ -47,6 +47,29 @@ builder.Services.PostConfigure<SecurityHardeningOptions>(options =>
 });
 
 var internalOptions = builder.Configuration.GetSection(InternalTokenOptions.SectionName).Get<InternalTokenOptions>() ?? new InternalTokenOptions();
+var legacySecretConfigured = !string.IsNullOrWhiteSpace(internalOptions.LegacyHs256Secret)
+    && !string.Equals(internalOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal);
+if (internalOptions.AllowLegacyHs256)
+{
+    if (builder.Environment.IsProduction() && !internalOptions.BreakGlassOverride)
+    {
+        throw new InvalidOperationException("InternalTokens:AllowLegacyHs256 cannot be enabled in Production without InternalTokens:BreakGlassOverride=true.");
+    }
+
+    if (!legacySecretConfigured || internalOptions.LegacyHs256Secret.Length < internalOptions.LegacyHs256MinSecretLength)
+    {
+        throw new InvalidOperationException("InternalTokens:LegacyHs256Secret is invalid for legacy HS256 fallback.");
+    }
+
+    if (builder.Environment.IsProduction())
+    {
+        var envSecret = Environment.GetEnvironmentVariable("InternalTokens__LegacyHs256Secret");
+        if (string.IsNullOrWhiteSpace(envSecret))
+        {
+            throw new InvalidOperationException("InternalTokens__LegacyHs256Secret environment variable must be set when legacy HS256 fallback is enabled in Production.");
+        }
+    }
+}
 if (string.IsNullOrWhiteSpace(internalOptions.JwksUrl))
 {
     throw new InvalidOperationException("InternalTokens:JwksUrl must be configured.");
@@ -239,6 +262,21 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 var hardeningOptions = app.Services.GetRequiredService<IOptions<SecurityHardeningOptions>>().Value;
+if (internalOptions.AllowLegacyHs256)
+{
+    app.Logger.LogWarning("Legacy HS256 fallback is enabled for internal token validation.");
+    app.Services.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+    {
+        EventType = "app.internal_token.legacy_hs256.enabled",
+        Service = "AppServer",
+        Environment = app.Environment.EnvironmentName,
+        ActorType = "system",
+        Target = "InternalTokens",
+        Action = "startup_configuration",
+        Result = "warning",
+        ReasonCode = "legacy_hs256_enabled"
+    });
+}
 
 using (var scope = app.Services.CreateScope())
 {
@@ -247,7 +285,8 @@ using (var scope = app.Services.CreateScope())
     var startupOptions = scope.ServiceProvider.GetRequiredService<IOptions<InternalTokenOptions>>().Value;
     var fallbackEnabled = startupOptions.AllowLegacyHs256
         && !string.IsNullOrWhiteSpace(startupOptions.LegacyHs256Secret)
-        && !string.Equals(startupOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal);
+        && !string.Equals(startupOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal)
+        && startupOptions.LegacyHs256Secret.Length >= startupOptions.LegacyHs256MinSecretLength;
     if (!refreshed && !fallbackEnabled)
     {
         throw new InvalidOperationException("Failed to load JWKS and legacy fallback is not enabled.");

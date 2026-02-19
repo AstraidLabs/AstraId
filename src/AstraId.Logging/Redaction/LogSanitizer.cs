@@ -8,15 +8,15 @@ public sealed class LogSanitizer : ILogSanitizer
 {
     private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Authorization", "Cookie", "Set-Cookie", "X-Api-Key", "X-Internal-Api-Key"
+        "Authorization", "Cookie", "Set-Cookie", "X-Api-Key", "X-Internal-Api-Key", "X-Internal-Jwks-Api-Key"
     };
 
     private static readonly HashSet<string> SensitiveQueryKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "token", "code", "password", "client_secret", "refresh_token", "access_token", "id_token", "assertion"
+        "token", "code", "password", "client_secret", "refresh_token", "access_token", "id_token", "assertion", "x-api-key", "jwks_internal_api_key", "legacyhs256secret"
     };
 
-    private static readonly Regex SensitiveInlinePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token|id_token|api[_-]?key|token|cookie)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
+    private static readonly Regex SensitiveInlinePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token|id_token|api[_-]?key|token|cookie|jwks[_-]?internal[_-]?api[_-]?key|legacyhs256secret)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
 
     public string? SanitizeValue(string? value)
     {
