@@ -208,6 +208,18 @@ builder.Services.AddOptions<SecurityHeadersOptions>()
     .Bind(builder.Configuration.GetSection(SecurityHeadersOptions.SectionName))
     .Validate(options => !builder.Environment.IsProduction() || options.AllowedFrameAncestors.All(value => value.Trim() != "*"), "SecurityHeaders:AllowedFrameAncestors cannot contain '*' in production.")
     .ValidateOnStart();
+builder.Services.AddOptions<SecurityHardeningOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityHardeningOptions.SectionName));
+builder.Services.PostConfigure<SecurityHardeningOptions>(options =>
+{
+    if (builder.Environment.IsProduction())
+    {
+        options.Enabled = true;
+        options.RateLimiting.Enabled = true;
+        options.Headers.Enabled = true;
+        options.Cors.StrictMode = true;
+    }
+});
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.AddOptions<EmailOptions>()
@@ -303,12 +315,18 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Web", policy =>
     {
+        var hardening = builder.Configuration.GetSection(SecurityHardeningOptions.SectionName).Get<SecurityHardeningOptions>() ?? new SecurityHardeningOptions();
         var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
         var origins = corsOptions.AllowedOrigins
             .Where(origin => !string.IsNullOrWhiteSpace(origin))
             .Select(origin => origin.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        if (hardening.Enabled && hardening.Cors.StrictMode && corsOptions.AllowCredentials && origins.Length == 0)
+        {
+            throw new InvalidOperationException("SecurityHardening:Cors:StrictMode requires explicit Cors:AllowedOrigins when credentials are enabled.");
+        }
 
         policy.AllowAnyHeader().AllowAnyMethod();
         if (origins.Length > 0)
@@ -344,14 +362,19 @@ builder.Services.AddRateLimiter(options =>
             return RateLimitPartition.GetFixedWindowLimiter($"admin:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
         }
 
-        if (path.StartsWith("/connect/token", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/connect/introspect", StringComparison.OrdinalIgnoreCase)
+        if (path.StartsWith("/connect/token", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"token:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 15, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        if (path.StartsWith("/connect/introspect", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/connect/revocation", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/auth/login", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth/login/mfa", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/auth/reset-password", StringComparison.OrdinalIgnoreCase))
         {
-            return RateLimitPartition.GetFixedWindowLimiter($"auth:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+            return RateLimitPartition.GetFixedWindowLimiter($"auth:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
         }
 
         return RateLimitPartition.GetNoLimiter("default");
@@ -440,6 +463,7 @@ builder.Services.AddHostedService<DeletionExecutorService>();
 builder.Services.AddHostedService<EmailOutboxDispatcherService>();
 
 var app = builder.Build();
+var hardeningOptions = app.Services.GetRequiredService<IOptions<SecurityHardeningOptions>>().Value;
 
 var authFeaturesOptions = app.Services.GetRequiredService<IOptions<AuthServerAuthFeaturesOptions>>().Value;
 if (authFeaturesOptions.EnablePasswordGrant)
@@ -457,7 +481,7 @@ if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 
 app.Use(async (context, next) =>
 {
-    if (!securityHeadersOptions.Enabled)
+    if (!hardeningOptions.Enabled || !hardeningOptions.Headers.Enabled || !securityHeadersOptions.Enabled)
     {
         await next();
         return;
@@ -543,7 +567,10 @@ app.UseRouting();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
-app.UseRateLimiter();
+if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
+{
+    app.UseRateLimiter();
+}
 
 app.UseAuthentication();
 app.UseMiddleware<UserActivityTrackingMiddleware>();

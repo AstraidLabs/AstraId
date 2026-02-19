@@ -1105,3 +1105,25 @@ Reverse proxy note:
 - If TLS is terminated at ingress/proxy, enforce mTLS at that boundary.
 - Do **not** trust forwarded client-certificate headers unless the trusted proxy boundary is strictly enforced.
 - AppServer should be internal-only and not publicly exposed.
+
+## Security Review & Production Hardening Notes
+
+A code-based white-box penetration-style review was completed and documented in `docs/security/pen-test-code-review.md`.
+
+Top risks identified (and addressed in this change set):
+- Configuration drift risk for CORS/header/rate-limit controls across services.
+- Uneven abuse-resistance defaults on sensitive endpoints (`/connect/*`, admin/integration APIs, hub traffic).
+- Inconsistent response hardening headers/caching protections in downstream internal service responses.
+- Partial sensitive-value masking patterns in exception diagnostics.
+
+Key production controls now emphasized:
+- `SecurityHardening:*` settings (enabled and strict by default in production) for CORS strict mode, security headers, and rate limiting.
+- Tightened AuthServer partitioned rate limits for `/connect/token`, `/connect/introspect`, `/connect/revocation`, and auth flows.
+- Added Api rate limiting partitions for admin/integration and hub paths.
+- Added AppServer security header baseline and no-store caching on sensitive route families.
+- Expanded diagnostics redaction patterns for additional token/API key name variants.
+
+Operational notes:
+- Keep real secrets in environment variables or user-secrets only (never in tracked JSON).
+- Use explicit origin allowlists for any credentialed CORS configuration.
+- Validate production configuration during deployment using startup option validation already present in services.

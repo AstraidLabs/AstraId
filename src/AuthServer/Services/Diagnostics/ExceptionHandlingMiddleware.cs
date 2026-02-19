@@ -16,7 +16,7 @@ public sealed class ExceptionHandlingMiddleware
 {
     private const int MaxStackTraceLength = 12_000;
     private const int MaxInnerExceptionLength = 2000;
-    private static readonly Regex SensitivePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
+    private static readonly Regex SensitivePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token|api[_-]?key|token)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
 
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
