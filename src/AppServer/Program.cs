@@ -178,9 +178,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             {
                 if (context.SecurityToken is not JwtSecurityToken jwt
                     || string.Equals(jwt.Header.Alg, SecurityAlgorithms.None, StringComparison.Ordinal)
-                    || !jwt.Payload.Iat.HasValue
-                    || !jwt.Payload.Exp.HasValue
-                    || !jwt.Payload.Nbf.HasValue)
+                    || jwt.Payload.IssuedAt == DateTime.MinValue
+                    || !jwt.Payload.Expiration.HasValue
+                    || !jwt.Payload.NotBefore.HasValue)
                 {
                     context.HttpContext.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
                     {
