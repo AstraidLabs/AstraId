@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using System.Net.Security;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -542,7 +543,7 @@ if (internalTokensOptions.Jwks.Enabled)
                 }
 
                 if (!context.Request.Headers.TryGetValue(options.Jwks.InternalApiKeyHeaderName, out var headerValue)
-                    || !string.Equals(headerValue.ToString(), options.Jwks.InternalApiKey, StringComparison.Ordinal))
+                    || !SecureEquals(headerValue.ToString(), options.Jwks.InternalApiKey))
                 {
                     return Results.Unauthorized();
                 }
@@ -632,5 +633,18 @@ api.MapGet("/admin/auth/contract", (PolicyMapClient policyMapClient, ILoggerFact
         });
     })
     .RequireAuthorization("RequireSystemAdmin");
+
+
+static bool SecureEquals(string left, string right)
+{
+    if (left.Length != right.Length)
+    {
+        return false;
+    }
+
+    return CryptographicOperations.FixedTimeEquals(
+        System.Text.Encoding.UTF8.GetBytes(left),
+        System.Text.Encoding.UTF8.GetBytes(right));
+}
 
 app.Run();

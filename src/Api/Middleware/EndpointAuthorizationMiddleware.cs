@@ -31,7 +31,8 @@ public sealed class EndpointAuthorizationMiddleware
             return;
         }
 
-        if (path.StartsWithSegments("/api/public", StringComparison.OrdinalIgnoreCase))
+        if (path.Equals("/api/public", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/public/", StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
