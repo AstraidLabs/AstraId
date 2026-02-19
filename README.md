@@ -318,6 +318,57 @@ C) **External secret store** (production): e.g., platform-managed secret manager
 
 - **Env vars:** `Email__Smtp__Host`, `Email__Smtp__Username`, `Email__Smtp__Password`, etc.
 
+### Email Sending (SMTP + Provider API)
+
+AuthServer supports both SMTP and provider API-based email transports.
+
+- Provider selection:
+  - `Email:Provider = Smtp` (default behavior)
+  - `Email:Provider = SendGrid` (modern HTTP API transport)
+- Backward compatibility:
+  - Existing `Email:Mode = Smtp` remains supported.
+
+Configuration example (placeholders only):
+
+```json
+{
+  "Email": {
+    "Provider": "SendGrid",
+    "FromEmail": "no-reply@example.com",
+    "FromName": "AstraId",
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "Username": "__REPLACE_ME__",
+      "Password": "__REPLACE_ME__",
+      "UseSsl": false,
+      "UseStartTls": true,
+      "TimeoutSeconds": 10
+    },
+    "SendGrid": {
+      "ApiKey": "__REPLACE_ME__"
+    }
+  }
+}
+```
+
+`dotnet user-secrets` examples (keys only):
+
+```bash
+dotnet user-secrets set "Email:Provider" "SendGrid"
+dotnet user-secrets set "Email:FromEmail" "__REPLACE_ME__"
+dotnet user-secrets set "Email:SendGrid:ApiKey" "__REPLACE_ME__"
+dotnet user-secrets set "Email:Smtp:Host" "__REPLACE_ME__"
+dotnet user-secrets set "Email:Smtp:Username" "__REPLACE_ME__"
+dotnet user-secrets set "Email:Smtp:Password" "__REPLACE_ME__"
+```
+
+Operational notes:
+- SMTP remains fully supported and is still the default when provider is omitted.
+- Provider APIs (e.g., SendGrid) are typically preferred for production deliverability/telemetry.
+- Account for provider rate limits (`429`) and transient failures (`5xx`) with retries.
+- Keep outbox/idempotency in place to avoid duplicate sends during retries and restarts.
+
 #### Section: `Cors`
 - **Purpose:** browser origin allow-list for credentialed requests.
 - **Required:** yes for browser flows; wildcard not allowed by validation.

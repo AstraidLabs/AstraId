@@ -210,7 +210,10 @@ builder.Services.AddOptions<SecurityHeadersOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
-builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .Validate(options => ValidateEmailOptions(options), "Email configuration is missing required values for the selected provider.")
+    .ValidateOnStart();
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
 builder.Services.Configure<AuthServerCertificateOptions>(builder.Configuration.GetSection(AuthServerCertificateOptions.SectionName));
@@ -249,6 +252,7 @@ if (builder.Environment.IsDevelopment())
 {
     builder.Services.PostConfigure<EmailOptions>(options =>
     {
+        options.Provider = options.GetProviderOrDefault();
         options.FromEmail = string.IsNullOrWhiteSpace(options.FromEmail)
             ? "no-reply@local.test"
             : options.FromEmail;
@@ -261,7 +265,23 @@ if (builder.Environment.IsDevelopment())
     });
 }
 
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddHttpClient<SendGridEmailSender>(client =>
+{
+    client.BaseAddress = new Uri("https://api.sendgrid.com/");
+});
+builder.Services.AddSingleton<IEmailSender>(sp =>
+{
+    var emailOptions = sp.GetRequiredService<IOptions<EmailOptions>>().Value;
+    var provider = emailOptions.GetProviderOrDefault();
+
+    if (provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase))
+    {
+        return sp.GetRequiredService<SendGridEmailSender>();
+    }
+
+    return sp.GetRequiredService<SmtpEmailSender>();
+});
 
 var dataProtectionOptions = builder.Configuration
     .GetSection(AuthServerDataProtectionOptions.SectionName)
@@ -424,8 +444,6 @@ if (authFeaturesOptions.EnablePasswordGrant)
     app.Logger.LogWarning("Password grant enabled (legacy, not recommended).");
 }
 
-var emailOptions = app.Services.GetRequiredService<IOptions<EmailOptions>>().Value;
-ValidateEmailOptions(emailOptions, app.Environment);
 
 app.UseHttpsRedirection();
 var securityHeadersOptions = app.Services.GetRequiredService<IOptions<SecurityHeadersOptions>>().Value;
@@ -698,21 +716,24 @@ static void ConfigureEncryptionCertificates(
     }
 }
 
-static void ValidateEmailOptions(EmailOptions options, IHostEnvironment environment)
+static bool ValidateEmailOptions(EmailOptions options)
 {
-    var missingFrom = string.IsNullOrWhiteSpace(options.FromEmail);
-    var missingHost = string.IsNullOrWhiteSpace(options.Smtp.Host);
-    var invalidPort = options.Smtp.Port <= 0;
-
-    if (missingFrom || missingHost || invalidPort)
+    if (string.IsNullOrWhiteSpace(options.FromEmail))
     {
-        if (environment.IsProduction())
-        {
-            throw new InvalidOperationException(
-                "Email configuration is missing. Set Email:FromEmail, Email:Smtp:Host, and Email:Smtp:Port.");
-        }
-
-        throw new InvalidOperationException(
-            "Email configuration is missing. Provide Email settings or use Development defaults.");
+        return false;
     }
+
+    var provider = options.GetProviderOrDefault();
+    if (provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase))
+    {
+        return !string.IsNullOrWhiteSpace(options.SendGrid.ApiKey);
+    }
+
+    if (!provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    return !string.IsNullOrWhiteSpace(options.Smtp.Host)
+           && options.Smtp.Port > 0;
 }
