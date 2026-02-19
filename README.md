@@ -1,6 +1,13 @@
 # AstraId
 
-## 1) Project Overview
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![OpenID%20Connect](https://img.shields.io/badge/OpenID%20Connect-OAuth2%2FOIDC-2E77BC)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)
+
+## 1) 🚀 Project Overview
 
 AstraId is a multi-service identity and authorization solution built on ASP.NET Core + OpenIddict + React/Vite.
 
@@ -103,7 +110,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
 - Web (Vite): `http://localhost:5173`.
 
 
-## 2) Prerequisites
+## 2) 🧰 Prerequisites
 
 1. **.NET SDK 10.x** (all server projects target `net10.0`).
 2. **Node.js + npm** for `src/Web` (repo does not pin exact Node version; use an active LTS range compatible with Vite 7, e.g. Node 20+).
@@ -120,7 +127,7 @@ dotnet dev-certs https --trust
 
 If trust fails on Linux, continue and trust in your distro/browser trust store manually.
 
-## 3) Repository Setup
+## 3) 🛠️ Repository Setup
 
 ### 3.1 Clone / restore / build
 
@@ -161,7 +168,7 @@ npm run build:admin
 
 Then publish/build AuthServer so static admin assets are available under `/admin`.
 
-## 4) Configuration: How to Set It Up Safely
+## 4) 🔐 Configuration: How to Set It Up Safely
 
 > **Security rule:** never commit real secrets to tracked `appsettings*.json`. Use placeholders in files and inject real values at runtime.
 
