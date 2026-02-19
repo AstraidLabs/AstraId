@@ -212,7 +212,6 @@ builder.Services.AddSingleton<UiUrlBuilder>();
 builder.Services.AddSingleton<ReturnUrlValidator>();
 builder.Services.AddOptions<EmailOptions>()
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
-    .Validate(options => ValidateEmailOptions(options), "Email configuration is missing required values for the selected provider.")
     .ValidateOnStart();
 builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection(NotificationOptions.SectionName));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection(BootstrapAdminOptions.SectionName));
@@ -265,23 +264,27 @@ if (builder.Environment.IsDevelopment())
     });
 }
 
-builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddSingleton<IValidateOptions<EmailOptions>, EmailOptionsValidator>();
+builder.Services.AddTransient<SmtpEmailSender>();
 builder.Services.AddHttpClient<SendGridEmailSender>(client =>
 {
     client.BaseAddress = new Uri("https://api.sendgrid.com/");
 });
-builder.Services.AddSingleton<IEmailSender>(sp =>
+builder.Services.AddHttpClient<MailgunEmailSender>((sp, client) =>
 {
-    var emailOptions = sp.GetRequiredService<IOptions<EmailOptions>>().Value;
-    var provider = emailOptions.GetProviderOrDefault();
-
-    if (provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase))
-    {
-        return sp.GetRequiredService<SendGridEmailSender>();
-    }
-
-    return sp.GetRequiredService<SmtpEmailSender>();
+    var options = sp.GetRequiredService<IOptions<EmailOptions>>().Value;
+    client.BaseAddress = new Uri(options.Mailgun.BaseUrl);
 });
+builder.Services.AddHttpClient<PostmarkEmailSender>(client =>
+{
+    client.BaseAddress = new Uri("https://api.postmarkapp.com/");
+});
+builder.Services.AddHttpClient<GraphEmailSender>(client =>
+{
+    client.BaseAddress = new Uri("https://graph.microsoft.com/");
+});
+builder.Services.AddSingleton<EmailSenderFactory>();
+builder.Services.AddSingleton<IEmailSender, DelegatingEmailSender>();
 
 var dataProtectionOptions = builder.Configuration
     .GetSection(AuthServerDataProtectionOptions.SectionName)
@@ -714,26 +717,4 @@ static void ConfigureEncryptionCertificates(
     {
         options.AddEncryptionCertificate(encryptionCertificate);
     }
-}
-
-static bool ValidateEmailOptions(EmailOptions options)
-{
-    if (string.IsNullOrWhiteSpace(options.FromEmail))
-    {
-        return false;
-    }
-
-    var provider = options.GetProviderOrDefault();
-    if (provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase))
-    {
-        return !string.IsNullOrWhiteSpace(options.SendGrid.ApiKey);
-    }
-
-    if (!provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
-    {
-        return false;
-    }
-
-    return !string.IsNullOrWhiteSpace(options.Smtp.Host)
-           && options.Smtp.Port > 0;
 }

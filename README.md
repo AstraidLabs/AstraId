@@ -895,3 +895,140 @@ cd src/Web
 npm install
 npm run dev
 ```
+
+### Email Sending Providers (SMTP + APIs)
+
+AuthServer now supports selecting the email transport with `Email:Provider`:
+
+- `Smtp` (default when `Email:Provider` is missing)
+- `SendGrid`
+- `Mailgun`
+- `Postmark`
+- `Graph` (Microsoft 365 / Microsoft Graph `sendMail` with client credentials)
+
+SMTP remains fully supported and is recommended for local development and fallback scenarios.
+For production deliverability and provider-side analytics, API-based providers are generally preferred.
+
+#### Provider selection
+
+```json
+{
+  "Email": {
+    "Provider": "Smtp"
+  }
+}
+```
+
+If `Email:Provider` is not set, AuthServer falls back to SMTP behavior.
+
+#### SMTP configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Smtp",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Smtp": {
+      "Host": "<smtp-host>",
+      "Port": 587,
+      "Username": "<smtp-username>",
+      "Password": "<smtp-password>",
+      "UseSsl": false,
+      "UseStartTls": true,
+      "TimeoutSeconds": 10
+    }
+  }
+}
+```
+
+#### SendGrid configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "SendGrid",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "SendGrid": {
+      "ApiKey": "<sendgrid-api-key>"
+    }
+  }
+}
+```
+
+#### Mailgun configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Mailgun",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Mailgun": {
+      "ApiKey": "<mailgun-api-key>",
+      "Domain": "<mailgun-domain>",
+      "BaseUrl": "https://api.mailgun.net"
+    }
+  }
+}
+```
+
+#### Postmark configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Postmark",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Postmark": {
+      "ServerToken": "<postmark-server-token>"
+    }
+  }
+}
+```
+
+#### Graph configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Graph",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Graph": {
+      "TenantId": "<entra-tenant-id>",
+      "ClientId": "<app-client-id>",
+      "ClientSecret": "<app-client-secret>",
+      "FromUser": "<mailbox-user-or-upn>"
+    }
+  }
+}
+```
+
+#### `dotnet user-secrets` examples (keys only)
+
+```bash
+dotnet user-secrets set "Email:Provider" "<value>"
+dotnet user-secrets set "Email:FromEmail" "<value>"
+dotnet user-secrets set "Email:FromName" "<value>"
+
+dotnet user-secrets set "Email:Smtp:Host" "<value>"
+dotnet user-secrets set "Email:Smtp:Port" "<value>"
+dotnet user-secrets set "Email:Smtp:Username" "<value>"
+dotnet user-secrets set "Email:Smtp:Password" "<value>"
+
+dotnet user-secrets set "Email:SendGrid:ApiKey" "<value>"
+
+dotnet user-secrets set "Email:Mailgun:ApiKey" "<value>"
+dotnet user-secrets set "Email:Mailgun:Domain" "<value>"
+dotnet user-secrets set "Email:Mailgun:BaseUrl" "<value>"
+
+dotnet user-secrets set "Email:Postmark:ServerToken" "<value>"
+
+dotnet user-secrets set "Email:Graph:TenantId" "<value>"
+dotnet user-secrets set "Email:Graph:ClientId" "<value>"
+dotnet user-secrets set "Email:Graph:ClientSecret" "<value>"
+dotnet user-secrets set "Email:Graph:FromUser" "<value>"
+```
