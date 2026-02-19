@@ -22,6 +22,8 @@ using Microsoft.OpenApi.Models;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -250,6 +252,18 @@ builder.Services.AddOptions<SecurityHeadersOptions>()
     .Bind(builder.Configuration.GetSection(SecurityHeadersOptions.SectionName))
     .Validate(options => !builder.Environment.IsProduction() || options.AllowedFrameAncestors.All(value => value.Trim() != "*"), "SecurityHeaders:AllowedFrameAncestors cannot contain '*' in production.")
     .ValidateOnStart();
+builder.Services.AddOptions<SecurityHardeningOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityHardeningOptions.SectionName));
+builder.Services.PostConfigure<SecurityHardeningOptions>(options =>
+{
+    if (builder.Environment.IsProduction())
+    {
+        options.Enabled = true;
+        options.RateLimiting.Enabled = true;
+        options.Headers.Enabled = true;
+        options.Cors.StrictMode = true;
+    }
+});
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<PolicyMapOptions>(builder.Configuration.GetSection("Api:AuthServer"));
@@ -389,6 +403,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Web", policy =>
     {
+        var hardening = builder.Configuration.GetSection(SecurityHardeningOptions.SectionName).Get<SecurityHardeningOptions>() ?? new SecurityHardeningOptions();
         var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
         if (allowedOrigins is null || allowedOrigins.Length == 0)
         {
@@ -402,6 +417,11 @@ builder.Services.AddCors(options =>
             }
         }
 
+        if (hardening.Enabled && hardening.Cors.StrictMode && allowedOrigins.Any(origin => origin.Trim() == "*"))
+        {
+            throw new InvalidOperationException("SecurityHardening:Cors:StrictMode forbids wildcard origins.");
+        }
+
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -409,7 +429,31 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var key = context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+        if (path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/integrations", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"admin:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        if (path.StartsWith("/hubs/app", StringComparison.OrdinalIgnoreCase))
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"hub:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        return RateLimitPartition.GetNoLimiter("default");
+    });
+});
+
 var app = builder.Build();
+var hardeningOptions = app.Services.GetRequiredService<IOptions<SecurityHardeningOptions>>().Value;
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
@@ -446,7 +490,7 @@ app.UseRouting();
 
 app.Use(async (context, next) =>
 {
-    if (!securityHeadersOptions.Enabled)
+    if (!hardeningOptions.Enabled || !hardeningOptions.Headers.Enabled || !securityHeadersOptions.Enabled)
     {
         await next();
         return;
@@ -486,6 +530,10 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseCors("Web");
+if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
+{
+    app.UseRateLimiter();
+}
 app.UseAuthentication();
 app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();

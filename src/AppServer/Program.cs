@@ -30,6 +30,16 @@ builder.Services.AddOptions<InternalTokenOptions>()
 builder.Services.AddOptions<AppServerMtlsOptions>()
     .Bind(builder.Configuration.GetSection(AppServerMtlsOptions.SectionName))
     .ValidateOnStart();
+builder.Services.AddOptions<SecurityHardeningOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityHardeningOptions.SectionName));
+builder.Services.PostConfigure<SecurityHardeningOptions>(options =>
+{
+    if (builder.Environment.IsProduction())
+    {
+        options.Enabled = true;
+        options.Headers.Enabled = true;
+    }
+});
 
 var internalOptions = builder.Configuration.GetSection(InternalTokenOptions.SectionName).Get<InternalTokenOptions>() ?? new InternalTokenOptions();
 if (string.IsNullOrWhiteSpace(internalOptions.JwksUrl))
@@ -160,6 +170,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+var hardeningOptions = app.Services.GetRequiredService<IOptions<SecurityHardeningOptions>>().Value;
 
 using (var scope = app.Services.CreateScope())
 {
@@ -176,6 +187,34 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+
+if (hardeningOptions.Enabled && hardeningOptions.Headers.Enabled)
+{
+    if (app.Environment.IsProduction())
+    {
+        app.UseHsts();
+    }
+
+    app.Use(async (context, next) =>
+    {
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["Referrer-Policy"] = "no-referrer";
+            context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), fullscreen=()";
+
+            if (context.Request.Path.StartsWithSegments("/app") || context.Request.Path.StartsWithSegments("/admin"))
+            {
+                context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+                context.Response.Headers.Pragma = "no-cache";
+            }
+
+            return Task.CompletedTask;
+        });
+
+        await next();
+    });
+}
 
 app.Use(async (context, next) =>
 {
