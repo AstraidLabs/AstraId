@@ -63,6 +63,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
 - **Web (`src/Web`)**
   - React + Vite UI with user and admin routes.
   - OIDC client integration (`authorization_code + PKCE`) against AuthServer.
+  - Admin UI includes **Platform Health** (internal/admin only), which reads safe status data from Api `/ops/health`.
 
 ### High-level architecture (ASCII)
 

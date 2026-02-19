@@ -7,6 +7,7 @@ import {
   Bug,
   FileWarning,
   FolderSync,
+  HeartPulse,
   Gauge,
   KeyRound,
   LifeBuoy,
@@ -232,6 +233,17 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     routeMeta: [
       { path: "/diagnostics/errors", title: "Error logs", description: "Review captured diagnostics errors." },
       { path: "/diagnostics/errors/:id", title: "Error details", description: "Inspect a diagnostics error record." },
+    ],
+  },
+  {
+    id: "platform-health",
+    label: "Platform Health",
+    path: "/platform/health",
+    category: "diagnostics",
+    description: "Monitor platform health check status.",
+    icon: HeartPulse,
+    routeMeta: [
+      { path: "/platform/health", title: "Platform Health", description: "Review platform health checks for Api." },
     ],
   },
   {

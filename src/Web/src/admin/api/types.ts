@@ -516,3 +516,30 @@ export type AdminEmailOutboxMessage = {
   traceId?: string | null;
   correlationId?: string | null;
 };
+
+export type PlatformHealthStatus = "Healthy" | "Degraded" | "Unhealthy";
+
+export type PlatformHealthCheck = {
+  key: string;
+  name: string;
+  status: PlatformHealthStatus;
+  isCritical: boolean;
+  durationMs: number;
+  lastSuccessUtc?: string | null;
+  message?: string | null;
+};
+
+export type AdminPlatformHealthResponse = {
+  overallStatus: PlatformHealthStatus;
+  checkedAtUtc: string;
+  nextCheckInSeconds: number;
+  environment: string;
+  service: string;
+  version?: string | null;
+  summary: {
+    healthy: number;
+    degraded: number;
+    unhealthy: number;
+  };
+  checks: PlatformHealthCheck[];
+};

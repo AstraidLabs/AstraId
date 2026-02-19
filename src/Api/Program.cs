@@ -11,6 +11,7 @@ using Api.Models;
 using Api.Options;
 using Api.Security;
 using Api.Services;
+using Api.Services.Ops;
 using Company.Auth.Api.Scopes;
 using Company.Auth.Api;
 using Company.Auth.Contracts;
@@ -135,6 +136,12 @@ builder.Services.AddOptions<InternalTokenOptions>()
     .Validate(options => options.Signing.RotationIntervalDays > 0, "Internal token rotation interval must be greater than zero.")
     .Validate(options => options.Signing.PreviousKeyRetentionDays >= options.Signing.RotationIntervalDays, "Previous key retention must be greater than or equal to rotation interval.")
     .ValidateOnStart();
+builder.Services.AddOptions<OpsEndpointsOptions>()
+    .Bind(builder.Configuration.GetSection(OpsEndpointsOptions.SectionName))
+    .Validate(options => options.CheckIntervalSeconds is >= 10 and <= 300, "Ops check interval must be between 10 and 300 seconds.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IPlatformHealthSnapshotCache, PlatformHealthSnapshotCache>();
+builder.Services.AddHostedService(sp => (PlatformHealthSnapshotCache)sp.GetRequiredService<IPlatformHealthSnapshotCache>());
 builder.Services.AddSingleton<InternalTokenKeyRingService>();
 builder.Services.AddSingleton<InternalJwksService>();
 builder.Services.AddHostedService<InternalTokenKeyRotationService>();
@@ -566,6 +573,72 @@ app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+var ops = app.MapGroup("/ops")
+    .RequireAuthorization("RequireSystemAdmin");
+
+ops.MapGet("/health", (IOptions<OpsEndpointsOptions> optionsAccessor, IPlatformHealthSnapshotCache cache, IWebHostEnvironment environment) =>
+    {
+        var options = optionsAccessor.Value;
+        if (!options.Enabled)
+        {
+            return Results.Problem(
+                title: "Checks unavailable",
+                detail: "Platform checks are disabled.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var snapshot = cache.GetLatest();
+        if (snapshot is null)
+        {
+            if (environment.IsDevelopment())
+            {
+                return Results.Ok(new
+                {
+                    overallStatus = "Degraded",
+                    checkedAtUtc = DateTimeOffset.UtcNow,
+                    nextCheckInSeconds = Math.Clamp(options.CheckIntervalSeconds, 10, 300),
+                    environment = environment.EnvironmentName,
+                    service = "Api",
+                    summary = new { healthy = 0, degraded = 0, unhealthy = 0 },
+                    checks = Array.Empty<object>(),
+                    message = "Health checks are warming up."
+                });
+            }
+
+            return Results.Problem(
+                title: "Checks unavailable",
+                detail: "Platform checks are not yet available.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return Results.Ok(snapshot);
+    });
+
+ops.MapGet("/ready", (IOptions<OpsEndpointsOptions> optionsAccessor, IPlatformHealthSnapshotCache cache, IWebHostEnvironment environment) =>
+    {
+        var options = optionsAccessor.Value;
+        if (!options.Enabled)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var snapshot = cache.GetLatest();
+        if (snapshot is null)
+        {
+            return environment.IsDevelopment()
+                ? Results.Ok(new { status = "ReadyPendingChecks" })
+                : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var allCriticalHealthy = snapshot.Checks
+            .Where(check => check.IsCritical)
+            .All(check => string.Equals(check.Status, "Healthy", StringComparison.Ordinal));
+
+        return allCriticalHealthy
+            ? Results.Ok(new { status = "Ready" })
+            : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    });
+
 app.MapHub<AppHub>("/hubs/app").RequireAuthorization();
 
 var api = app.MapGroup("/api");

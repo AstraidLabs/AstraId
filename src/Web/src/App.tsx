@@ -58,6 +58,7 @@ import InactivityPolicy from "./admin/pages/InactivityPolicy";
 import EmailOutbox from "./admin/pages/EmailOutbox";
 import SecurityPrivacy from "./admin/pages/SecurityPrivacy";
 import AdminCategoryLandingPage from "./admin/pages/AdminCategoryLandingPage";
+import PlatformHealthPage from "./admin/pages/PlatformHealthPage";
 import AdminPermissionGuard from "./admin/AdminPermissionGuard";
 import { ADMIN_PERMISSION, GDPR_PERMISSIONS, GOVERNANCE_PERMISSIONS } from "./auth/adminAccess";
 import Callback from "./pages/Callback";
@@ -149,6 +150,7 @@ const App = () => {
         <Route path="diagnostics/errors" element={<DiagnosticsErrorsList />} />
         <Route path="diagnostics/errors/:id" element={<DiagnosticsErrorDetail />} />
         <Route path="diagnostics/email-outbox" element={<EmailOutbox />} />
+        <Route path="platform/health" element={<PlatformHealthPage />} />
         <Route path="security/keys" element={<SigningKeys />} />
         <Route path="security/rotation" element={<SecurityRotationPolicy />} />
         <Route path="security/tokens" element={<TokenPolicies />} />
