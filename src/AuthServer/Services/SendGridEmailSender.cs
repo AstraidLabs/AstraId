@@ -66,7 +66,6 @@ public sealed class SendGridEmailSender : IEmailSender
             _logger.LogWarning("Email provider {Provider} transient failure ({StatusCode}) on attempt {Attempt}.", "SendGrid", (int)response.StatusCode, attempt);
             await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
         }
-    }
 
         throw new InvalidOperationException("Email send failed due to unexpected response state.");
     }

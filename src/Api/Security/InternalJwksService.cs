@@ -32,7 +32,7 @@ public sealed class InternalJwksService
 
         jwk.Kid = key.Kid;
         jwk.Use = "sig";
-        jwk.KeyOps = ["verify"];
+        jwk.KeyOps.Add("verify");
         jwk.Alg = key.Algorithm == SecurityAlgorithms.EcdsaSha256 ? "ES256" : "RS256";
         return jwk;
     }
