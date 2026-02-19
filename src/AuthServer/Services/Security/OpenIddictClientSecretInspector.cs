@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.RegularExpressions;
 using AuthServer.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,10 @@ public interface IOpenIddictClientSecretInspector
 
 public sealed class OpenIddictClientSecretInspector : IOpenIddictClientSecretInspector
 {
+    private static readonly Regex ModularCryptPrefixPattern = new(
+        @"^\$(2[aby]|argon2(id|i|d)?|scrypt|pbkdf2)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private readonly ApplicationDbContext _dbContext;
 
     public OpenIddictClientSecretInspector(ApplicationDbContext dbContext)
@@ -53,14 +58,10 @@ public sealed class OpenIddictClientSecretInspector : IOpenIddictClientSecretIns
             return false;
         }
 
-        if (value.Length >= 40 && value.Any(c => c is '$' or '.' or ':' or '/'))
-        {
-            return true;
-        }
-
         return value.StartsWith("AQAAAA", StringComparison.Ordinal)
+               || value.StartsWith("AAEAAAD", StringComparison.Ordinal)
                || value.StartsWith("sha256$", StringComparison.OrdinalIgnoreCase)
                || value.StartsWith("pbkdf2$", StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith("v", StringComparison.Ordinal);
+               || ModularCryptPrefixPattern.IsMatch(value);
     }
 }
