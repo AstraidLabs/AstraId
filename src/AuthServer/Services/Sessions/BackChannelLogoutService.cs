@@ -19,7 +19,7 @@ public sealed class BackChannelLogoutService
     public BackChannelLogoutService(
         IHttpClientFactory httpClientFactory,
         Microsoft.Extensions.Options.IOptions<SessionManagementOptions> options,
-        Microsoft.Extensions.Options.IOptions<OpenIddict.Server.OpenIddictServerOptions> serverOptions,
+        Microsoft.Extensions.Options.IOptions<global::OpenIddict.Server.OpenIddictServerOptions> serverOptions,
         IOAuthAdvancedPolicyProvider policyProvider,
         ILogger<BackChannelLogoutService> logger)
     {
