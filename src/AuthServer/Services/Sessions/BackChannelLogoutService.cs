@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using AuthServer.Options;
 using AuthServer.Services.Governance;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.Sessions;
@@ -86,7 +87,7 @@ public sealed class BackChannelLogoutService
             {
                 new Claim("sub", subject),
                 new Claim("events", "{\"http://schemas.openid.net/event/backchannel-logout\":{}}", "JSON"),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+                new Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
             }),
             Audience = audience,
             Issuer = _issuer,

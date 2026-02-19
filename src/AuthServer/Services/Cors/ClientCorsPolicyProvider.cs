@@ -18,14 +18,14 @@ public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
     private readonly IConfiguration _configuration;
     private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly ApplicationDbContext _dbContext;
-    private readonly CorsOptions _corsOptions;
+    private readonly Options.CorsOptions _corsOptions;
 
     public ClientCorsPolicyProvider(
         IMemoryCache cache,
         IConfiguration configuration,
         IOpenIddictApplicationManager applicationManager,
         ApplicationDbContext dbContext,
-        IOptions<CorsOptions> corsOptions)
+        IOptions<Options.CorsOptions> corsOptions)
     {
         _cache = cache;
         _configuration = configuration;
