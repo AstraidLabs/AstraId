@@ -1,6 +1,13 @@
 # AstraId
 
-## 1) Project Overview
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![OpenID%20Connect](https://img.shields.io/badge/OpenID%20Connect-OAuth2%2FOIDC-2E77BC)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)
+
+## 1) 🚀 Project Overview
 
 AstraId is a multi-service identity and authorization solution built on ASP.NET Core + OpenIddict + React/Vite.
 
@@ -103,7 +110,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
 - Web (Vite): `http://localhost:5173`.
 
 
-## 2) Prerequisites
+## 2) 🧰 Prerequisites
 
 1. **.NET SDK 10.x** (all server projects target `net10.0`).
 2. **Node.js + npm** for `src/Web` (repo does not pin exact Node version; use an active LTS range compatible with Vite 7, e.g. Node 20+).
@@ -120,7 +127,7 @@ dotnet dev-certs https --trust
 
 If trust fails on Linux, continue and trust in your distro/browser trust store manually.
 
-## 3) Repository Setup
+## 3) 🛠️ Repository Setup
 
 ### 3.1 Clone / restore / build
 
@@ -161,7 +168,7 @@ npm run build:admin
 
 Then publish/build AuthServer so static admin assets are available under `/admin`.
 
-## 4) Configuration: How to Set It Up Safely
+## 4) 🔐 Configuration: How to Set It Up Safely
 
 > **Security rule:** never commit real secrets to tracked `appsettings*.json`. Use placeholders in files and inject real values at runtime.
 
@@ -895,3 +902,206 @@ cd src/Web
 npm install
 npm run dev
 ```
+
+### Email Sending Providers (SMTP + APIs)
+
+AuthServer now supports selecting the email transport with `Email:Provider`:
+
+- `Smtp` (default when `Email:Provider` is missing)
+- `SendGrid`
+- `Mailgun`
+- `Postmark`
+- `Graph` (Microsoft 365 / Microsoft Graph `sendMail` with client credentials)
+
+SMTP remains fully supported and is recommended for local development and fallback scenarios.
+For production deliverability and provider-side analytics, API-based providers are generally preferred.
+
+#### Provider selection
+
+```json
+{
+  "Email": {
+    "Provider": "Smtp"
+  }
+}
+```
+
+If `Email:Provider` is not set, AuthServer falls back to SMTP behavior.
+
+#### SMTP configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Smtp",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Smtp": {
+      "Host": "<smtp-host>",
+      "Port": 587,
+      "Username": "<smtp-username>",
+      "Password": "<smtp-password>",
+      "UseSsl": false,
+      "UseStartTls": true,
+      "TimeoutSeconds": 10
+    }
+  }
+}
+```
+
+#### SendGrid configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "SendGrid",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "SendGrid": {
+      "ApiKey": "<sendgrid-api-key>"
+    }
+  }
+}
+```
+
+#### Mailgun configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Mailgun",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Mailgun": {
+      "ApiKey": "<mailgun-api-key>",
+      "Domain": "<mailgun-domain>",
+      "BaseUrl": "https://api.mailgun.net"
+    }
+  }
+}
+```
+
+#### Postmark configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Postmark",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Postmark": {
+      "ServerToken": "<postmark-server-token>"
+    }
+  }
+}
+```
+
+#### Graph configuration keys
+
+```json
+{
+  "Email": {
+    "Provider": "Graph",
+    "FromEmail": "<from-email>",
+    "FromName": "<from-name>",
+    "Graph": {
+      "TenantId": "<entra-tenant-id>",
+      "ClientId": "<app-client-id>",
+      "ClientSecret": "<app-client-secret>",
+      "FromUser": "<mailbox-user-or-upn>"
+    }
+  }
+}
+```
+
+#### `dotnet user-secrets` examples (keys only)
+
+```bash
+dotnet user-secrets set "Email:Provider" "<value>"
+dotnet user-secrets set "Email:FromEmail" "<value>"
+dotnet user-secrets set "Email:FromName" "<value>"
+
+dotnet user-secrets set "Email:Smtp:Host" "<value>"
+dotnet user-secrets set "Email:Smtp:Port" "<value>"
+dotnet user-secrets set "Email:Smtp:Username" "<value>"
+dotnet user-secrets set "Email:Smtp:Password" "<value>"
+
+dotnet user-secrets set "Email:SendGrid:ApiKey" "<value>"
+
+dotnet user-secrets set "Email:Mailgun:ApiKey" "<value>"
+dotnet user-secrets set "Email:Mailgun:Domain" "<value>"
+dotnet user-secrets set "Email:Mailgun:BaseUrl" "<value>"
+
+dotnet user-secrets set "Email:Postmark:ServerToken" "<value>"
+
+dotnet user-secrets set "Email:Graph:TenantId" "<value>"
+dotnet user-secrets set "Email:Graph:ClientId" "<value>"
+dotnet user-secrets set "Email:Graph:ClientSecret" "<value>"
+dotnet user-secrets set "Email:Graph:FromUser" "<value>"
+```
+
+### Internal Tokens Migration: HS256 -> RS256/ES256 (Api -> AppServer)
+
+Use a phased rollout for a controlled migration:
+1. **Prepare AppServer for dual validation (non-prod first):**
+   - Set `InternalTokens:AllowLegacyHs256=true` only while migrating.
+   - Configure `InternalTokens:LegacyHs256Secret` via environment variables or user-secrets.
+   - Configure JWKS settings (`InternalTokens:JwksUrl`, `InternalTokens:JwksInternalApiKey`).
+2. **Enable Api asymmetric signing:**
+   - Set `InternalTokens:Signing:Algorithm=RS256` (default) or `ES256`.
+   - Keep short TTL with `InternalTokens:TokenTtlSeconds` (recommended 120; allowed 60-300).
+   - Ensure Api JWKS is enabled at `InternalTokens:Jwks:Path` and protected by `InternalTokens:Jwks:InternalApiKey` header.
+3. **Observe and verify:**
+   - Confirm AppServer validates by `kid` from JWKS cache.
+   - Verify `svc`/`azp` claim allowlist (`InternalTokens:AllowedServices`).
+4. **Cutover:**
+   - Set `InternalTokens:AllowLegacyHs256=false` everywhere.
+   - In Production, keep `AllowLegacyHs256=false` as default.
+
+Configuration keys (placeholders only):
+- Api:
+  - `InternalTokens:Issuer`, `InternalTokens:Audience`, `InternalTokens:TokenTtlSeconds`
+  - `InternalTokens:Signing:Algorithm`, `RotationEnabled`, `RotationIntervalDays`, `PreviousKeyRetentionDays`, `KeySize`
+  - `InternalTokens:Jwks:Enabled`, `Path`, `RequireInternalApiKey`, `InternalApiKeyHeaderName`, `InternalApiKey`
+- AppServer:
+  - `InternalTokens:Issuer`, `InternalTokens:Audience`, `AllowedServices`, `AllowedAlgorithms`
+  - `InternalTokens:JwksUrl`, `JwksRefreshMinutes`, `JwksInternalApiKey`
+  - `InternalTokens:AllowLegacyHs256`, `LegacyHs256Secret`
+
+Operational guidance:
+- Rotation runs with current+previous keys retained for overlap; AppServer refreshes JWKS periodically.
+- Emergency rotation: rotate key immediately in Api and ensure AppServer JWKS refresh succeeds before disabling prior key retention.
+- JWKS endpoint publishes **public keys only** and must remain internal-only at network level (private subnet, service mesh policy, firewall), in addition to header protection.
+- Never commit secrets (`InternalApiKey`, `LegacyHs256Secret`) to source control.
+
+### mTLS: Api ↔ AppServer
+
+mTLS adds transport identity on top of JWT authorization:
+- Api proves identity to AppServer with a client certificate.
+- AppServer only accepts trusted Api certificates.
+
+Enablement by environment:
+- Api outbound (`AppServer:Mtls`):
+  - `Enabled`
+  - `ClientCertificate:Source|Path|Password|Thumbprint`
+  - `ServerCertificate:ValidationMode` (`System` or `PinThumbprint`)
+  - `ServerCertificate:PinnedThumbprints`
+- AppServer inbound (`AppServer:Mtls`):
+  - `Enabled`
+  - `RequireClientCertificate`
+  - `AllowedClientThumbprints`
+  - `AllowedClientSubjectNames`
+
+Certificate provisioning options:
+- Development: short-lived self-signed certs generated locally, distributed out-of-band.
+- Higher environments: internal CA-issued certs with rotation procedures and revocation management.
+
+Troubleshooting:
+- TLS handshake failures: verify client cert path/password, server trust chain, and hostname.
+- 403 on `/app` endpoints: verify client cert allowlist thumbprint/subject settings.
+- Pinning failures: verify configured pinned thumbprints exactly match server certificate.
+
+Reverse proxy note:
+- If TLS is terminated at ingress/proxy, enforce mTLS at that boundary.
+- Do **not** trust forwarded client-certificate headers unless the trusted proxy boundary is strictly enforced.
+- AppServer should be internal-only and not publicly exposed.
