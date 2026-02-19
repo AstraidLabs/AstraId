@@ -4,7 +4,7 @@ public sealed class EmailOptions
 {
     public const string SectionName = "Email";
 
-    public string Provider { get; set; } = "Smtp";
+    public string? Provider { get; set; }
 
     // Backward compatibility for existing configuration key Email:Mode.
     public string? Mode { get; set; }
