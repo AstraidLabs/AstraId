@@ -10,6 +10,7 @@ using AuthServer.Services;
 using AuthServer.Services.Governance;
 using AuthServer.Services.Tokens;
 using AuthServer.Services.Security;
+using AuthServer.Services.Sessions;
 using Microsoft.EntityFrameworkCore;
 using AuthServer.Services.Admin;
 using AuthServer.Options;
@@ -45,6 +46,10 @@ public class AuthorizationController : ControllerBase
     private readonly IOidcClientPolicyEnforcer _policyEnforcer;
     private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly IOpenIddictAuthorizationManager _authorizationManager;
+    private readonly ApplicationDbContext _dbContext;
+    private readonly TokenExchangeService _tokenExchangeService;
+    private readonly ClientSessionTracker _clientSessionTracker;
+    private readonly BackChannelLogoutService _backChannelLogoutService;
     private readonly IAntiforgery _antiforgery;
     private readonly ILogger<AuthorizationController> _logger;
     private readonly IStringLocalizer<AuthMessages> _localizer;
@@ -65,6 +70,10 @@ public class AuthorizationController : ControllerBase
         IOidcClientPolicyEnforcer policyEnforcer,
         IOpenIddictApplicationManager applicationManager,
         IOpenIddictAuthorizationManager authorizationManager,
+        ApplicationDbContext dbContext,
+        TokenExchangeService tokenExchangeService,
+        ClientSessionTracker clientSessionTracker,
+        BackChannelLogoutService backChannelLogoutService,
         IAntiforgery antiforgery,
         IOptions<AuthServerAuthFeaturesOptions> authFeatures,
         ILogger<AuthorizationController> logger,
@@ -84,6 +93,10 @@ public class AuthorizationController : ControllerBase
         _policyEnforcer = policyEnforcer;
         _applicationManager = applicationManager;
         _authorizationManager = authorizationManager;
+        _dbContext = dbContext;
+        _tokenExchangeService = tokenExchangeService;
+        _clientSessionTracker = clientSessionTracker;
+        _backChannelLogoutService = backChannelLogoutService;
         _antiforgery = antiforgery;
         _authFeatures = authFeatures.Value;
         _logger = logger;
@@ -237,12 +250,12 @@ public class AuthorizationController : ControllerBase
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Token.InvalidRequest", "The token request is invalid.")));
         }
 
-        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType())
+        if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType() && !string.Equals(request.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
             var supportedGrantTypes = _authFeatures.EnablePasswordGrant
-                ? "Only authorization_code, refresh_token, client_credentials, and password grants are supported."
-                : "Only authorization_code, refresh_token, and client_credentials grants are supported.";
+                ? "Only authorization_code, refresh_token, client_credentials, password, and token_exchange grants are supported."
+                : "Only authorization_code, refresh_token, client_credentials, and token_exchange grants are supported.";
             return BadRequest(CreateErrorResponse(
                 OpenIddictConstants.Errors.UnsupportedGrantType,
                 supportedGrantTypes));
@@ -283,6 +296,11 @@ public class AuthorizationController : ControllerBase
                 [OpenIddictConstants.Parameters.Error] = tokenPolicy.Error,
                 [OpenIddictConstants.Parameters.ErrorDescription] = tokenPolicy.Description
             }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        if (string.Equals(request.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
+        {
+            return await HandleTokenExchangeAsync(request, clientId);
         }
 
         if (request.IsClientCredentialsGrantType())
@@ -355,6 +373,10 @@ public class AuthorizationController : ControllerBase
             refreshAbsoluteExpiry: refreshAbsoluteExpiry);
 
         await _loginHistoryService.RecordAsync(user.Id, user.Email ?? user.UserName, true, null, HttpContext, clientId, HttpContext.RequestAborted);
+        if (!string.IsNullOrWhiteSpace(clientId))
+        {
+            await _clientSessionTracker.TrackAsync(user.Id.ToString(), clientId, HttpContext.RequestAborted);
+        }
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -379,8 +401,57 @@ public class AuthorizationController : ControllerBase
     [HttpGet("~/connect/logout")]
     public async Task<IActionResult> Logout()
     {
+        var userId = User.FindFirstValue(OpenIddictConstants.Claims.Subject) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrWhiteSpace(userId) && _backChannelLogoutService.Enabled)
+        {
+            var clients = await _clientSessionTracker.GetClientsAsync(userId, HttpContext.RequestAborted);
+            await _backChannelLogoutService.NotifyAsync(userId, clients, HttpContext.RequestAborted);
+            await _clientSessionTracker.ClearAsync(userId, HttpContext.RequestAborted);
+            await WriteAuditAsync("oidc.backchannel_logout.dispatched", new { userId, clients = clients.Count });
+        }
+
         await _signInManager.SignOutAsync();
         return SignOut(new AuthenticationProperties { RedirectUri = "/" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    [Authorize]
+    [HttpGet("~/connect/verify")]
+    public IActionResult VerifyDevice([FromQuery(Name = OpenIddictConstants.Parameters.UserCode)] string? userCode)
+    {
+        return RenderDeviceVerificationPage(userCode, false, null);
+    }
+
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    [HttpPost("~/connect/verify")]
+    public async Task<IActionResult> VerifyDeviceSubmit([FromForm] string decision, [FromForm(Name = OpenIddictConstants.Parameters.UserCode)] string? userCode)
+    {
+        var request = HttpContext.GetOpenIddictServerRequest();
+        if (request is null)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "Device verification request is invalid."));
+        }
+
+        if (string.Equals(decision, "deny", StringComparison.OrdinalIgnoreCase))
+        {
+            await WriteAuditAsync("oidc.device.denied", new { clientId = request.ClientId });
+            return Forbid(new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictConstants.Parameters.Error] = OpenIddictConstants.Errors.AccessDenied,
+                [OpenIddictConstants.Parameters.ErrorDescription] = "The device authorization request was denied."
+            }), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Challenge();
+        }
+
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        var principal = await CreatePrincipalAsync(user, request.GetScopes(), policy, refreshAbsoluteExpiry: null);
+        await WriteAuditAsync("oidc.device.approved", new { clientId = request.ClientId, userCode = string.IsNullOrWhiteSpace(userCode) ? "missing" : "provided" });
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private async Task<IActionResult> HandlePasswordGrantAsync(OpenIddictRequest request, string? clientId)
@@ -612,6 +683,104 @@ public class AuthorizationController : ControllerBase
     {
         var value = _localizer[key];
         return value.ResourceNotFound ? fallback : value.Value;
+    }
+
+    private async Task<IActionResult> HandleTokenExchangeAsync(OpenIddictRequest request, string? clientId)
+    {
+        if (!_tokenExchangeService.Enabled)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "Token exchange is disabled."));
+        }
+
+        if (!_tokenExchangeService.IsClientAllowed(clientId))
+        {
+            await _incidentService.LogIncidentAsync("token_exchange_rejected", "high", null, clientId, new { clientId, reason = "client_not_allowed" }, cancellationToken: HttpContext.RequestAborted);
+            await WriteAuditAsync("oidc.token_exchange.rejected", new { clientId, reason = "client_not_allowed" });
+            return Forbid(CreateInvalidGrant("Client is not allowed to perform token exchange."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var subjectToken = request.GetParameter("subject_token").ToString();
+        var subjectPrincipal = await _tokenExchangeService.ValidateSubjectTokenAsync(subjectToken, HttpContext.RequestAborted);
+        if (subjectPrincipal is null)
+        {
+            await _incidentService.LogIncidentAsync("token_exchange_rejected", "high", null, clientId, new { clientId, reason = "invalid_subject_token" }, cancellationToken: HttpContext.RequestAborted);
+            return Forbid(CreateInvalidGrant("subject_token is invalid."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var requestedAudience = request.GetParameter("audience").ToString();
+        if (!_tokenExchangeService.IsAudienceAllowed(requestedAudience))
+        {
+            await _incidentService.LogIncidentAsync("token_exchange_rejected", "medium", null, clientId, new { clientId, reason = "audience_not_allowed" }, cancellationToken: HttpContext.RequestAborted);
+            await WriteAuditAsync("oidc.token_exchange.rejected", new { clientId, reason = "audience_not_allowed" });
+            return Forbid(CreateInvalidGrant("The requested audience is not allowed."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var subject = subjectPrincipal.GetClaim(OpenIddictConstants.Claims.Subject);
+        if (string.IsNullOrWhiteSpace(subject) || !Guid.TryParse(subject, out var userId))
+        {
+            return Forbid(CreateInvalidGrant("subject_token is missing a valid subject."), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null || !user.IsActive || user.IsAnonymized)
+        {
+            return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
+        var principal = await CreatePrincipalAsync(user, request.GetScopes().Intersect(AllowedScopes), policy, refreshAbsoluteExpiry: null);
+        principal.SetResources([requestedAudience]);
+        principal.SetClaim(_tokenExchangeService.ActorClaimType, clientId ?? string.Empty);
+
+        await WriteAuditAsync("oidc.token_exchange.accepted", new { clientId, audience = requestedAudience });
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    private ContentResult RenderDeviceVerificationPage(string? userCode, bool hasResult, string? message)
+    {
+        var tokenSet = _antiforgery.GetAndStoreTokens(HttpContext);
+        var requestPath = Request.PathBase + Request.Path;
+        var encodedAction = HtmlEncoder.Default.Encode(requestPath);
+        var encodedCode = HtmlEncoder.Default.Encode(userCode ?? string.Empty);
+        var encodedToken = HtmlEncoder.Default.Encode(tokenSet.RequestToken ?? string.Empty);
+        var encodedMessage = HtmlEncoder.Default.Encode(message ?? "");
+
+        var html = $"""
+<!DOCTYPE html>
+<html lang=\"en\"><head><meta charset=\"utf-8\" /><title>Device verification</title></head>
+<body style=\"font-family:Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem;\">
+  <main style=\"max-width:560px;margin:0 auto;background:#111827;border-radius:12px;padding:1.5rem;\">
+    <h1>Device verification</h1>
+    {(hasResult ? $"<p>{encodedMessage}</p>" : string.Empty)}
+    <form method=\"post\" action=\"{encodedAction}\">
+      <input type=\"hidden\" name=\"__RequestVerificationToken\" value=\"{encodedToken}\" />
+      <label>User code</label>
+      <input type=\"text\" name=\"user_code\" value=\"{encodedCode}\" style=\"display:block;width:100%;margin:0.5rem 0 1rem 0;padding:0.5rem;\" />
+      <div style=\"display:flex;gap:0.75rem;\">
+        <button type=\"submit\" name=\"decision\" value=\"allow\">Allow</button>
+        <button type=\"submit\" name=\"decision\" value=\"deny\">Deny</button>
+      </div>
+    </form>
+  </main>
+</body></html>
+""";
+
+        return Content(html, "text/html");
+    }
+
+    private async Task WriteAuditAsync(string action, object metadata)
+    {
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TimestampUtc = DateTime.UtcNow,
+            ActorUserId = Guid.TryParse(User.FindFirstValue(OpenIddictConstants.Claims.Subject), out var actorId) ? actorId : null,
+            Action = action,
+            TargetType = "Oidc",
+            TargetId = HttpContext.TraceIdentifier,
+            DataJson = System.Text.Json.JsonSerializer.Serialize(new { traceId = HttpContext.TraceIdentifier, metadata })
+        });
+        await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
     }
 
     private static AuthenticationProperties CreateClientDisabledProperties()
