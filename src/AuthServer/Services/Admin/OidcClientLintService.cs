@@ -31,7 +31,7 @@ public sealed class OidcClientLintService
                 "Resource Owner Password Credentials flow should be avoided for new integrations.",
                 "grantTypes",
                 ["oauth2", "legacy"],
-                recommendedFix: "Use authorization_code with PKCE or client_credentials for service clients."));
+                RecommendedFix: "Use authorization_code with PKCE or client_credentials for service clients."));
         }
 
         if (effective.RedirectUris.Any(uri => uri.Contains('*')))
@@ -43,7 +43,7 @@ public sealed class OidcClientLintService
                 "Wildcard redirect URI values are unsafe and can enable token leakage.",
                 "redirectUris",
                 ["redirect", "open-redirect"],
-                recommendedFix: "Replace wildcard entries with exact redirect URIs."));
+                RecommendedFix: "Replace wildcard entries with exact redirect URIs."));
         }
 
         if (effective.RedirectUris.Any(uri => Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)))
@@ -57,7 +57,7 @@ public sealed class OidcClientLintService
                     : "HTTP redirect URI is not allowed outside development.",
                 "redirectUris",
                 ["redirect", "transport"],
-                recommendedFix: "Use HTTPS redirect URIs except local loopback during development."));
+                RecommendedFix: "Use HTTPS redirect URIs except local loopback during development."));
         }
 
         if (string.Equals(effective.Profile, ClientProfileIds.SpaPublic, StringComparison.Ordinal) && !effective.PkceRequired)
@@ -69,7 +69,7 @@ public sealed class OidcClientLintService
                 "SPA public clients must require PKCE when using authorization code.",
                 "pkceRequired",
                 ["pkce", "spa"],
-                recommendedFix: "Enable PKCE requirement."));
+                RecommendedFix: "Enable PKCE requirement."));
         }
 
         if (string.Equals(effective.Profile, ClientProfileIds.SpaPublic, StringComparison.Ordinal)
@@ -82,7 +82,7 @@ public sealed class OidcClientLintService
                 "SPA public clients must not rely on client secrets.",
                 "clientType",
                 ["spa", "secret"],
-                recommendedFix: "Switch to public client type for SPA profile."));
+                RecommendedFix: "Switch to public client type for SPA profile."));
         }
 
         if (string.Equals(effective.Profile, ClientProfileIds.ServiceConfidential, StringComparison.Ordinal) && effective.RedirectUris.Count > 0)
@@ -94,7 +94,7 @@ public sealed class OidcClientLintService
                 "Machine-to-machine clients do not require browser redirects.",
                 "redirectUris",
                 ["service"],
-                recommendedFix: "Remove redirect URI values for service clients."));
+                RecommendedFix: "Remove redirect URI values for service clients."));
         }
 
         if (effective.CorsOrigins.Any(origin => origin.Contains('*')))
@@ -106,7 +106,7 @@ public sealed class OidcClientLintService
                 "CORS origins must be explicit trusted origins.",
                 "redirectUris",
                 ["cors"],
-                recommendedFix: "Replace wildcard CORS origins with explicit origins."));
+                RecommendedFix: "Replace wildcard CORS origins with explicit origins."));
         }
 
         if (effective.CorsOrigins.Any(HasCorsPathOrQueryOrFragment))
@@ -118,7 +118,7 @@ public sealed class OidcClientLintService
                 "CORS origins must be origin-only values (scheme + host + optional port).",
                 "redirectUris",
                 ["cors"],
-                recommendedFix: "Use origin-only values for CORS entries."));
+                RecommendedFix: "Use origin-only values for CORS entries."));
         }
 
         if (effective.Scopes.Contains("offline_access", StringComparer.OrdinalIgnoreCase)
@@ -131,7 +131,7 @@ public sealed class OidcClientLintService
                 "offline_access scope is ineffective without refresh_token grant type.",
                 "scopes",
                 ["scopes", "refresh-token"],
-                recommendedFix: "Enable refresh_token grant type or remove offline_access."));
+                RecommendedFix: "Enable refresh_token grant type or remove offline_access."));
         }
 
         var accessTokenMinutes = string.Equals(effective.ClientType, OpenIddictConstants.ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase)
@@ -144,8 +144,8 @@ public sealed class OidcClientLintService
                 "ACCESS_TOKEN_LONG_LIFETIME",
                 "Access token lifetime is long",
                 $"Configured access token lifetime is {accessTokenMinutes} minutes.",
-                tags: ["token"],
-                recommendedFix: "Consider reducing access token lifetime for better security posture."));
+                Tags: ["token"],
+                RecommendedFix: "Consider reducing access token lifetime for better security posture."));
         }
 
         return findings;
