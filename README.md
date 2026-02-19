@@ -1166,3 +1166,23 @@ Operational notes:
 - **Correlation and traceability**
   - `X-Correlation-ID` is enforced across services (generated when missing and returned in response headers).
   - Logs are enriched with correlation and trace context to support cross-service incident investigation.
+
+## 13) 🔐 Additional IAM/OAuth feature flags
+
+The following AuthServer capabilities are available behind configuration flags and are **disabled by default** unless explicitly enabled:
+
+- **Device Code Flow**
+  - Config: `AuthServer:DeviceFlow`
+  - Keys: `Enabled`, `VerificationRateLimitPerMinute`, `PollingRateLimitPerMinute`
+
+- **Token Exchange** (`urn:ietf:params:oauth:grant-type:token-exchange`)
+  - Config: `AuthServer:TokenExchange`
+  - Keys: `Enabled`, `AllowedClients`, `AllowedAudiences`, `ActorClaimType`
+
+- **Refresh token reuse detection**
+  - Config: `AuthServer:Tokens:RefreshPolicy` and `AuthServer:TokenPolicyDefaults`
+  - Keys include: `RotationEnabled`, `ReuseDetectionEnabled`, `ReuseLeewaySeconds`, `RefreshReuseDetectionEnabled`, `RefreshReuseLeewaySeconds`
+
+- **Session management (back-channel logout)**
+  - Config: `AuthServer:SessionManagement`
+  - Keys: `BackChannelEnabled`, `FrontChannelEnabled`, `BackChannelLogoutUrls`

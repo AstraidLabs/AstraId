@@ -179,6 +179,9 @@ builder.Services.AddSingleton<EncryptionKeyStatusService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
 builder.Services.AddSingleton<MfaChallengeStore>();
 builder.Services.AddScoped<UserSessionRevocationService>();
+builder.Services.AddScoped<AuthServer.Services.Sessions.ClientSessionTracker>();
+builder.Services.AddScoped<AuthServer.Services.Sessions.BackChannelLogoutService>();
+builder.Services.AddScoped<TokenExchangeService>();
 builder.Services.AddScoped<IUserSecurityEventLogger, UserSecurityEventLogger>();
 builder.Services.AddScoped<UserLifecycleService>();
 builder.Services.AddScoped<InactivityPolicyService>();
@@ -239,6 +242,10 @@ builder.Services.Configure<KeyRotationDefaultsOptions>(builder.Configuration.Get
 builder.Services.Configure<TokenPolicyDefaultsOptions>(builder.Configuration.GetSection(TokenPolicyDefaultsOptions.SectionName));
 builder.Services.Configure<GovernanceGuardrailsOptions>(builder.Configuration.GetSection(GovernanceGuardrailsOptions.SectionName));
 builder.Services.Configure<AuthServerAuthFeaturesOptions>(builder.Configuration.GetSection(AuthServerAuthFeaturesOptions.SectionName));
+builder.Services.Configure<AuthServerDeviceFlowOptions>(builder.Configuration.GetSection(AuthServerDeviceFlowOptions.SectionName));
+builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
+builder.Services.Configure<SessionManagementOptions>(builder.Configuration.GetSection(SessionManagementOptions.SectionName));
+builder.Services.AddHttpClient(nameof(AuthServer.Services.Sessions.BackChannelLogoutService));
 builder.Services.AddOptions<AuthServerSigningKeyOptions>()
     .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
     .Validate(options =>
@@ -390,6 +397,18 @@ builder.Services.AddRateLimiter(options =>
             return RateLimitPartition.GetFixedWindowLimiter($"token:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = 15, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
         }
 
+        if (path.StartsWith("/connect/device", StringComparison.OrdinalIgnoreCase))
+        {
+            var limit = Math.Max(5, builder.Configuration.GetValue<int?>("AuthServer:DeviceFlow:PollingRateLimitPerMinute") ?? 30);
+            return RateLimitPartition.GetFixedWindowLimiter($"device:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
+        if (path.StartsWith("/connect/verify", StringComparison.OrdinalIgnoreCase))
+        {
+            var limit = Math.Max(3, builder.Configuration.GetValue<int?>("AuthServer:DeviceFlow:VerificationRateLimitPerMinute") ?? 10);
+            return RateLimitPartition.GetFixedWindowLimiter($"verify:{key}", _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, QueueLimit = 0, Window = TimeSpan.FromMinutes(1) });
+        }
+
         if (path.StartsWith("/connect/introspect", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/connect/revocation", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/auth/login", StringComparison.OrdinalIgnoreCase)
@@ -435,6 +454,8 @@ builder.Services.AddOpenIddict()
                .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
+               .SetDeviceAuthorizationEndpointUris("connect/device")
+               .SetVerificationEndpointUris("connect/verify")
                .SetIntrospectionEndpointUris("connect/introspect")
                .SetUserInfoEndpointUris("connect/userinfo")
                .SetEndSessionEndpointUris("connect/logout")
@@ -443,6 +464,17 @@ builder.Services.AddOpenIddict()
         options.AllowAuthorizationCodeFlow()
                .AllowRefreshTokenFlow()
                .AllowClientCredentialsFlow();
+
+        var deviceFlowEnabled = builder.Configuration.GetValue<bool>("AuthServer:DeviceFlow:Enabled");
+        if (deviceFlowEnabled)
+        {
+            options.AllowDeviceCodeFlow();
+        }
+
+        if (builder.Configuration.GetValue<bool>("AuthServer:TokenExchange:Enabled"))
+        {
+            options.AllowCustomFlow(TokenExchangeService.GrantType);
+        }
 
         if (authFeatures.EnablePasswordGrant)
         {
@@ -462,6 +494,7 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
                .EnableTokenEndpointPassthrough()
+               .EnableVerificationEndpointPassthrough()
                .EnableUserInfoEndpointPassthrough()
                .EnableEndSessionEndpointPassthrough();
 
@@ -474,6 +507,13 @@ builder.Services.AddOpenIddict()
         {
             builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateRevocationClientAsync);
         });
+    });
+
+builder.Services.AddOpenIddict()
+    .AddValidation(options =>
+    {
+        options.UseLocalServer();
+        options.UseAspNetCore();
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
