@@ -1,4 +1,3 @@
-using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using AppServer.Application.Commands;
 using AppServer.Application.Jobs;
@@ -10,6 +9,8 @@ using Hangfire;
 using Hangfire.InMemory;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
@@ -23,15 +24,31 @@ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
 builder.Services.AddOptions<InternalTokenOptions>()
     .Bind(builder.Configuration.GetSection(InternalTokenOptions.SectionName))
-    .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
-    .Validate(options => string.Equals(options.Algorithm, "HS256", StringComparison.OrdinalIgnoreCase), "Only HS256 is supported for internal tokens.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.JwksUrl), "InternalTokens:JwksUrl is required.")
+    .Validate(options => options.JwksRefreshMinutes > 0, "InternalTokens:JwksRefreshMinutes must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.AddOptions<AppServerMtlsOptions>()
+    .Bind(builder.Configuration.GetSection(AppServerMtlsOptions.SectionName))
     .ValidateOnStart();
 
 var internalOptions = builder.Configuration.GetSection(InternalTokenOptions.SectionName).Get<InternalTokenOptions>() ?? new InternalTokenOptions();
-if (string.IsNullOrWhiteSpace(internalOptions.SigningKey))
+if (string.IsNullOrWhiteSpace(internalOptions.JwksUrl))
 {
-    throw new InvalidOperationException("InternalTokens:SigningKey must be configured.");
+    throw new InvalidOperationException("InternalTokens:JwksUrl must be configured.");
 }
+
+var mtlsOptions = builder.Configuration.GetSection(AppServerMtlsOptions.SectionName).Get<AppServerMtlsOptions>() ?? new AppServerMtlsOptions();
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureHttpsDefaults(httpsOptions =>
+    {
+        if (mtlsOptions.Enabled && mtlsOptions.RequireClientCertificate)
+        {
+            httpsOptions.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
+        }
+    });
+});
 
 if (string.IsNullOrWhiteSpace(redisConnectionString))
 {
@@ -49,6 +66,11 @@ builder.Services.AddHangfire(configuration => configuration.UseInMemoryStorage()
 builder.Services.AddHangfireServer();
 
 builder.Services.AddScoped<GenerateThumbnailJob>();
+builder.Services.AddHttpClient("InternalJwks");
+var signingKeyResolver = new InternalSigningKeyResolver();
+builder.Services.AddSingleton(signingKeyResolver);
+builder.Services.AddSingleton<InternalJwksCache>();
+builder.Services.AddHostedService<InternalJwksRefreshService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -61,12 +83,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = internalOptions.Audience,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(internalOptions.SigningKey)),
+            IssuerSigningKeyResolver = (_, _, kid, parameters) =>
+            {
+                var key = signingKeyResolver.Resolve(kid);
+                if (key is not null)
+                {
+                    return [key];
+                }
+
+                if (internalOptions.AllowLegacyHs256 && !string.IsNullOrWhiteSpace(internalOptions.LegacyHs256Secret) && !string.Equals(internalOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal))
+                {
+                    return [new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(internalOptions.LegacyHs256Secret))];
+                }
+
+                return [];
+            },
             ValidateLifetime = true,
             RequireExpirationTime = true,
             RequireSignedTokens = true,
-            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
-            ClockSkew = TimeSpan.Zero
+            ValidAlgorithms = internalOptions.AllowedAlgorithms
+                .Select(alg => alg.ToUpperInvariant() switch
+                {
+                    "RS256" => SecurityAlgorithms.RsaSha256,
+                    "ES256" => SecurityAlgorithms.EcdsaSha256,
+                    "HS256" => SecurityAlgorithms.HmacSha256,
+                    _ => string.Empty
+                })
+                .Where(alg => !string.IsNullOrWhiteSpace(alg))
+                .ToArray(),
+            ClockSkew = TimeSpan.FromSeconds(5)
         };
 
         options.Events = new JwtBearerEvents
@@ -74,7 +119,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnTokenValidated = context =>
             {
                 if (context.SecurityToken is not JwtSecurityToken jwt
-                    || !string.Equals(jwt.Header.Alg, SecurityAlgorithms.HmacSha256, StringComparison.Ordinal)
+                    || string.Equals(jwt.Header.Alg, SecurityAlgorithms.None, StringComparison.Ordinal)
                     || !jwt.Payload.Iat.HasValue
                     || !jwt.Payload.Exp.HasValue
                     || !jwt.Payload.Nbf.HasValue)
@@ -90,6 +135,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     || !string.Equals(audience, internalOptions.Audience, StringComparison.Ordinal))
                 {
                     context.Fail("Only API-issued internal tokens are accepted.");
+                    return Task.CompletedTask;
+                }
+
+                var service = context.Principal?.FindFirst("svc")?.Value ?? context.Principal?.FindFirst(JwtRegisteredClaimNames.Azp)?.Value;
+                if (string.IsNullOrWhiteSpace(service) || !internalOptions.AllowedServices.Contains(service, StringComparer.Ordinal))
+                {
+                    context.Fail("Service claim validation failed.");
                 }
 
                 return Task.CompletedTask;
@@ -103,11 +155,54 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context => ScopeParser.GetScopes(context.User).Contains("content.read")));
     options.AddPolicy("ContentWrite", policy =>
         policy.RequireAssertion(context => ScopeParser.GetScopes(context.User).Contains("content.write")));
+    options.AddPolicy("RequireMtls", policy =>
+        policy.RequireAssertion(context => !mtlsOptions.Enabled || !mtlsOptions.RequireClientCertificate || (context.Resource is HttpContext httpContext && httpContext.Connection.ClientCertificate is not null)));
 });
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var cache = scope.ServiceProvider.GetRequiredService<InternalJwksCache>();
+    var refreshed = await cache.RefreshAsync(CancellationToken.None);
+    var startupOptions = scope.ServiceProvider.GetRequiredService<IOptions<InternalTokenOptions>>().Value;
+    var fallbackEnabled = startupOptions.AllowLegacyHs256
+        && !string.IsNullOrWhiteSpace(startupOptions.LegacyHs256Secret)
+        && !string.Equals(startupOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal);
+    if (!refreshed && !fallbackEnabled)
+    {
+        throw new InvalidOperationException("Failed to load JWKS and legacy fallback is not enabled.");
+    }
+}
+
 app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    var options = context.RequestServices.GetRequiredService<IOptions<AppServerMtlsOptions>>().Value;
+    if (options.Enabled && options.RequireClientCertificate && context.Request.Path.StartsWithSegments("/app"))
+    {
+        var cert = context.Connection.ClientCertificate;
+        if (cert is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Client certificate required.");
+            return;
+        }
+
+        var thumbprintAllowed = options.AllowedClientThumbprints.Length == 0 || options.AllowedClientThumbprints.Contains(cert.Thumbprint ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+        var subjectAllowed = options.AllowedClientSubjectNames.Length == 0 || options.AllowedClientSubjectNames.Contains(cert.Subject, StringComparer.OrdinalIgnoreCase);
+        if (!thumbprintAllowed || !subjectAllowed)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Client certificate not allowed.");
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -119,6 +214,7 @@ app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 var content = app.MapGroup("/app");
+content.RequireAuthorization("RequireMtls");
 
 content.MapGet("/items", (ICurrentUser currentUser) =>
     Results.Ok(new { owner = currentUser.Subject, permissions = currentUser.Permissions, items = new[] { "sample-item" } }))
