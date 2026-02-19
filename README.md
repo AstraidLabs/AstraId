@@ -24,7 +24,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
 - Exposes admin APIs (`/admin/api/*`) for managing users, roles, permissions, clients, scopes/resources, and governance settings.
 - Supports multiple access-token validation modes in Api (JWT, introspection, hybrid).
 - Enforces scopes and a dynamic permission policy map fetched from AuthServer.
-- Implements an internal token pattern: Api mints short-lived internal tokens for AppServer; AppServer accepts only these API-issued internal tokens (HS256) and rejects AuthServer user tokens directly.
+- Implements an internal token pattern: Api mints short-lived internal tokens for AppServer; AppServer validates API-issued internal tokens via Api JWKS (RS256/ES256, with optional temporary legacy HS256 fallback) and rejects AuthServer user tokens directly.
 - Uses Redis across AuthServer/Api/AppServer runtime paths (cache/event-related scenarios per component).
 - Uses Hangfire in AppServer for background jobs.
 - Includes a realtime hub endpoint in Api (`/hubs/app`) for SignalR fan-out to clients.
@@ -58,7 +58,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
   - Proxies content operations to AppServer and mints short-lived internal tokens for AppServer.
 - **AppServer (`src/AppServer`)**
   - Internal-only content/application service (`/app/*`).
-  - Accepts **only** API-issued internal tokens (`HS256`) and rejects AuthServer user tokens directly.
+  - Accepts **only** API-issued internal tokens (validated from Api JWKS, with optional temporary legacy HS256 fallback) and rejects AuthServer user tokens directly.
   - Uses Redis for cache/events and Hangfire for background jobs.
 - **Web (`src/Web`)**
   - React + Vite UI with user and admin routes.
@@ -89,7 +89,7 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
       |  - mints internal token to AppServer |
       +----------------+----------------------+
                        |
-                       | internal token (HS256)
+                       | internal token (RS256/ES256 via JWKS)
                        v
                +-------+--------+
                |   AppServer    |
@@ -493,8 +493,8 @@ Operational notes:
 - **Required:** required for the corresponding integration/health check flows.
 
 #### Section: `InternalTokens`
-- **Purpose:** signs short-lived internal JWTs for AppServer.
-- **Required:** **Yes**, `SigningKey` mandatory.
+- **Purpose:** signs short-lived internal JWTs for AppServer and exposes internal JWKS for AppServer verification.
+- **Required:** **Yes**, signing + JWKS settings are required for Api→AppServer token compatibility.
 - **Example:**
 
 ```json
@@ -502,14 +502,27 @@ Operational notes:
   "InternalTokens": {
     "Issuer": "astraid-api",
     "Audience": "astraid-app",
-    "LifetimeMinutes": 2,
-    "SigningKey": "__REPLACE_ME__",
-    "Algorithm": "HS256"
+    "TokenTtlSeconds": 120,
+    "AllowedServices": ["api"],
+    "Signing": {
+      "Algorithm": "RS256",
+      "RotationEnabled": true,
+      "RotationIntervalDays": 30,
+      "PreviousKeyRetentionDays": 60,
+      "KeySize": 2048
+    },
+    "Jwks": {
+      "Enabled": true,
+      "Path": "/internal/.well-known/jwks.json",
+      "RequireInternalApiKey": true,
+      "InternalApiKeyHeaderName": "X-Internal-Api-Key",
+      "InternalApiKey": "__REPLACE_ME__"
+    }
   }
 }
 ```
 
-- **Env var:** `InternalTokens__SigningKey` (plus issuer/audience/lifetime keys as needed).
+- **Env vars:** `InternalTokens__Signing__Algorithm`, `InternalTokens__Jwks__InternalApiKey`, plus issuer/audience/TTL/rotation keys.
 
 #### Section: `Redis`, `Cors`, `Swagger`, `SecurityHeaders`, `Http`
 - **Purpose:** SignalR backplane, browser origins, OpenAPI, headers/HSTS, retry/timeout.
@@ -520,8 +533,8 @@ Operational notes:
 ### 4.3 AppServer configuration reference
 
 #### Section: `InternalTokens`
-- **Purpose:** validates internal token minted by Api.
-- **Required:** **Yes**, signing key must match Api exactly.
+- **Purpose:** validates Api-issued internal tokens using Api JWKS.
+- **Required:** **Yes** (`JwksUrl` and `JwksInternalApiKey` required; optional legacy HS256 fallback only for migration windows).
 
 #### Section: `AuthServer:Issuer`
 - **Purpose:** explicit guard to reject AuthServer user tokens when they appear as bearer tokens.
@@ -542,8 +555,13 @@ Example:
   "InternalTokens": {
     "Issuer": "astraid-api",
     "Audience": "astraid-app",
-    "SigningKey": "__REPLACE_ME__",
-    "Algorithm": "HS256"
+    "AllowedServices": ["api"],
+    "AllowedAlgorithms": ["RS256"],
+    "JwksUrl": "https://localhost:7002/internal/.well-known/jwks.json",
+    "JwksRefreshMinutes": 5,
+    "JwksInternalApiKey": "__REPLACE_ME__",
+    "AllowLegacyHs256": false,
+    "LegacyHs256Secret": "__REPLACE_ME__"
   },
   "AuthServer": {
     "Issuer": "https://auth.example.com/"
@@ -599,18 +617,18 @@ dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,abortConnect=fa
 # Api
 cd ../Api
 dotnet user-secrets init
-dotnet user-secrets set "InternalTokens:SigningKey" "__REPLACE_ME_MIN_32_CHARS__"
+dotnet user-secrets set "InternalTokens:Jwks:InternalApiKey" "__REPLACE_ME__"
 dotnet user-secrets set "Api:AuthServer:ApiKey" "__REPLACE_ME__"
 dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,abortConnect=false"
 
 # AppServer
 cd ../AppServer
 dotnet user-secrets init
-dotnet user-secrets set "InternalTokens:SigningKey" "__REPLACE_ME_MIN_32_CHARS__"
+dotnet user-secrets set "InternalTokens:JwksInternalApiKey" "__REPLACE_ME__"
 dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,abortConnect=false"
 ```
 
-> Keep the **same** `InternalTokens:SigningKey` in Api and AppServer.
+> Keep `InternalTokens:Jwks:InternalApiKey` (Api) and `InternalTokens:JwksInternalApiKey` (AppServer) aligned.
 
 4. **Set Web env**:
 
@@ -841,7 +859,7 @@ curl -X POST "<BASE_URL>/admin/api/security/revoke/client/<CLIENT_ID>" \
 - Check AuthServer discovery doc first.
 - Use Api contract endpoint (`/api/admin/auth/contract`) to inspect issuer/audience/scheme/policy map refresh status.
 - If `/api/*` returns 403 unexpectedly, verify both scope claims and policy map contents.
-- If AppServer returns token errors, verify `InternalTokens` issuer/audience/signing key alignment between Api and AppServer.
+- If AppServer returns token errors, verify `InternalTokens` issuer/audience and JWKS/API-key alignment between Api and AppServer.
 
 ## 9) Appendix
 
@@ -859,7 +877,7 @@ curl -X POST "<BASE_URL>/admin/api/security/revoke/client/<CLIENT_ID>" \
 | Service | Endpoints |
 |---|---|
 | AuthServer | `/.well-known/openid-configuration`, `/.well-known/jwks`, `/connect/authorize`, `/connect/token`, `/connect/introspect`, `/connect/userinfo`, `/connect/logout`, `/connect/revocation`, `/auth/*`, `/account/*`, `/admin/*`, `/health` |
-| Api | `/api/public`, `/api/me`, `/api/admin/ping`, `/api/integrations/*`, `/api/admin/auth/contract`, `/hubs/app`, `/app/items`, `/health` |
+| Api | `/api/public`, `/api/me`, `/api/admin/ping`, `/api/integrations/*`, `/api/admin/auth/contract`, `/hubs/app`, `/app/items`, `/internal/.well-known/jwks.json`, `/health` |
 | AppServer | `/app/items`, `/app/items/{itemId}`, `/admin/hangfire`, `/health` |
 
 ### Environment variables quick reference
@@ -877,7 +895,8 @@ curl -X POST "<BASE_URL>/admin/api/security/revoke/client/<CLIENT_ID>" \
 | `Auth__ValidationMode` / `Auth__Issuer` / `Auth__Audience` / `Auth__RequiredScope` | Api |
 | `Auth__Introspection__ClientId` / `Auth__Introspection__ClientSecret` | Api |
 | `Api__AuthServer__BaseUrl` / `Api__AuthServer__ApiName` / `Api__AuthServer__ApiKey` | Api |
-| `InternalTokens__SigningKey` | Api + AppServer |
+| `InternalTokens__Jwks__InternalApiKey` | Api |
+| `InternalTokens__JwksInternalApiKey` | AppServer |
 | `Services__AppServer__BaseUrl` | Api |
 | `VITE_API_BASE_URL` | Web |
 | `VITE_AUTHSERVER_BASE_URL` / `VITE_AUTH_AUTHORITY` | Web |
