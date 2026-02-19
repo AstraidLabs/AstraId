@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using AuthServer.Options;
 using AuthServer.Services.Governance;
-using OpenIddict.Validation;
+using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Server;
 
 namespace AuthServer.Services.Tokens;
 
@@ -10,16 +12,18 @@ public sealed class TokenExchangeService
     public const string GrantType = "urn:ietf:params:oauth:grant-type:token-exchange";
 
     private readonly TokenExchangeOptions _options;
-    private readonly IOpenIddictValidationService _validationService;
+    private readonly JwtSecurityTokenHandler _tokenHandler = new();
+    private readonly TokenValidationParameters _tokenValidationParameters;
     private readonly IOAuthAdvancedPolicyProvider _policyProvider;
 
     public TokenExchangeService(
         Microsoft.Extensions.Options.IOptions<TokenExchangeOptions> options,
-        IOpenIddictValidationService validationService,
+        Microsoft.Extensions.Options.IOptions<OpenIddictServerOptions> serverOptions,
         IOAuthAdvancedPolicyProvider policyProvider)
     {
         _options = options.Value;
-        _validationService = validationService;
+        _tokenValidationParameters = serverOptions.Value.TokenValidationParameters.Clone();
+        _tokenValidationParameters.ValidateAudience = false;
         _policyProvider = policyProvider;
     }
 
@@ -47,7 +51,15 @@ public sealed class TokenExchangeService
             return null;
         }
 
-        return await _validationService.ValidateAccessTokenAsync(subjectToken, cancellationToken);
+        try
+        {
+            var principal = _tokenHandler.ValidateToken(subjectToken, _tokenValidationParameters, out _);
+            return await Task.FromResult(principal);
+        }
+        catch (SecurityTokenException)
+        {
+            return null;
+        }
     }
 
     public string ActorClaimType => _options.ActorClaimType;
