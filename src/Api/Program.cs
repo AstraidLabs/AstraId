@@ -530,11 +530,11 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseCors("Web");
-app.UseAuthentication();
 if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
 {
     app.UseRateLimiter();
 }
+app.UseAuthentication();
 app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
