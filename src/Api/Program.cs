@@ -24,8 +24,13 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using AstraId.Logging.Audit;
+using AstraId.Logging.Extensions;
+using AstraId.Logging.Redaction;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
 
 var configuredIssuer = builder.Configuration["Auth:Issuer"];
 var configuredAudience = builder.Configuration["Auth:Audience"];
@@ -432,6 +437,27 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        var services = context.HttpContext.RequestServices;
+        services.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+        {
+            EventType = "api.rate_limit.rejected",
+            Service = "Api",
+            Environment = services.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+            ActorType = context.HttpContext.User.Identity?.IsAuthenticated == true ? "user" : "system",
+            ActorId = context.HttpContext.User.FindFirst("sub")?.Value,
+            Target = context.HttpContext.Request.Path.Value,
+            Action = context.HttpContext.Request.Method,
+            Result = "failure",
+            ReasonCode = "rate_limit",
+            CorrelationId = context.HttpContext.TraceIdentifier,
+            TraceId = context.HttpContext.TraceIdentifier,
+            Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgentHash = LogSanitizer.ComputeStableHash(context.HttpContext.Request.Headers.UserAgent.ToString())
+        });
+        return ValueTask.CompletedTask;
+    };
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
     {
         var path = context.Request.Path.Value ?? string.Empty;
@@ -487,6 +513,7 @@ if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 }
 
 app.UseRouting();
+app.UseAstraLogging();
 
 app.Use(async (context, next) =>
 {
@@ -602,20 +629,58 @@ if (internalTokensOptions.Jwks.Enabled)
         .AllowAnonymous();
 }
 
-content.MapGet("/items", async (AppServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+content.MapGet("/items", async (AppServerClient client, HttpContext context, ISecurityAuditLogger auditLogger, IWebHostEnvironment env, CancellationToken cancellationToken) =>
     {
         var response = await client.GetItemsAsync(cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            auditLogger.Log(new SecurityAuditEvent
+            {
+                EventType = "api.downstream.appserver.failure",
+                Service = "Api",
+                Environment = env.EnvironmentName,
+                ActorType = context.User.Identity?.IsAuthenticated == true ? "user" : "system",
+                ActorId = context.User.FindFirst("sub")?.Value,
+                Target = "/app/items",
+                Action = "GET",
+                Result = "failure",
+                ReasonCode = $"status_{(int)response.StatusCode}",
+                CorrelationId = context.TraceIdentifier,
+                TraceId = context.TraceIdentifier,
+                Ip = context.Connection.RemoteIpAddress?.ToString()
+            });
+        }
+
         context.Response.StatusCode = (int)response.StatusCode;
         return Results.Text(payload, "application/json");
     })
     .RequireAuthorization("RequireContentRead");
 
-content.MapPost("/items", async (AppServerClient client, HttpContext context, CancellationToken cancellationToken) =>
+content.MapPost("/items", async (AppServerClient client, HttpContext context, ISecurityAuditLogger auditLogger, IWebHostEnvironment env, CancellationToken cancellationToken) =>
     {
         var body = await context.Request.ReadFromJsonAsync<object>(cancellationToken: cancellationToken) ?? new { };
         var response = await client.CreateItemAsync(body, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            auditLogger.Log(new SecurityAuditEvent
+            {
+                EventType = "api.downstream.appserver.failure",
+                Service = "Api",
+                Environment = env.EnvironmentName,
+                ActorType = context.User.Identity?.IsAuthenticated == true ? "user" : "system",
+                ActorId = context.User.FindFirst("sub")?.Value,
+                Target = "/app/items",
+                Action = "POST",
+                Result = "failure",
+                ReasonCode = $"status_{(int)response.StatusCode}",
+                CorrelationId = context.TraceIdentifier,
+                TraceId = context.TraceIdentifier,
+                Ip = context.Connection.RemoteIpAddress?.ToString()
+            });
+        }
+
         context.Response.StatusCode = (int)response.StatusCode;
         return Results.Text(payload, "application/json");
     })

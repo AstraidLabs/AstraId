@@ -1,4 +1,5 @@
 using Api.Services;
+using AstraId.Logging.Audit;
 using Company.Auth.Api.Scopes;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +23,9 @@ public sealed class EndpointAuthorizationMiddleware
         PolicyMapClient policyMapClient,
         IProblemDetailsService problemDetailsService,
         ILogger<EndpointAuthorizationMiddleware> logger,
-        IOptions<EndpointAuthorizationOptions> options)
+        IOptions<EndpointAuthorizationOptions> options,
+        ISecurityAuditLogger securityAuditLogger,
+        IWebHostEnvironment environment)
     {
         var path = context.Request.Path;
         if (!path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
@@ -47,6 +50,7 @@ public sealed class EndpointAuthorizationMiddleware
         if (context.User?.Identity?.IsAuthenticated != true)
         {
             logger.LogInformation("Unauthorized request to protected endpoint. Method: {Method}, Path: {Path}", context.Request.Method, path);
+            securityAuditLogger.Log(CreateEvent("api.auth.failure", "failure", "unauthorized", context, environment, path));
             await WriteProblemDetailsAsync(
                 context,
                 problemDetailsService,
@@ -65,6 +69,7 @@ public sealed class EndpointAuthorizationMiddleware
                 context.Request.Method,
                 path,
                 requiredScope);
+            securityAuditLogger.Log(CreateEvent("api.scope.denied", "failure", "missing_scope", context, environment, path));
             await WriteProblemDetailsAsync(
                 context,
                 problemDetailsService,
@@ -78,6 +83,7 @@ public sealed class EndpointAuthorizationMiddleware
         if (requiredPermissions is null)
         {
             logger.LogWarning("Endpoint not found in policy map. Method: {Method}, Path: {Path}", context.Request.Method, path);
+            securityAuditLogger.Log(CreateEvent("api.policy_map.denied", "failure", "policy_map_missing", context, environment, path));
             await WriteProblemDetailsAsync(
                 context,
                 problemDetailsService,
@@ -100,6 +106,7 @@ public sealed class EndpointAuthorizationMiddleware
         if (!requiredPermissions.All(userPermissions.Contains))
         {
             logger.LogInformation("Forbidden request due to missing permissions. Method: {Method}, Path: {Path}", context.Request.Method, path);
+            securityAuditLogger.Log(CreateEvent("api.permission.denied", "failure", "missing_permission", context, environment, path));
             await WriteProblemDetailsAsync(
                 context,
                 problemDetailsService,
@@ -111,6 +118,22 @@ public sealed class EndpointAuthorizationMiddleware
 
         await _next(context);
     }
+
+    private static SecurityAuditEvent CreateEvent(string eventType, string result, string reasonCode, HttpContext context, IWebHostEnvironment environment, PathString path) => new()
+    {
+        EventType = eventType,
+        Service = "Api",
+        Environment = environment.EnvironmentName,
+        ActorType = context.User.Identity?.IsAuthenticated == true ? "user" : "system",
+        ActorId = context.User.FindFirst("sub")?.Value,
+        Target = path.Value,
+        Action = context.Request.Method,
+        Result = result,
+        ReasonCode = reasonCode,
+        CorrelationId = context.TraceIdentifier,
+        TraceId = context.TraceIdentifier,
+        Ip = context.Connection.RemoteIpAddress?.ToString()
+    };
 
     private static async Task WriteProblemDetailsAsync(
         HttpContext context,

@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AuthServer.Authorization;
 using AuthServer.Data;
 using AuthServer.Options;
+using AstraId.Logging.Audit;
+using AstraId.Logging.Options;
+using AstraId.Logging.Redaction;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -16,26 +18,34 @@ public sealed class ExceptionHandlingMiddleware
 {
     private const int MaxStackTraceLength = 12_000;
     private const int MaxInnerExceptionLength = 2000;
-    private static readonly Regex SensitivePairRegex = new("(?i)(authorization|bearer|client_secret|password|refresh_token|access_token|api[_-]?key|token)\\s*[:=]\\s*([^\\s,;]+)", RegexOptions.Compiled);
 
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<DiagnosticsOptions> _diagnosticsOptions;
     private readonly IWebHostEnvironment _environment;
+    private readonly ILogSanitizer _sanitizer;
+    private readonly IOptions<AstraLoggingOptions> _loggingOptions;
+    private readonly ISecurityAuditLogger _securityAuditLogger;
 
     public ExceptionHandlingMiddleware(
         RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger,
         IServiceScopeFactory scopeFactory,
         IOptions<DiagnosticsOptions> diagnosticsOptions,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        ILogSanitizer sanitizer,
+        IOptions<AstraLoggingOptions> loggingOptions,
+        ISecurityAuditLogger securityAuditLogger)
     {
         _next = next;
         _logger = logger;
         _scopeFactory = scopeFactory;
         _diagnosticsOptions = diagnosticsOptions;
         _environment = environment;
+        _sanitizer = sanitizer;
+        _loggingOptions = loggingOptions;
+        _securityAuditLogger = securityAuditLogger;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -63,6 +73,21 @@ public sealed class ExceptionHandlingMiddleware
         var statusCode = StatusCodes.Status500InternalServerError;
 
         _logger.LogError(exception, "Unhandled exception captured. ErrorId: {ErrorId}, TraceId: {TraceId}", errorId, traceId);
+        _securityAuditLogger.Log(new SecurityAuditEvent
+        {
+            EventType = "auth.unhandled_exception",
+            Service = "AuthServer",
+            Environment = _environment.EnvironmentName,
+            ActorType = context.User.Identity?.IsAuthenticated == true ? "user" : "system",
+            ActorId = context.User.FindFirst("sub")?.Value,
+            Target = context.Request.Path.Value,
+            Action = context.Request.Method,
+            Result = "failure",
+            ReasonCode = "unhandled_exception",
+            CorrelationId = context.TraceIdentifier,
+            TraceId = traceId,
+            Ip = context.Connection.RemoteIpAddress?.ToString()
+        });
 
         await StoreErrorLogAsync(context, exception, errorId, traceId, statusCode);
 
@@ -97,6 +122,7 @@ public sealed class ExceptionHandlingMiddleware
         }
 
         var includeDetails = !_environment.IsProduction() || options.StoreDetailedExceptionDataInProduction;
+        var redactionEnabled = _loggingOptions.Value.RedactionEnabled || _environment.IsProduction();
 
         try
         {
@@ -104,22 +130,26 @@ public sealed class ExceptionHandlingMiddleware
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var actorUserId = TryResolveUserId(context.User);
 
+            var path = redactionEnabled
+                ? _sanitizer.SanitizePathAndQuery(context.Request.Path, context.Request.QueryString)
+                : (context.Request.Path.HasValue ? context.Request.Path.Value! : string.Empty);
+
             var error = new ErrorLog
             {
                 Id = errorId,
                 TimestampUtc = DateTime.UtcNow,
                 TraceId = traceId,
                 ActorUserId = actorUserId,
-                Path = context.Request.Path.HasValue ? context.Request.Path.Value! : string.Empty,
+                Path = path,
                 Method = context.Request.Method,
                 StatusCode = statusCode,
                 Title = ReasonPhrases.GetReasonPhrase(statusCode),
                 Detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? string.Empty,
                 ExceptionType = exception.GetType().FullName,
-                StackTrace = includeDetails ? Redact(Truncate(exception.ToString(), MaxStackTraceLength)) : "Exception details hidden in production.",
-                InnerException = includeDetails ? Redact(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength)) : null,
-                DataJson = includeDetails ? Redact(SerializeExceptionData(exception)) : null,
-                UserAgent = Redact(context.Request.Headers.UserAgent.ToString()),
+                StackTrace = includeDetails ? MaybeSanitize(Truncate(exception.ToString(), MaxStackTraceLength), redactionEnabled) : "Exception details hidden in production.",
+                InnerException = includeDetails ? MaybeSanitize(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength), redactionEnabled) : null,
+                DataJson = includeDetails ? MaybeSanitize(SerializeExceptionData(exception), redactionEnabled) : null,
+                UserAgent = MaybeSanitize(context.Request.Headers.UserAgent.ToString(), redactionEnabled),
                 RemoteIp = context.Connection.RemoteIpAddress?.ToString()
             };
 
@@ -150,11 +180,11 @@ public sealed class ExceptionHandlingMiddleware
                """;
     }
 
-    private static object BuildDebugPayload(Exception exception, HttpContext context) => new
+    private object BuildDebugPayload(Exception exception, HttpContext context) => new
     {
         exceptionType = exception.GetType().FullName,
-        stackTrace = Redact(Truncate(exception.ToString(), MaxStackTraceLength)),
-        innerExceptionSummary = Redact(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength)),
+        stackTrace = MaybeSanitize(Truncate(exception.ToString(), MaxStackTraceLength), true),
+        innerExceptionSummary = MaybeSanitize(Truncate(exception.InnerException?.Message, MaxInnerExceptionLength), true),
         path = context.Request.Path.Value,
         method = context.Request.Method
     };
@@ -181,13 +211,5 @@ public sealed class ExceptionHandlingMiddleware
         return value.Length <= maxLength ? value : value[..maxLength];
     }
 
-    private static string? Redact(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return value;
-        }
-
-        return SensitivePairRegex.Replace(value, "$1=[REDACTED]");
-    }
+    private string? MaybeSanitize(string? value, bool sanitize) => sanitize ? _sanitizer.SanitizeValue(value) : value;
 }

@@ -24,6 +24,10 @@ using AuthServer.Services.Governance;
 using AuthServer.Services.Security;
 using AuthServer.Services.Notifications;
 using AuthServer.Services.OpenIddict;
+using AstraId.Logging.Audit;
+using AstraId.Logging.Extensions;
+using AstraId.Logging.Options;
+using AstraId.Logging.Redaction;
 using Company.Auth.Contracts;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -42,6 +46,8 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
 
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
@@ -346,9 +352,26 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers.RetryAfter = "60";
-        context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+        var services = context.HttpContext.RequestServices;
+        services.GetRequiredService<ILoggerFactory>()
             .CreateLogger("RateLimiter")
             .LogWarning("Rate limit rejected request for path {Path}.", context.HttpContext.Request.Path);
+        services.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+        {
+            EventType = "rate_limit.rejected",
+            Service = "AuthServer",
+            Environment = services.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+            ActorType = context.HttpContext.User.Identity?.IsAuthenticated == true ? "user" : "system",
+            ActorId = context.HttpContext.User.FindFirst("sub")?.Value,
+            Target = context.HttpContext.Request.Path.Value,
+            Action = context.HttpContext.Request.Method,
+            Result = "failure",
+            ReasonCode = "rate_limit",
+            CorrelationId = context.HttpContext.TraceIdentifier,
+            TraceId = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier,
+            Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgentHash = LogSanitizer.ComputeStableHash(context.HttpContext.Request.Headers.UserAgent.ToString())
+        });
         return ValueTask.CompletedTask;
     };
 
@@ -565,7 +588,7 @@ if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(
 }
 app.UseRouting();
 
-app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseAstraLogging();
 app.UseCors("Web");
 app.UseAuthentication();
 if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
@@ -656,6 +679,7 @@ static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode,
     try
     {
         var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var sanitizer = context.RequestServices.GetRequiredService<ILogSanitizer>();
         var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
         var actorUserId = Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
             ? userId
@@ -667,12 +691,12 @@ static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode,
             TimestampUtc = DateTime.UtcNow,
             TraceId = traceId,
             ActorUserId = actorUserId,
-            Path = context.Request.Path.HasValue ? context.Request.Path.Value! : string.Empty,
+            Path = sanitizer.SanitizePathAndQuery(context.Request.Path, context.Request.QueryString),
             Method = context.Request.Method,
             StatusCode = statusCode,
             Title = ReasonPhrases.GetReasonPhrase(statusCode),
             Detail = ProblemDetailsDefaults.GetDefaultDetail(statusCode) ?? string.Empty,
-            UserAgent = context.Request.Headers.UserAgent.ToString(),
+            UserAgent = sanitizer.SanitizeValue(context.Request.Headers.UserAgent.ToString()),
             RemoteIp = context.Connection.RemoteIpAddress?.ToString()
         });
 
