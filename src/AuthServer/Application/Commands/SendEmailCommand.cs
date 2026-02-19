@@ -17,6 +17,12 @@ public sealed class SendEmailCommandHandler : IRequestHandler<SendEmailCommand>
 
     public Task Handle(SendEmailCommand request, CancellationToken cancellationToken)
     {
-        return _emailSender.SendAsync(request.ToEmail, request.Subject, request.Body, cancellationToken);
+        var message = new EmailMessage(
+            request.ToEmail,
+            null,
+            request.Subject,
+            request.Body);
+
+        return _emailSender.SendAsync(message, cancellationToken);
     }
 }
