@@ -1,3 +1,5 @@
+using AstraId.Contracts;
+
 namespace AuthServer.Services.Events;
 
 public sealed class InMemoryEventPublisher : IEventPublisher
@@ -9,9 +11,11 @@ public sealed class InMemoryEventPublisher : IEventPublisher
         _logger = logger;
     }
 
-    public Task PublishAsync(string channel, string payload, CancellationToken cancellationToken = default)
+    public Task PublishAsync(AppEvent appEvent, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Skipping distributed event publish in development fallback. Channel: {Channel}", channel);
+        _logger.LogDebug(
+            "Skipping distributed event publish in development fallback. Event: {EventType}",
+            appEvent.Type);
         return Task.CompletedTask;
     }
 }
