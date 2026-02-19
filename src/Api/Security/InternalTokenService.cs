@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Api.Options;
 using Company.Auth.Contracts;
 using Microsoft.Extensions.Options;
@@ -16,10 +15,12 @@ public interface IInternalTokenService
 public sealed class InternalTokenService : IInternalTokenService
 {
     private readonly IOptions<InternalTokenOptions> _options;
+    private readonly InternalTokenKeyRingService _keyRingService;
 
-    public InternalTokenService(IOptions<InternalTokenOptions> options)
+    public InternalTokenService(IOptions<InternalTokenOptions> options, InternalTokenKeyRingService keyRingService)
     {
         _options = options;
+        _keyRingService = keyRingService;
     }
 
     public string CreateToken(ClaimsPrincipal principal, IEnumerable<string> grantedScopes)
@@ -32,9 +33,10 @@ public sealed class InternalTokenService : IInternalTokenService
         }
 
         var now = DateTime.UtcNow;
+        var signingKey = _keyRingService.GetCurrentKey();
         var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.SigningKey)),
-            ResolveAlgorithm(settings.Algorithm));
+            signingKey.PrivateKey,
+            signingKey.Algorithm);
 
         var scopes = grantedScopes
             .Distinct(StringComparer.Ordinal)
@@ -44,7 +46,9 @@ public sealed class InternalTokenService : IInternalTokenService
         {
             new(JwtRegisteredClaimNames.Sub, subject),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
-            new(JwtRegisteredClaimNames.Iat, EpochTime.GetIntDate(now).ToString(), ClaimValueTypes.Integer64)
+            new(JwtRegisteredClaimNames.Iat, EpochTime.GetIntDate(now).ToString(), ClaimValueTypes.Integer64),
+            new("svc", "api"),
+            new(JwtRegisteredClaimNames.Azp, "api")
         };
 
         var tenant = principal.FindFirst("tenant")?.Value;
@@ -68,15 +72,11 @@ public sealed class InternalTokenService : IInternalTokenService
             audience: settings.Audience,
             claims: claims,
             notBefore: now,
-            expires: now.AddMinutes(settings.LifetimeMinutes),
+            expires: now.AddSeconds(settings.TokenTtlSeconds),
             signingCredentials: credentials);
+
+        token.Header[JwtHeaderParameterNames.Kid] = signingKey.Kid;
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-
-    private static string ResolveAlgorithm(string? algorithm) => algorithm?.ToUpperInvariant() switch
-    {
-        "HS256" => SecurityAlgorithms.HmacSha256,
-        _ => throw new InvalidOperationException("Unsupported internal token algorithm.")
-    };
 }

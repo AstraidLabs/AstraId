@@ -6,7 +6,26 @@ public sealed class InternalTokenOptions
 
     public string Issuer { get; set; } = "astraid-api";
     public string Audience { get; set; } = "astraid-app";
-    public int LifetimeMinutes { get; set; } = 2;
-    public string SigningKey { get; set; } = string.Empty;
-    public string Algorithm { get; set; } = "HS256";
+    public int TokenTtlSeconds { get; set; } = 120;
+    public string[] AllowedServices { get; set; } = ["api"];
+    public InternalTokenSigningOptions Signing { get; set; } = new();
+    public InternalTokenJwksOptions Jwks { get; set; } = new();
+}
+
+public sealed class InternalTokenSigningOptions
+{
+    public string Algorithm { get; set; } = "RS256";
+    public bool RotationEnabled { get; set; } = true;
+    public int RotationIntervalDays { get; set; } = 30;
+    public int PreviousKeyRetentionDays { get; set; } = 60;
+    public int KeySize { get; set; } = 2048;
+}
+
+public sealed class InternalTokenJwksOptions
+{
+    public bool Enabled { get; set; } = true;
+    public string Path { get; set; } = "/internal/.well-known/jwks.json";
+    public bool RequireInternalApiKey { get; set; } = true;
+    public string InternalApiKeyHeaderName { get; set; } = "X-Internal-Api-Key";
+    public string InternalApiKey { get; set; } = string.Empty;
 }

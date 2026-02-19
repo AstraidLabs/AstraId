@@ -19,6 +19,8 @@ using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,8 +35,7 @@ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 var enableSignalRBackplane = builder.Configuration.GetValue<bool>("Redis:EnableSignalRBackplane");
 
 var internalTokensSection = builder.Configuration.GetSection(InternalTokenOptions.SectionName);
-var internalTokenLifetime = internalTokensSection.GetValue<int?>("LifetimeMinutes") ?? 2;
-var internalTokenSigningKey = internalTokensSection["SigningKey"];
+var internalTokenLifetime = internalTokensSection.GetValue<int?>("TokenTtlSeconds") ?? 120;
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -76,14 +77,9 @@ if (!builder.Environment.IsDevelopment())
     }
 }
 
-if (string.IsNullOrWhiteSpace(internalTokenSigningKey))
+if (internalTokenLifetime is < 60 or > 300)
 {
-    throw new InvalidOperationException("InternalTokens:SigningKey must be configured.");
-}
-
-if (internalTokenLifetime is < 1 or > 5)
-{
-    throw new InvalidOperationException("InternalTokens:LifetimeMinutes must be between 1 and 5.");
+    throw new InvalidOperationException("InternalTokens:TokenTtlSeconds must be between 60 and 300.");
 }
 
 var effectiveIssuer = string.IsNullOrWhiteSpace(configuredIssuer)
@@ -123,12 +119,17 @@ builder.Services.AddOptions<InternalTokenOptions>()
     {
         options.Issuer = string.IsNullOrWhiteSpace(options.Issuer) ? "astraid-api" : options.Issuer;
         options.Audience = string.IsNullOrWhiteSpace(options.Audience) ? "astraid-app" : options.Audience;
-        options.LifetimeMinutes = options.LifetimeMinutes <= 0 ? 2 : options.LifetimeMinutes;
+        options.TokenTtlSeconds = options.TokenTtlSeconds <= 0 ? 120 : options.TokenTtlSeconds;
     })
-    .Validate(options => !string.IsNullOrWhiteSpace(options.SigningKey), "Internal token signing key is required.")
-    .Validate(options => options.LifetimeMinutes is >= 1 and <= 5, "Internal token lifetime must be in range 1-5 minutes.")
-    .Validate(options => string.Equals(options.Algorithm, "HS256", StringComparison.OrdinalIgnoreCase), "Only HS256 is supported for internal tokens.")
+    .Validate(options => options.TokenTtlSeconds is >= 60 and <= 300, "Internal token TTL must be in range 60-300 seconds.")
+    .Validate(options => options.Signing.Algorithm is "RS256" or "ES256", "Internal token algorithm must be RS256 or ES256.")
+    .Validate(options => options.Signing.KeySize >= 2048, "Internal token RSA key size must be at least 2048.")
+    .Validate(options => options.Signing.RotationIntervalDays > 0, "Internal token rotation interval must be greater than zero.")
+    .Validate(options => options.Signing.PreviousKeyRetentionDays >= options.Signing.RotationIntervalDays, "Previous key retention must be greater than or equal to rotation interval.")
     .ValidateOnStart();
+builder.Services.AddSingleton<InternalTokenKeyRingService>();
+builder.Services.AddSingleton<InternalJwksService>();
+builder.Services.AddHostedService<InternalTokenKeyRotationService>();
 builder.Services.AddSingleton<IInternalTokenService, InternalTokenService>();
 builder.Services.Configure<EndpointAuthorizationOptions>(options =>
 {
@@ -264,6 +265,7 @@ builder.Services.AddHttpClient(PolicyMapClient.HttpClientName, (sp, client) =>
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.AuthServer, builder.Configuration.GetSection("Services:AuthServer"));
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Configuration.GetSection("Services:Cms"));
 builder.Services.Configure<ServiceClientOptions>(ServiceNames.AppServer, builder.Configuration.GetSection("Services:AppServer"));
+builder.Services.Configure<AppServerOptions>(builder.Configuration.GetSection("AppServer"));
 builder.Services.Configure<HttpOptions>(builder.Configuration.GetSection("Http"));
 
 builder.Services.AddTransient<CorrelationIdHandler>();
@@ -311,6 +313,50 @@ builder.Services.AddHttpClient<AppServerClient>((sp, client) =>
 
         var httpOptions = sp.GetRequiredService<IOptions<HttpOptions>>().Value;
         client.Timeout = TimeSpan.FromSeconds(httpOptions.TimeoutSeconds);
+    })
+    .ConfigurePrimaryHttpMessageHandler(sp =>
+    {
+        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AppServerMtls");
+        var options = sp.GetRequiredService<IOptions<AppServerOptions>>().Value;
+        var handler = new HttpClientHandler();
+
+        if (!options.Mtls.Enabled)
+        {
+            logger.LogInformation("AppServer outbound mTLS disabled.");
+            return handler;
+        }
+
+        logger.LogInformation("AppServer outbound mTLS enabled. Server validation mode: {Mode}", options.Mtls.ServerCertificate.ValidationMode);
+        if (string.Equals(options.Mtls.ClientCertificate.Source, "File", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(options.Mtls.ClientCertificate.Path))
+        {
+            var cert = string.IsNullOrWhiteSpace(options.Mtls.ClientCertificate.Password)
+                ? new X509Certificate2(options.Mtls.ClientCertificate.Path)
+                : new X509Certificate2(options.Mtls.ClientCertificate.Path, options.Mtls.ClientCertificate.Password);
+            handler.ClientCertificates.Add(cert);
+        }
+
+        if (string.Equals(options.Mtls.ServerCertificate.ValidationMode, "PinThumbprint", StringComparison.OrdinalIgnoreCase)
+            && options.Mtls.ServerCertificate.PinnedThumbprints.Length > 0)
+        {
+            var allowed = options.Mtls.ServerCertificate.PinnedThumbprints
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant())
+                .ToHashSet(StringComparer.Ordinal);
+
+            handler.ServerCertificateCustomValidationCallback = (_, cert, _, errors) =>
+            {
+                if (errors != SslPolicyErrors.None || cert is null)
+                {
+                    return false;
+                }
+
+                var thumbprint = cert.GetCertHashString().ToUpperInvariant();
+                return allowed.Contains(thumbprint);
+            };
+        }
+
+        return handler;
     })
     .AddHttpMessageHandler<CorrelationIdHandler>()
     .AddHttpMessageHandler<InternalTokenHandler>()
@@ -481,6 +527,31 @@ api.MapGet("/integrations/cms/ping", async (CmsClient client, CancellationToken 
     .RequireAuthorization("RequireSystemAdmin");
 
 var content = app.MapGroup("/app");
+
+var internalTokensOptions = app.Services.GetRequiredService<IOptions<InternalTokenOptions>>().Value;
+if (internalTokensOptions.Jwks.Enabled)
+{
+    app.MapGet(internalTokensOptions.Jwks.Path, (HttpContext context, IOptions<InternalTokenOptions> optionsAccessor, InternalJwksService jwksService) =>
+        {
+            var options = optionsAccessor.Value;
+            if (options.Jwks.RequireInternalApiKey)
+            {
+                if (string.IsNullOrWhiteSpace(options.Jwks.InternalApiKey))
+                {
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                }
+
+                if (!context.Request.Headers.TryGetValue(options.Jwks.InternalApiKeyHeaderName, out var headerValue)
+                    || !string.Equals(headerValue.ToString(), options.Jwks.InternalApiKey, StringComparison.Ordinal))
+                {
+                    return Results.Unauthorized();
+                }
+            }
+
+            return Results.Json(jwksService.GetJwksDocument());
+        })
+        .AllowAnonymous();
+}
 
 content.MapGet("/items", async (AppServerClient client, HttpContext context, CancellationToken cancellationToken) =>
     {

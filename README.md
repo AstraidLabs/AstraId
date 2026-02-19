@@ -1039,3 +1039,69 @@ dotnet user-secrets set "Email:Graph:ClientId" "<value>"
 dotnet user-secrets set "Email:Graph:ClientSecret" "<value>"
 dotnet user-secrets set "Email:Graph:FromUser" "<value>"
 ```
+
+### Internal Tokens Migration: HS256 -> RS256/ES256 (Api -> AppServer)
+
+Use a phased rollout for a controlled migration:
+1. **Prepare AppServer for dual validation (non-prod first):**
+   - Set `InternalTokens:AllowLegacyHs256=true` only while migrating.
+   - Configure `InternalTokens:LegacyHs256Secret` via environment variables or user-secrets.
+   - Configure JWKS settings (`InternalTokens:JwksUrl`, `InternalTokens:JwksInternalApiKey`).
+2. **Enable Api asymmetric signing:**
+   - Set `InternalTokens:Signing:Algorithm=RS256` (default) or `ES256`.
+   - Keep short TTL with `InternalTokens:TokenTtlSeconds` (recommended 120; allowed 60-300).
+   - Ensure Api JWKS is enabled at `InternalTokens:Jwks:Path` and protected by `InternalTokens:Jwks:InternalApiKey` header.
+3. **Observe and verify:**
+   - Confirm AppServer validates by `kid` from JWKS cache.
+   - Verify `svc`/`azp` claim allowlist (`InternalTokens:AllowedServices`).
+4. **Cutover:**
+   - Set `InternalTokens:AllowLegacyHs256=false` everywhere.
+   - In Production, keep `AllowLegacyHs256=false` as default.
+
+Configuration keys (placeholders only):
+- Api:
+  - `InternalTokens:Issuer`, `InternalTokens:Audience`, `InternalTokens:TokenTtlSeconds`
+  - `InternalTokens:Signing:Algorithm`, `RotationEnabled`, `RotationIntervalDays`, `PreviousKeyRetentionDays`, `KeySize`
+  - `InternalTokens:Jwks:Enabled`, `Path`, `RequireInternalApiKey`, `InternalApiKeyHeaderName`, `InternalApiKey`
+- AppServer:
+  - `InternalTokens:Issuer`, `InternalTokens:Audience`, `AllowedServices`, `AllowedAlgorithms`
+  - `InternalTokens:JwksUrl`, `JwksRefreshMinutes`, `JwksInternalApiKey`
+  - `InternalTokens:AllowLegacyHs256`, `LegacyHs256Secret`
+
+Operational guidance:
+- Rotation runs with current+previous keys retained for overlap; AppServer refreshes JWKS periodically.
+- Emergency rotation: rotate key immediately in Api and ensure AppServer JWKS refresh succeeds before disabling prior key retention.
+- JWKS endpoint publishes **public keys only** and must remain internal-only at network level (private subnet, service mesh policy, firewall), in addition to header protection.
+- Never commit secrets (`InternalApiKey`, `LegacyHs256Secret`) to source control.
+
+### mTLS: Api ↔ AppServer
+
+mTLS adds transport identity on top of JWT authorization:
+- Api proves identity to AppServer with a client certificate.
+- AppServer only accepts trusted Api certificates.
+
+Enablement by environment:
+- Api outbound (`AppServer:Mtls`):
+  - `Enabled`
+  - `ClientCertificate:Source|Path|Password|Thumbprint`
+  - `ServerCertificate:ValidationMode` (`System` or `PinThumbprint`)
+  - `ServerCertificate:PinnedThumbprints`
+- AppServer inbound (`AppServer:Mtls`):
+  - `Enabled`
+  - `RequireClientCertificate`
+  - `AllowedClientThumbprints`
+  - `AllowedClientSubjectNames`
+
+Certificate provisioning options:
+- Development: short-lived self-signed certs generated locally, distributed out-of-band.
+- Higher environments: internal CA-issued certs with rotation procedures and revocation management.
+
+Troubleshooting:
+- TLS handshake failures: verify client cert path/password, server trust chain, and hostname.
+- 403 on `/app` endpoints: verify client cert allowlist thumbprint/subject settings.
+- Pinning failures: verify configured pinned thumbprints exactly match server certificate.
+
+Reverse proxy note:
+- If TLS is terminated at ingress/proxy, enforce mTLS at that boundary.
+- Do **not** trust forwarded client-certificate headers unless the trusted proxy boundary is strictly enforced.
+- AppServer should be internal-only and not publicly exposed.
