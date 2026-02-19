@@ -2,7 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using AuthServer.Options;
-using Microsoft.Extensions.Options;
+using AuthServer.Services.Governance;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.Sessions;
@@ -11,18 +11,21 @@ public sealed class BackChannelLogoutService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly SessionManagementOptions _options;
+    private readonly IOAuthAdvancedPolicyProvider _policyProvider;
     private readonly string? _issuer;
     private readonly SigningCredentials? _signingCredentials;
     private readonly ILogger<BackChannelLogoutService> _logger;
 
     public BackChannelLogoutService(
         IHttpClientFactory httpClientFactory,
-        IOptions<SessionManagementOptions> options,
-        IOptions<OpenIddict.Server.OpenIddictServerOptions> serverOptions,
+        Microsoft.Extensions.Options.IOptions<SessionManagementOptions> options,
+        Microsoft.Extensions.Options.IOptions<OpenIddict.Server.OpenIddictServerOptions> serverOptions,
+        IOAuthAdvancedPolicyProvider policyProvider,
         ILogger<BackChannelLogoutService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
+        _policyProvider = policyProvider;
         _logger = logger;
 
         var tokenValidation = serverOptions.Value.TokenValidationParameters;
@@ -34,11 +37,13 @@ public sealed class BackChannelLogoutService
         }
     }
 
-    public bool Enabled => _options.BackChannelEnabled;
+    public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken)
+        => (await _policyProvider.GetCurrentAsync(cancellationToken)).BackChannelLogoutEnabled;
 
     public async Task NotifyAsync(string subject, IEnumerable<string> clientIds, CancellationToken cancellationToken)
     {
-        if (!_options.BackChannelEnabled || _signingCredentials is null)
+        var policy = await _policyProvider.GetCurrentAsync(cancellationToken);
+        if (!policy.BackChannelLogoutEnabled || _signingCredentials is null)
         {
             return;
         }
@@ -50,15 +55,12 @@ public sealed class BackChannelLogoutService
                 continue;
             }
 
-            var logoutToken = BuildLogoutToken(subject, clientId);
+            var logoutToken = BuildLogoutToken(subject, clientId, policy.LogoutTokenTtlMinutes);
             var body = new Dictionary<string, string> { ["logout_token"] = logoutToken };
 
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new FormUrlEncodedContent(body)
-                };
+                using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(body) };
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 var client = _httpClientFactory.CreateClient(nameof(BackChannelLogoutService));
                 var response = await client.SendAsync(request, cancellationToken);
@@ -74,7 +76,7 @@ public sealed class BackChannelLogoutService
         }
     }
 
-    private string BuildLogoutToken(string subject, string audience)
+    private string BuildLogoutToken(string subject, string audience, int ttlMinutes)
     {
         var now = DateTimeOffset.UtcNow;
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -88,7 +90,7 @@ public sealed class BackChannelLogoutService
             }),
             Audience = audience,
             Issuer = _issuer,
-            Expires = now.AddMinutes(5).UtcDateTime,
+            Expires = now.AddMinutes(Math.Clamp(ttlMinutes, 1, 60)).UtcDateTime,
             NotBefore = now.UtcDateTime,
             IssuedAt = now.UtcDateTime,
             SigningCredentials = _signingCredentials

@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using AuthServer.Options;
-using Microsoft.Extensions.Options;
+using AuthServer.Services.Governance;
 using OpenIddict.Validation;
 
 namespace AuthServer.Services.Tokens;
@@ -11,24 +11,34 @@ public sealed class TokenExchangeService
 
     private readonly TokenExchangeOptions _options;
     private readonly IOpenIddictValidationService _validationService;
+    private readonly IOAuthAdvancedPolicyProvider _policyProvider;
 
     public TokenExchangeService(
-        IOptions<TokenExchangeOptions> options,
-        IOpenIddictValidationService validationService)
+        Microsoft.Extensions.Options.IOptions<TokenExchangeOptions> options,
+        IOpenIddictValidationService validationService,
+        IOAuthAdvancedPolicyProvider policyProvider)
     {
         _options = options.Value;
         _validationService = validationService;
+        _policyProvider = policyProvider;
     }
 
-    public bool Enabled => _options.Enabled;
+    public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken)
+        => (await _policyProvider.GetCurrentAsync(cancellationToken)).TokenExchangeEnabled;
 
-    public bool IsClientAllowed(string? clientId)
-        => !string.IsNullOrWhiteSpace(clientId)
-           && _options.AllowedClients.Contains(clientId, StringComparer.OrdinalIgnoreCase);
+    public async Task<bool> IsClientAllowedAsync(string? clientId, CancellationToken cancellationToken)
+    {
+        var policy = await _policyProvider.GetCurrentAsync(cancellationToken);
+        return !string.IsNullOrWhiteSpace(clientId)
+           && policy.TokenExchangeAllowedClientIds.Contains(clientId, StringComparer.OrdinalIgnoreCase);
+    }
 
-    public bool IsAudienceAllowed(string? audience)
-        => !string.IsNullOrWhiteSpace(audience)
-           && _options.AllowedAudiences.Contains(audience, StringComparer.OrdinalIgnoreCase);
+    public async Task<bool> IsAudienceAllowedAsync(string? audience, CancellationToken cancellationToken)
+    {
+        var policy = await _policyProvider.GetCurrentAsync(cancellationToken);
+        return !string.IsNullOrWhiteSpace(audience)
+           && policy.TokenExchangeAllowedAudiences.Contains(audience, StringComparer.OrdinalIgnoreCase);
+    }
 
     public async Task<ClaimsPrincipal?> ValidateSubjectTokenAsync(string? subjectToken, CancellationToken cancellationToken)
     {

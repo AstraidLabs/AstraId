@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
+using AuthServer.Data;
 using AuthServer.Models;
 using AuthServer.Options;
 using AuthServer.Services.Admin.Models;
@@ -258,6 +259,52 @@ public static class AdminValidation
             result.AddFieldError(
                 "refreshReuseLeewaySeconds",
                 "Reuse leeway must be between 0 and 3600 seconds.");
+        }
+
+        return result;
+    }
+
+
+    public static AdminValidationResult ValidateOAuthAdvancedPolicy(UpdateAdminOAuthAdvancedPolicyRequest request)
+    {
+        var result = new AdminValidationResult();
+
+        if (request.DeviceFlowPollingIntervalSeconds < 5)
+        {
+            result.AddFieldError("deviceFlowPollingIntervalSeconds", "Polling interval must be at least 5 seconds.");
+        }
+
+        if (request.DeviceFlowUserCodeTtlMinutes is < 1 or > 60)
+        {
+            result.AddFieldError("deviceFlowUserCodeTtlMinutes", "Device flow user code TTL must be between 1 and 60 minutes.");
+        }
+
+        if (request.LogoutTokenTtlMinutes is < 1 or > 60)
+        {
+            result.AddFieldError("logoutTokenTtlMinutes", "Logout token TTL must be between 1 and 60 minutes.");
+        }
+
+        if (request.TokenExchangeEnabled)
+        {
+            if (request.TokenExchangeAllowedClientIds.Count == 0)
+            {
+                result.AddFieldError("tokenExchangeAllowedClientIds", "At least one client ID must be allowed when token exchange is enabled.");
+            }
+
+            if (request.TokenExchangeAllowedAudiences.Count == 0)
+            {
+                result.AddFieldError("tokenExchangeAllowedAudiences", "At least one audience must be allowed when token exchange is enabled.");
+            }
+        }
+
+        if (request.FrontChannelLogoutEnabled && !request.BackChannelLogoutEnabled && !request.BreakGlass)
+        {
+            result.AddFieldError("frontChannelLogoutEnabled", "Front-channel logout requires back-channel logout, or break-glass override.");
+        }
+
+        if (!Enum.IsDefined(typeof(RefreshReuseAction), request.RefreshReuseAction))
+        {
+            result.AddFieldError("refreshReuseAction", "Refresh reuse action is invalid.");
         }
 
         return result;

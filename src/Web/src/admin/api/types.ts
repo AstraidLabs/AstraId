@@ -543,3 +543,33 @@ export type AdminPlatformHealthResponse = {
   };
   checks: PlatformHealthCheck[];
 };
+
+
+export type RefreshReuseAction = "RevokeFamily" | "RevokeAllSessions" | "IncidentOnly";
+
+export type AdminOAuthAdvancedPolicy = {
+  deviceFlowEnabled: boolean;
+  deviceFlowUserCodeTtlMinutes: number;
+  deviceFlowPollingIntervalSeconds: number;
+  tokenExchangeEnabled: boolean;
+  tokenExchangeAllowedClientIds: string[];
+  tokenExchangeAllowedAudiences: string[];
+  refreshRotationEnabled: boolean;
+  refreshReuseDetectionEnabled: boolean;
+  refreshReuseAction: RefreshReuseAction;
+  backChannelLogoutEnabled: boolean;
+  frontChannelLogoutEnabled: boolean;
+  logoutTokenTtlMinutes: number;
+  updatedAtUtc: string;
+  updatedByUserId?: string | null;
+  updatedByIp?: string | null;
+  rowVersion: string;
+};
+
+export type AdminOAuthAdvancedPolicyResponse = {
+  policy: AdminOAuthAdvancedPolicy;
+};
+
+export type UpdateAdminOAuthAdvancedPolicyRequest = Omit<AdminOAuthAdvancedPolicy, "updatedAtUtc" | "updatedByUserId" | "updatedByIp"> & {
+  breakGlass?: boolean;
+};
