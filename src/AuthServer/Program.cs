@@ -567,12 +567,11 @@ app.UseRouting();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("Web");
+app.UseAuthentication();
 if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
 {
     app.UseRateLimiter();
 }
-
-app.UseAuthentication();
 app.UseMiddleware<UserActivityTrackingMiddleware>();
 app.UseAuthorization();
 app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
