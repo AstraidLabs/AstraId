@@ -49,6 +49,7 @@ import DiagnosticsErrorsList from "./admin/pages/DiagnosticsErrorsList";
 import DiagnosticsErrorDetail from "./admin/pages/DiagnosticsErrorDetail";
 import SigningKeys from "./admin/pages/SigningKeys";
 import TokenPolicies from "./admin/pages/TokenPolicies";
+import OAuthAdvancedPolicy from "./admin/pages/OAuthAdvancedPolicy";
 import SecurityRotationPolicy from "./admin/pages/SecurityRotationPolicy";
 import SecurityIncidents from "./admin/pages/SecurityIncidents";
 import SecurityRevocation from "./admin/pages/SecurityRevocation";
@@ -154,6 +155,7 @@ const App = () => {
         <Route path="security/keys" element={<SigningKeys />} />
         <Route path="security/rotation" element={<SecurityRotationPolicy />} />
         <Route path="security/tokens" element={<TokenPolicies />} />
+        <Route path="security/oauth-advanced" element={<OAuthAdvancedPolicy />} />
         <Route path="security/incidents" element={<SecurityIncidents />} />
         <Route path="security/revocation" element={<SecurityRevocation />} />
         <Route path="security/dataprotection" element={<SecurityDataProtection />} />

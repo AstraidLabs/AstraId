@@ -34,6 +34,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<PrivacyPolicy> PrivacyPolicies => Set<PrivacyPolicy>();
     public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
     public DbSet<InactivityPolicy> InactivityPolicies => Set<InactivityPolicy>();
+    public DbSet<OAuthAdvancedPolicy> OAuthAdvancedPolicies => Set<OAuthAdvancedPolicy>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -321,6 +322,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(policy => policy.Id);
             entity.HasIndex(policy => policy.UpdatedUtc);
             entity.Property(policy => policy.ProtectedRoles).HasMaxLength(500);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(policy => policy.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+
+        builder.Entity<OAuthAdvancedPolicy>(entity =>
+        {
+            entity.HasKey(policy => policy.Id);
+            entity.HasIndex(policy => policy.UpdatedAtUtc);
+            entity.Property(policy => policy.UpdatedByIp).HasMaxLength(64);
+            entity.Property(policy => policy.RowVersion).IsRowVersion();
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(policy => policy.UpdatedByUserId)

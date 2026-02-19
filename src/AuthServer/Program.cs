@@ -40,6 +40,7 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
+using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using System.Threading.RateLimiting;
@@ -174,6 +175,7 @@ builder.Services.AddSingleton<ISigningKeyRotationState, SigningKeyRotationState>
 builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictSigningCredentialsConfigurator>();
 builder.Services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, OpenIddictTokenPolicyConfigurator>();
 builder.Services.AddScoped<GovernancePolicyStore>();
+builder.Services.AddScoped<IOAuthAdvancedPolicyProvider, OAuthAdvancedPolicyProvider>();
 builder.Services.AddSingleton<DataProtectionStatusService>();
 builder.Services.AddSingleton<EncryptionKeyStatusService>();
 builder.Services.AddSingleton<AuthRateLimiter>();
@@ -245,6 +247,12 @@ builder.Services.Configure<AuthServerAuthFeaturesOptions>(builder.Configuration.
 builder.Services.Configure<AuthServerDeviceFlowOptions>(builder.Configuration.GetSection(AuthServerDeviceFlowOptions.SectionName));
 builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
 builder.Services.Configure<SessionManagementOptions>(builder.Configuration.GetSection(SessionManagementOptions.SectionName));
+builder.Services.AddOptions<OAuthAdvancedPolicyDefaultsOptions>()
+    .Bind(builder.Configuration.GetSection(OAuthAdvancedPolicyDefaultsOptions.SectionName))
+    .Validate(options => options.DeviceFlowPollingIntervalSeconds >= 5, "OAuth advanced defaults: device polling interval must be >= 5 seconds.")
+    .Validate(options => options.DeviceFlowUserCodeTtlMinutes is >= 1 and <= 60, "OAuth advanced defaults: user code TTL must be between 1 and 60 minutes.")
+    .Validate(options => options.LogoutTokenTtlMinutes is >= 1 and <= 60, "OAuth advanced defaults: logout token TTL must be between 1 and 60 minutes.")
+    .ValidateOnStart();
 builder.Services.AddHttpClient(nameof(AuthServer.Services.Sessions.BackChannelLogoutService));
 builder.Services.AddOptions<AuthServerSigningKeyOptions>()
     .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
@@ -465,16 +473,8 @@ builder.Services.AddOpenIddict()
                .AllowRefreshTokenFlow()
                .AllowClientCredentialsFlow();
 
-        var deviceFlowEnabled = builder.Configuration.GetValue<bool>("AuthServer:DeviceFlow:Enabled");
-        if (deviceFlowEnabled)
-        {
-            options.AllowDeviceCodeFlow();
-        }
-
-        if (builder.Configuration.GetValue<bool>("AuthServer:TokenExchange:Enabled"))
-        {
-            options.AllowCustomFlow(TokenExchangeService.GrantType);
-        }
+        options.AllowDeviceCodeFlow();
+        options.AllowCustomFlow(TokenExchangeService.GrantType);
 
         if (authFeatures.EnablePasswordGrant)
         {
@@ -506,6 +506,46 @@ builder.Services.AddOpenIddict()
         options.AddEventHandler<OpenIddictServerEvents.ValidateRevocationRequestContext>(builder =>
         {
             builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateRevocationClientAsync);
+        });
+        options.AddEventHandler<OpenIddictServerEvents.ValidateDeviceAuthorizationRequestContext>(handler =>
+        {
+            handler.UseInlineHandler(async context =>
+            {
+                var provider = context.Transaction.GetHttpRequest()?.HttpContext.RequestServices.GetRequiredService<IOAuthAdvancedPolicyProvider>();
+                if (provider is null)
+                {
+                    return;
+                }
+
+                var policy = await provider.GetCurrentAsync(context.CancellationToken);
+                if (!policy.DeviceFlowEnabled)
+                {
+                    context.Reject(OpenIddictConstants.Errors.UnsupportedGrantType, "Device code flow is disabled.");
+                }
+            });
+        });
+
+        options.AddEventHandler<OpenIddictServerEvents.ValidateTokenRequestContext>(handler =>
+        {
+            handler.UseInlineHandler(async context =>
+            {
+                if (!string.Equals(context.Request?.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                var provider = context.Transaction.GetHttpRequest()?.HttpContext.RequestServices.GetRequiredService<IOAuthAdvancedPolicyProvider>();
+                if (provider is null)
+                {
+                    return;
+                }
+
+                var policy = await provider.GetCurrentAsync(context.CancellationToken);
+                if (!policy.TokenExchangeEnabled)
+                {
+                    context.Reject(OpenIddictConstants.Errors.UnsupportedGrantType, "Token exchange is disabled.");
+                }
+            });
         });
     });
 

@@ -54,6 +54,7 @@ public class AuthorizationController : ControllerBase
     private readonly ILogger<AuthorizationController> _logger;
     private readonly IStringLocalizer<AuthMessages> _localizer;
     private readonly AuthServerAuthFeaturesOptions _authFeatures;
+    private readonly IOAuthAdvancedPolicyProvider _oauthAdvancedPolicyProvider;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
@@ -76,6 +77,7 @@ public class AuthorizationController : ControllerBase
         BackChannelLogoutService backChannelLogoutService,
         IAntiforgery antiforgery,
         IOptions<AuthServerAuthFeaturesOptions> authFeatures,
+        IOAuthAdvancedPolicyProvider oauthAdvancedPolicyProvider,
         ILogger<AuthorizationController> logger,
         IStringLocalizer<AuthMessages> localizer)
     {
@@ -99,6 +101,7 @@ public class AuthorizationController : ControllerBase
         _backChannelLogoutService = backChannelLogoutService;
         _antiforgery = antiforgery;
         _authFeatures = authFeatures.Value;
+        _oauthAdvancedPolicyProvider = oauthAdvancedPolicyProvider;
         _logger = logger;
         _localizer = localizer;
     }
@@ -328,9 +331,10 @@ public class AuthorizationController : ControllerBase
 
         var policy = await _tokenPolicyService.GetEffectivePolicyAsync(HttpContext.RequestAborted);
 
+        var advancedPolicy = await _oauthAdvancedPolicyProvider.GetCurrentAsync(HttpContext.RequestAborted);
         if (request.IsRefreshTokenGrantType()
-            && policy.RefreshRotationEnabled
-            && policy.RefreshReuseDetectionEnabled)
+            && advancedPolicy.RefreshRotationEnabled
+            && advancedPolicy.RefreshReuseDetectionEnabled)
         {
             var reuseResult = await _refreshTokenReuseDetection.TryConsumeAsync(
                 authenticateResult.Principal,
@@ -344,13 +348,18 @@ public class AuthorizationController : ControllerBase
                     "high",
                     user.Id,
                     clientId,
-                    new { clientId, userId = user.Id },
+                    new { clientId, userId = user.Id, action = advancedPolicy.RefreshReuseAction.ToString() },
                     cancellationToken: HttpContext.RequestAborted);
 
-                await _refreshTokenReuseRemediation.RevokeSubjectTokensAsync(
-                    authenticateResult.Principal,
-                    clientId,
-                    HttpContext.RequestAborted);
+                if (advancedPolicy.RefreshReuseAction == RefreshReuseAction.RevokeFamily)
+                {
+                    await _refreshTokenReuseRemediation.RevokeFamilyAsync(authenticateResult.Principal, clientId, HttpContext.RequestAborted);
+                }
+                else if (advancedPolicy.RefreshReuseAction == RefreshReuseAction.RevokeAllSessions)
+                {
+                    await _refreshTokenReuseRemediation.RevokeAllForSubjectAsync(authenticateResult.Principal, HttpContext.RequestAborted);
+                }
+
                 return Forbid(CreateInvalidGrant(L("Oidc.Token.RefreshReused", "The refresh token has already been used.")),
                     OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
             }
@@ -402,7 +411,7 @@ public class AuthorizationController : ControllerBase
     public async Task<IActionResult> Logout()
     {
         var userId = User.FindFirstValue(OpenIddictConstants.Claims.Subject) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!string.IsNullOrWhiteSpace(userId) && _backChannelLogoutService.Enabled)
+        if (!string.IsNullOrWhiteSpace(userId) && await _backChannelLogoutService.IsEnabledAsync(HttpContext.RequestAborted))
         {
             var clients = await _clientSessionTracker.GetClientsAsync(userId, HttpContext.RequestAborted);
             await _backChannelLogoutService.NotifyAsync(userId, clients, HttpContext.RequestAborted);
@@ -416,8 +425,14 @@ public class AuthorizationController : ControllerBase
 
     [Authorize]
     [HttpGet("~/connect/verify")]
-    public IActionResult VerifyDevice([FromQuery(Name = OpenIddictConstants.Parameters.UserCode)] string? userCode)
+    public async Task<IActionResult> VerifyDevice([FromQuery(Name = OpenIddictConstants.Parameters.UserCode)] string? userCode)
     {
+        var policy = await _oauthAdvancedPolicyProvider.GetCurrentAsync(HttpContext.RequestAborted);
+        if (!policy.DeviceFlowEnabled)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "Device code flow is disabled."));
+        }
+
         return RenderDeviceVerificationPage(userCode, false, null);
     }
 
@@ -430,6 +445,12 @@ public class AuthorizationController : ControllerBase
         if (request is null)
         {
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, "Device verification request is invalid."));
+        }
+
+        var oauthPolicy = await _oauthAdvancedPolicyProvider.GetCurrentAsync(HttpContext.RequestAborted);
+        if (!oauthPolicy.DeviceFlowEnabled)
+        {
+            return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "Device code flow is disabled."));
         }
 
         if (string.Equals(decision, "deny", StringComparison.OrdinalIgnoreCase))
@@ -687,12 +708,12 @@ public class AuthorizationController : ControllerBase
 
     private async Task<IActionResult> HandleTokenExchangeAsync(OpenIddictRequest request, string? clientId)
     {
-        if (!_tokenExchangeService.Enabled)
+        if (!await _tokenExchangeService.IsEnabledAsync(HttpContext.RequestAborted))
         {
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.UnsupportedGrantType, "Token exchange is disabled."));
         }
 
-        if (!_tokenExchangeService.IsClientAllowed(clientId))
+        if (!await _tokenExchangeService.IsClientAllowedAsync(clientId, HttpContext.RequestAborted))
         {
             await _incidentService.LogIncidentAsync("token_exchange_rejected", "high", null, clientId, new { clientId, reason = "client_not_allowed" }, cancellationToken: HttpContext.RequestAborted);
             await WriteAuditAsync("oidc.token_exchange.rejected", new { clientId, reason = "client_not_allowed" });
@@ -708,7 +729,7 @@ public class AuthorizationController : ControllerBase
         }
 
         var requestedAudience = request.GetParameter("audience").ToString();
-        if (!_tokenExchangeService.IsAudienceAllowed(requestedAudience))
+        if (!await _tokenExchangeService.IsAudienceAllowedAsync(requestedAudience, HttpContext.RequestAborted))
         {
             await _incidentService.LogIncidentAsync("token_exchange_rejected", "medium", null, clientId, new { clientId, reason = "audience_not_allowed" }, cancellationToken: HttpContext.RequestAborted);
             await WriteAuditAsync("oidc.token_exchange.rejected", new { clientId, reason = "audience_not_allowed" });

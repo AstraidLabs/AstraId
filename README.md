@@ -1186,3 +1186,12 @@ The following AuthServer capabilities are available behind configuration flags a
 - **Session management (back-channel logout)**
   - Config: `AuthServer:SessionManagement`
   - Keys: `BackChannelEnabled`, `FrontChannelEnabled`, `BackChannelLogoutUrls`
+
+## 🔐 OAuth Advanced Governance (Admin)
+
+AstraId administrators can now configure advanced OAuth/IAM controls from the existing Admin UI at **Security → OAuth Advanced** and via the AuthServer admin API endpoint:
+
+- `GET /admin/api/security/oauth-advanced-policy`
+- `PUT /admin/api/security/oauth-advanced-policy`
+
+This policy is database-backed, audited, and applied at runtime so changes take effect without restart in common paths. Safe defaults keep advanced features off until explicitly enabled. In production, enabling high-risk features (token exchange and front-channel logout) is guarded by break-glass confirmation.

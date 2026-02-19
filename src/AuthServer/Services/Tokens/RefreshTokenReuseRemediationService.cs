@@ -27,7 +27,19 @@ public sealed class RefreshTokenReuseRemediationService
         _logger = logger;
     }
 
-    public async Task RevokeSubjectTokensAsync(
+    public Task RevokeSubjectTokensAsync(
+        ClaimsPrincipal principal,
+        string? clientId,
+        CancellationToken cancellationToken)
+        => RevokeTokensCoreAsync(principal, clientId, cancellationToken);
+
+    public Task RevokeFamilyAsync(ClaimsPrincipal principal, string? clientId, CancellationToken cancellationToken)
+        => RevokeTokensCoreAsync(principal, clientId, cancellationToken);
+
+    public Task RevokeAllForSubjectAsync(ClaimsPrincipal principal, CancellationToken cancellationToken)
+        => RevokeTokensCoreAsync(principal, null, cancellationToken);
+
+    private async Task RevokeTokensCoreAsync(
         ClaimsPrincipal principal,
         string? clientId,
         CancellationToken cancellationToken)

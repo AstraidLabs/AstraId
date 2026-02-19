@@ -168,6 +168,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     icon: KeyRound,
   },
   {
+    id: "oauth-advanced",
+    label: "OAuth Advanced",
+    path: "/security/oauth-advanced",
+    category: "security",
+    description: "Runtime governance for advanced OAuth and IAM features.",
+    icon: ShieldAlert,
+  },
+  {
     id: "token-policy",
     label: "Token Policy",
     path: "/security/tokens",
