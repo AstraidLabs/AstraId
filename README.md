@@ -1146,3 +1146,22 @@ Operational notes:
 - Keep real secrets in environment variables or user-secrets only (never in tracked JSON).
 - Use explicit origin allowlists for any credentialed CORS configuration.
 - Validate production configuration during deployment using startup option validation already present in services.
+
+## Logging & Security Audit
+
+- **Three streams / audiences**
+  - **Ops/Admin runtime logs (Application stream):** normal operational runtime events for service health and behavior.
+  - **Developer diagnostics (Dev stream):** verbose diagnostics intended for developers; enabled by default in Development and disabled by default in Production.
+  - **Security audit stream:** structured minimal security events (`AstraId.Logging.SecurityAudit`) for auth decisions and security-relevant failures.
+
+- **Development vs Production behavior**
+  - `AstraLogging:Mode=Development` enables developer-friendly diagnostics (subject to per-stream flags).
+  - `AstraLogging:Mode=Production` enforces safe defaults: redaction enabled, request-body logging disabled, query logging off by default, and dev stream disabled unless explicitly enabled.
+
+- **Redaction and data handling guarantees**
+  - Sensitive data is redacted before diagnostics persistence/logging, including sensitive headers (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `X-Internal-Api-Key`) and sensitive query keys (`token`, `code`, `password`, `client_secret`, `refresh_token`, `access_token`, `id_token`, `assertion`).
+  - Secrets/tokens/cookies/passwords/client secrets must never be logged in production logs.
+
+- **Correlation and traceability**
+  - `X-Correlation-ID` is enforced across services (generated when missing and returned in response headers).
+  - Logs are enriched with correlation and trace context to support cross-service incident investigation.

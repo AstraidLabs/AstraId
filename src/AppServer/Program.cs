@@ -13,8 +13,13 @@ using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
+using AstraId.Logging.Audit;
+using AstraId.Logging.Extensions;
+using AstraId.Logging.Redaction;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
@@ -126,6 +131,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
+            OnAuthenticationFailed = context =>
+            {
+                var services = context.HttpContext.RequestServices;
+                services.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+                {
+                    EventType = "app.internal_token.validation.failure",
+                    Service = "AppServer",
+                    Environment = services.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                    ActorType = "system",
+                    Target = context.HttpContext.Request.Path.Value,
+                    Action = context.HttpContext.Request.Method,
+                    Result = "failure",
+                    ReasonCode = "jwt_authentication_failed",
+                    CorrelationId = context.HttpContext.TraceIdentifier,
+                    TraceId = context.HttpContext.TraceIdentifier,
+                    Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    UserAgentHash = LogSanitizer.ComputeStableHash(context.HttpContext.Request.Headers.UserAgent.ToString())
+                });
+                return Task.CompletedTask;
+            },
             OnTokenValidated = context =>
             {
                 if (context.SecurityToken is not JwtSecurityToken jwt
@@ -134,6 +159,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     || !jwt.Payload.Exp.HasValue
                     || !jwt.Payload.Nbf.HasValue)
                 {
+                    context.HttpContext.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+                    {
+                        EventType = "app.internal_token.validation.failure",
+                        Service = "AppServer",
+                        Environment = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                        ActorType = "system",
+                        Target = context.HttpContext.Request.Path.Value,
+                        Action = context.HttpContext.Request.Method,
+                        Result = "failure",
+                        ReasonCode = "invalid_internal_token_format",
+                        CorrelationId = context.HttpContext.TraceIdentifier,
+                        TraceId = context.HttpContext.TraceIdentifier,
+                        Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString()
+                    });
                     context.Fail("Invalid internal token format.");
                     return Task.CompletedTask;
                 }
@@ -144,6 +183,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     || !string.Equals(issuer, internalOptions.Issuer, StringComparison.Ordinal)
                     || !string.Equals(audience, internalOptions.Audience, StringComparison.Ordinal))
                 {
+                    context.HttpContext.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+                    {
+                        EventType = "app.internal_token.validation.failure",
+                        Service = "AppServer",
+                        Environment = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                        ActorType = "system",
+                        Target = context.HttpContext.Request.Path.Value,
+                        Action = context.HttpContext.Request.Method,
+                        Result = "failure",
+                        ReasonCode = "issuer_or_audience_invalid",
+                        CorrelationId = context.HttpContext.TraceIdentifier,
+                        TraceId = context.HttpContext.TraceIdentifier,
+                        Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString()
+                    });
                     context.Fail("Only API-issued internal tokens are accepted.");
                     return Task.CompletedTask;
                 }
@@ -151,6 +204,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var service = context.Principal?.FindFirst("svc")?.Value ?? context.Principal?.FindFirst(JwtRegisteredClaimNames.Azp)?.Value;
                 if (string.IsNullOrWhiteSpace(service) || !internalOptions.AllowedServices.Contains(service, StringComparer.Ordinal))
                 {
+                    context.HttpContext.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+                    {
+                        EventType = "app.service_allowlist.failure",
+                        Service = "AppServer",
+                        Environment = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                        ActorType = "client",
+                        ActorId = service,
+                        Target = context.HttpContext.Request.Path.Value,
+                        Action = context.HttpContext.Request.Method,
+                        Result = "failure",
+                        ReasonCode = "service_claim_validation_failed",
+                        CorrelationId = context.HttpContext.TraceIdentifier,
+                        TraceId = context.HttpContext.TraceIdentifier,
+                        Ip = context.HttpContext.Connection.RemoteIpAddress?.ToString()
+                    });
                     context.Fail("Service claim validation failed.");
                 }
 
@@ -187,6 +255,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseAstraLogging();
 
 if (hardeningOptions.Enabled && hardeningOptions.Headers.Enabled)
 {
@@ -224,6 +293,21 @@ app.Use(async (context, next) =>
         var cert = context.Connection.ClientCertificate;
         if (cert is null)
         {
+            context.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+            {
+                EventType = "app.mtls.failure",
+                Service = "AppServer",
+                Environment = context.RequestServices.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                ActorType = "system",
+                Target = context.Request.Path.Value,
+                Action = context.Request.Method,
+                Result = "failure",
+                ReasonCode = "client_certificate_required",
+                CorrelationId = context.TraceIdentifier,
+                TraceId = context.TraceIdentifier,
+                Ip = context.Connection.RemoteIpAddress?.ToString(),
+                UserAgentHash = LogSanitizer.ComputeStableHash(context.Request.Headers.UserAgent.ToString())
+            });
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsync("Client certificate required.");
             return;
@@ -233,6 +317,21 @@ app.Use(async (context, next) =>
         var subjectAllowed = options.AllowedClientSubjectNames.Length == 0 || options.AllowedClientSubjectNames.Contains(cert.Subject, StringComparer.OrdinalIgnoreCase);
         if (!thumbprintAllowed || !subjectAllowed)
         {
+            context.RequestServices.GetRequiredService<ISecurityAuditLogger>().Log(new SecurityAuditEvent
+            {
+                EventType = "app.mtls.failure",
+                Service = "AppServer",
+                Environment = context.RequestServices.GetRequiredService<IWebHostEnvironment>().EnvironmentName,
+                ActorType = "system",
+                Target = context.Request.Path.Value,
+                Action = context.Request.Method,
+                Result = "failure",
+                ReasonCode = "client_certificate_not_allowed",
+                CorrelationId = context.TraceIdentifier,
+                TraceId = context.TraceIdentifier,
+                Ip = context.Connection.RemoteIpAddress?.ToString(),
+                UserAgentHash = LogSanitizer.ComputeStableHash(context.Request.Headers.UserAgent.ToString())
+            });
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsync("Client certificate not allowed.");
             return;

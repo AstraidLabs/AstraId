@@ -32,6 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="../Company.Auth.Contracts/Company.Auth.Contracts.csproj" />
     <ProjectReference Include="../AstraId.Contracts/AstraId.Contracts.csproj" />
+      <ProjectReference Include="../AstraId.Logging/AstraId.Logging.csproj" />
   </ItemGroup>
 
   <Target Name="BuildAdminUi">

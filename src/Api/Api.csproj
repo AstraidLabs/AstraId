@@ -20,5 +20,6 @@
     <ProjectReference Include="../Company.Auth.Api/Company.Auth.Api.csproj" />
     <ProjectReference Include="../Company.Auth.Contracts/Company.Auth.Contracts.csproj" />
       <ProjectReference Include="../AstraId.Contracts/AstraId.Contracts.csproj" />
+      <ProjectReference Include="../AstraId.Logging/AstraId.Logging.csproj" />
   </ItemGroup>
 </Project>
