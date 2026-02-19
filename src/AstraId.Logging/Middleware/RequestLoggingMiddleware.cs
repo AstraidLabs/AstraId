@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using AstraId.Logging.Options;
 using AstraId.Logging.Redaction;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AstraId.Logging.Middleware;

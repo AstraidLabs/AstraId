@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation;
 using OpenIddict.Validation.AspNetCore;
+using Microsoft.Extensions.Logging;
 
 namespace Company.Auth.Api;
 

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace AstraId.Logging.Redaction;
 
 public interface ILogSanitizer
