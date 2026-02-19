@@ -3,6 +3,11 @@ using AstraId.Logging.Correlation;
 using AstraId.Logging.Middleware;
 using AstraId.Logging.Options;
 using AstraId.Logging.Redaction;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AstraId.Logging.Extensions;
