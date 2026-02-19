@@ -111,6 +111,7 @@ public sealed class SendGridEmailSender : IEmailSender
         {
             response.Dispose();
         }
+    }
 
     private static bool IsTransientFailure(HttpStatusCode statusCode)
         => statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
