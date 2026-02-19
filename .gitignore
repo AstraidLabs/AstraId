@@ -25,3 +25,6 @@ node_modules/
 # Local security overrides
 *.local.json
 *.secrets.json
+
+# ASP.NET Core DataProtection keys (local/runtime secrets)
+**/data-protection-keys/
