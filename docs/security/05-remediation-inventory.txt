@@ -1,0 +1,83 @@
+Remediation Inventory - Encryption Coverage Audit
+
+Scope
+- Primary scope inspected: src/AuthServer
+- Secondary scope inspected: src/Api and src/AppServer
+
+Findings and Evidence
+- P0-1 Hardcoded seeded OAuth confidential client secret
+  - Evidence:
+    - src/AuthServer/Seeding/AuthServerDefinitions.cs
+    - Seeded confidential client: resource-api
+    - Previous literal: resource-api-local-secret in OAuthClientDefinition.ClientSecret
+  - Risk:
+    - Static secret in source can leak and is hard to rotate.
+  - Plan:
+    - Remove literal from seed definition.
+    - Load optional seeded secret from configuration map by client id.
+    - Apply only when non-empty external value exists.
+    - Emit startup warning and security audit event in non-development when missing.
+
+- P0-2 MFA authenticator key and recovery codes in AspNetUserTokens.Value
+  - Evidence:
+    - Identity UserManager MFA methods used in src/AuthServer/Controllers/AuthController.cs:
+      - GetAuthenticatorKeyAsync
+      - ResetAuthenticatorKeyAsync
+      - GenerateNewTwoFactorRecoveryCodesAsync
+      - RedeemTwoFactorRecoveryCodeAsync path through sign-in
+    - Identity token backing table present in migrations:
+      - AspNetUserTokens in src/AuthServer/Migrations/*
+    - Standard Identity token keys/providers for these values are [AspNetUserStore]/AuthenticatorKey and [AspNetUserStore]/RecoveryCodes.
+  - Risk:
+    - Values persisted without explicit application-level data protection wrapper.
+  - Plan:
+    - Introduce protected user store using DataProtection purpose AuthServer.IdentityTokens.MfaSecrets.
+    - Encrypt on write for targeted token names.
+    - Dual-read: unprotect if protected format; fallback to legacy plaintext if not.
+    - Legacy plaintext auto-migrated to protected format on successful read.
+    - Add optional admin-only count endpoint for protected vs legacy token rows.
+
+- P0-3 AppServer legacy HS256 fallback path
+  - Evidence:
+    - src/AppServer/Program.cs uses AllowLegacyHs256 + LegacyHs256Secret in IssuerSigningKeyResolver.
+    - src/AppServer/Security/InternalTokenOptions.cs includes AllowLegacyHs256 and LegacyHs256Secret.
+    - appsettings files include placeholders under InternalTokens.
+  - Risk:
+    - If enabled with weak/incorrect secret in production, wide token validation compromise.
+  - Plan:
+    - Keep default false.
+    - Add production startup guard requiring BreakGlassOverride=true.
+    - Require non-placeholder secret and minimum length.
+    - Require production secret from environment variable path when enabled.
+    - Log warning and security audit event when legacy HS256 path is enabled.
+
+- P1-4 API resource key hashing currently unsalted SHA-256
+  - Evidence:
+    - src/AuthServer/Services/Admin/ApiKeyHasher.cs uses SHA256.HashData and base64.
+    - Verification callsite in src/AuthServer/Controllers/ApiManagementController.cs.
+    - Rotation path in src/AuthServer/Services/Admin/AdminApiResourceService.cs.
+    - Storage column ApiResources.ApiKeyHash in model/migrations.
+  - Risk:
+    - Fast unsalted hash vulnerable to brute-force attacks.
+  - Plan:
+    - Add v2 PBKDF2 hash format with version prefix and per-key salt.
+    - Keep same column.
+    - Verification: v2 first, legacy fallback.
+    - On successful legacy verification, opportunistically upgrade hash to v2.
+
+- P1-5 OpenIddict confidential client secret persistence posture
+  - Evidence:
+    - OpenIddictApplications.ClientSecret column exists in migrations/model snapshot.
+    - Client creation/update paths use IOpenIddictApplicationManager via seeding/admin services.
+  - Risk:
+    - If storage is plaintext in runtime config, confidential client compromise risk.
+  - Plan:
+    - Add development startup self-check to classify whether stored values look hashed.
+    - Add optional admin diagnostics endpoint exposing counts only.
+    - Do not expose any secret/hash values.
+
+- Phase 4 redaction denylist review
+  - Evidence:
+    - src/AstraId.Logging/Redaction/LogSanitizer.cs has header/query/inline redaction lists.
+  - Plan:
+    - Extend denylist for internal JWKS API key naming variants and legacy HS256 config key names while preserving existing redaction behavior.

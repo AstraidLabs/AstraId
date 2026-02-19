@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
+using AstraId.Logging.Audit;
 
 namespace AuthServer.Seeding;
 
@@ -18,18 +19,24 @@ public sealed class AuthBootstrapHostedService : IHostedService
     private readonly IConfiguration _configuration;
     private readonly IOptions<BootstrapAdminOptions> _bootstrapOptions;
     private readonly ILogger<AuthBootstrapHostedService> _logger;
+    private readonly IOptions<SeededClientSecretsOptions> _seededClientSecretsOptions;
+    private readonly ISecurityAuditLogger _securityAuditLogger;
 
     public AuthBootstrapHostedService(
         IServiceProvider serviceProvider,
         IWebHostEnvironment environment,
         IConfiguration configuration,
         IOptions<BootstrapAdminOptions> bootstrapOptions,
+        IOptions<SeededClientSecretsOptions> seededClientSecretsOptions,
+        ISecurityAuditLogger securityAuditLogger,
         ILogger<AuthBootstrapHostedService> logger)
     {
         _serviceProvider = serviceProvider;
         _environment = environment;
         _configuration = configuration;
         _bootstrapOptions = bootstrapOptions;
+        _seededClientSecretsOptions = seededClientSecretsOptions;
+        _securityAuditLogger = securityAuditLogger;
         _logger = logger;
     }
 
@@ -128,7 +135,7 @@ public sealed class AuthBootstrapHostedService : IHostedService
                 ClientId = client.ClientId,
                 DisplayName = client.DisplayName,
                 ClientType = client.Type,
-                ClientSecret = client.ClientSecret
+                ClientSecret = ResolveSeededClientSecret(client)
             };
 
             foreach (var uri in client.RedirectUris)
@@ -189,6 +196,44 @@ public sealed class AuthBootstrapHostedService : IHostedService
 
             await applicationManager.UpdateAsync(application, currentDescriptor, cancellationToken);
         }
+    }
+
+
+    private string? ResolveSeededClientSecret(OAuthClientDefinition client)
+    {
+        if (string.Equals(client.Type, OpenIddictConstants.ClientTypes.Public, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (_seededClientSecretsOptions.Value.SecretsByClientId.TryGetValue(client.ClientId, out var configuredSecret)
+            && !string.IsNullOrWhiteSpace(configuredSecret))
+        {
+            return configuredSecret.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(client.ClientSecret))
+        {
+            return client.ClientSecret;
+        }
+
+        if (!_environment.IsDevelopment())
+        {
+            _logger.LogWarning("Confidential seeded client {ClientId} does not have a configured secret.", client.ClientId);
+            _securityAuditLogger.Log(new SecurityAuditEvent
+            {
+                EventType = "auth.seeded_confidential_client_secret.missing",
+                Service = "AuthServer",
+                Environment = _environment.EnvironmentName,
+                ActorType = "system",
+                Target = client.ClientId,
+                Action = "seed_confidential_client",
+                Result = "warning",
+                ReasonCode = "missing_client_secret"
+            });
+        }
+
+        return null;
     }
 
     private static IEnumerable<string> BuildPermissions(OAuthClientDefinition client)

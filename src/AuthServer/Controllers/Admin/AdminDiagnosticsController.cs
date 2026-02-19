@@ -1,11 +1,14 @@
 using AuthServer.Data;
+using AuthServer.Options;
 using AuthServer.Services;
 using AuthServer.Services.Admin.Models;
+using AuthServer.Services.Security;
 using AuthServer.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AuthServer.Controllers.Admin;
 
@@ -16,11 +19,19 @@ public sealed class AdminDiagnosticsController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IOptions<SecurityDiagnosticsOptions> _securityDiagnosticsOptions;
+    private readonly IOpenIddictClientSecretInspector _openIddictClientSecretInspector;
 
-    public AdminDiagnosticsController(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager)
+    public AdminDiagnosticsController(
+        ApplicationDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        IOptions<SecurityDiagnosticsOptions> securityDiagnosticsOptions,
+        IOpenIddictClientSecretInspector openIddictClientSecretInspector)
     {
         _dbContext = dbContext;
         _userManager = userManager;
+        _securityDiagnosticsOptions = securityDiagnosticsOptions;
+        _openIddictClientSecretInspector = openIddictClientSecretInspector;
     }
 
     [HttpGet]
@@ -150,5 +161,48 @@ public sealed class AdminDiagnosticsController : ControllerBase
             actorEmail,
             entry.UserAgent,
             entry.RemoteIp));
+    }
+
+    [HttpGet("mfa-token-protection")]
+    public async Task<IActionResult> GetMfaTokenProtectionStats(CancellationToken cancellationToken)
+    {
+        if (!_securityDiagnosticsOptions.Value.EnableMfaTokenProtectionEndpoint)
+        {
+            return NotFound();
+        }
+
+        const string provider = "[AspNetUserStore]";
+        var tokens = await _dbContext.Set<IdentityUserToken<Guid>>()
+            .AsNoTracking()
+            .Where(item => item.LoginProvider == provider && (item.Name == "AuthenticatorKey" || item.Name == "RecoveryCodes"))
+            .Select(item => item.Value)
+            .ToListAsync(cancellationToken);
+
+        var protectedCount = tokens.Count(value => !string.IsNullOrEmpty(value) && value.StartsWith("dpv1:", StringComparison.Ordinal));
+
+        return Ok(new
+        {
+            total = tokens.Count,
+            protectedCount,
+            legacyOrUnknownCount = tokens.Count - protectedCount
+        });
+    }
+
+    [HttpGet("openiddict-client-secret-storage")]
+    public async Task<IActionResult> GetOpenIddictClientSecretStorage(CancellationToken cancellationToken)
+    {
+        if (!_securityDiagnosticsOptions.Value.EnableOpenIddictSecretStorageEndpoint)
+        {
+            return NotFound();
+        }
+
+        var (total, looksHashed, looksPlaintext) = await _openIddictClientSecretInspector.InspectAsync(cancellationToken);
+        return Ok(new
+        {
+            total,
+            looksHashed,
+            looksPlaintext,
+            allLookHashed = total == looksHashed
+        });
     }
 }

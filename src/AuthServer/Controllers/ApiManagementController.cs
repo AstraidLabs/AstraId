@@ -38,7 +38,7 @@ public class ApiManagementController : ControllerBase
             return NotFound();
         }
 
-        if (!TryAuthorizeApiKey(apiResource))
+        if (!await TryAuthorizeApiKeyAsync(apiResource, cancellationToken))
         {
             return Unauthorized();
         }
@@ -62,7 +62,7 @@ public class ApiManagementController : ControllerBase
             return NotFound();
         }
 
-        if (!TryAuthorizeApiKey(apiResource))
+        if (!await TryAuthorizeApiKeyAsync(apiResource, cancellationToken))
         {
             return Unauthorized();
         }
@@ -85,13 +85,21 @@ public class ApiManagementController : ControllerBase
         return Ok(entries);
     }
 
-    private bool TryAuthorizeApiKey(ApiResource apiResource)
+    private async Task<bool> TryAuthorizeApiKeyAsync(ApiResource apiResource, CancellationToken cancellationToken)
     {
         if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey))
         {
             return false;
         }
 
-        return ApiKeyHasher.VerifyApiKey(apiKey.ToString(), apiResource.ApiKeyHash);
+        var valid = ApiKeyHasher.VerifyApiKey(apiKey.ToString(), apiResource.ApiKeyHash, out var upgradedHash);
+        if (valid && !string.IsNullOrWhiteSpace(upgradedHash))
+        {
+            apiResource.ApiKeyHash = upgradedHash;
+            apiResource.UpdatedUtc = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return valid;
     }
 }

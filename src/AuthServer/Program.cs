@@ -39,6 +39,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
@@ -66,6 +67,9 @@ builder.Services
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+builder.Services.RemoveAll<IUserStore<ApplicationUser>>();
+builder.Services.AddScoped<IUserStore<ApplicationUser>, ProtectedUserStore>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -246,6 +250,8 @@ builder.Services.Configure<GovernanceGuardrailsOptions>(builder.Configuration.Ge
 builder.Services.Configure<AuthServerAuthFeaturesOptions>(builder.Configuration.GetSection(AuthServerAuthFeaturesOptions.SectionName));
 builder.Services.Configure<AuthServerDeviceFlowOptions>(builder.Configuration.GetSection(AuthServerDeviceFlowOptions.SectionName));
 builder.Services.Configure<TokenExchangeOptions>(builder.Configuration.GetSection(TokenExchangeOptions.SectionName));
+builder.Services.Configure<SeededClientSecretsOptions>(builder.Configuration.GetSection(SeededClientSecretsOptions.SectionName));
+builder.Services.Configure<SecurityDiagnosticsOptions>(builder.Configuration.GetSection(SecurityDiagnosticsOptions.SectionName));
 builder.Services.Configure<SessionManagementOptions>(builder.Configuration.GetSection(SessionManagementOptions.SectionName));
 builder.Services.AddOptions<OAuthAdvancedPolicyDefaultsOptions>()
     .Bind(builder.Configuration.GetSection(OAuthAdvancedPolicyDefaultsOptions.SectionName))
@@ -557,6 +563,8 @@ builder.Services.AddOpenIddict()
     });
 
 builder.Services.AddHostedService<AuthBootstrapHostedService>();
+builder.Services.AddHostedService<OpenIddictClientSecretStorageStartupCheck>();
+builder.Services.AddScoped<IOpenIddictClientSecretInspector, OpenIddictClientSecretInspector>();
 builder.Services.AddHostedService<GovernancePolicyInitializer>();
 builder.Services.AddHostedService<ErrorLogCleanupService>();
 builder.Services.AddHostedService<SigningKeyRotationService>();

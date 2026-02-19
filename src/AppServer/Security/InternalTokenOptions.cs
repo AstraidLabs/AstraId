@@ -12,6 +12,8 @@ public sealed class InternalTokenOptions
     public int JwksRefreshMinutes { get; set; } = 5;
     public string JwksInternalApiKey { get; set; } = "__REPLACE_ME__";
     public bool AllowLegacyHs256 { get; set; }
+    public bool BreakGlassOverride { get; set; }
+    public int LegacyHs256MinSecretLength { get; set; } = 32;
     public string LegacyHs256Secret { get; set; } = "__REPLACE_ME__";
 }
 
