@@ -47,12 +47,14 @@ using OpenIddict.Server.AspNetCore;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 
+// Identity provider host: serves OpenID Connect endpoints, interactive auth UI, and key/token governance jobs.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
 
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
+// Persistence store for ASP.NET Identity + OpenIddict artifacts; authority state must remain durable across restarts.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
@@ -71,6 +73,7 @@ builder.Services
 builder.Services.RemoveAll<IUserStore<ApplicationUser>>();
 builder.Services.AddScoped<IUserStore<ApplicationUser>, ProtectedUserStore>();
 
+// Interactive login cookie is intentionally restricted because it represents the browser user session with issuer authority.
 builder.Services.ConfigureApplicationCookie(options =>
 {
     // Keep the primary auth cookie browser-only and HTTPS-only because it carries interactive user session state.
@@ -221,6 +224,7 @@ builder.Services.AddOptions<CorsOptions>()
     .Validate(options => !options.AllowCredentials || options.AllowedOrigins.Length > 0, "Cors:AllowedOrigins must not be empty when AllowCredentials is true.")
     .Validate(options => builder.Environment.IsDevelopment() || (!options.AllowCredentials || options.AllowedOrigins.All(origin => origin.Trim() != "*")), "Unsafe CORS configuration for production.")
     .ValidateOnStart();
+// Security hardening options are validated on startup so unsafe production header/CSP config fails fast.
 builder.Services.AddOptions<SecurityHeadersOptions>()
     .Bind(builder.Configuration.GetSection(SecurityHeadersOptions.SectionName))
     .Validate(options => !builder.Environment.IsProduction() || options.AllowedFrameAncestors.All(value => value.Trim() != "*"), "SecurityHeaders:AllowedFrameAncestors cannot contain '*' in production.")
@@ -441,6 +445,7 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+// OpenIddict config defines issuer endpoints consumed by OIDC clients and resource servers.
 builder.Services.AddOpenIddict()
     .AddCore(options =>
     {
@@ -481,6 +486,7 @@ builder.Services.AddOpenIddict()
                .SetEndSessionEndpointUris("connect/logout")
                .SetRevocationEndpointUris("connect/revocation");
 
+        // Supported grant types are intentionally explicit to keep attack surface constrained to required client scenarios.
         options.AllowAuthorizationCodeFlow()
                .AllowRefreshTokenFlow()
                .AllowClientCredentialsFlow();
@@ -564,6 +570,7 @@ builder.Services.AddOpenIddict()
         });
     });
 
+// Local validation lets this host authorize its own APIs using the same issuer metadata and signing credentials.
 builder.Services.AddOpenIddict()
     .AddValidation(options =>
     {
@@ -592,6 +599,7 @@ if (authFeaturesOptions.EnablePasswordGrant)
 }
 
 
+// Pipeline order keeps transport and browser hardening ahead of auth middleware and endpoint execution.
 app.UseHttpsRedirection();
 var securityHeadersOptions = app.Services.GetRequiredService<IOptions<SecurityHeadersOptions>>().Value;
 if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
@@ -686,6 +694,7 @@ if (!string.IsNullOrWhiteSpace(app.Environment.WebRootPath) && Directory.Exists(
 app.UseRouting();
 
 app.UseAstraLogging();
+// CORS policy only trusts configured origins because auth endpoints are credential-sensitive.
 app.UseCors("Web");
 app.UseAuthentication();
 if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
@@ -742,6 +751,7 @@ app.UseStatusCodePages(async statusCodeContext =>
     await context.Response.WriteAsJsonAsync(problemDetails);
 });
 
+// Liveness endpoint is anonymous by design so probes do not require OAuth credentials.
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapControllers();
 RecurringJob.AddOrUpdate<SecurityMaintenanceJobs>("auth-security-cleanup", job => job.CleanupAsync(), Cron.Daily);
@@ -767,6 +777,7 @@ app.Run();
 
 static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode, Guid errorId)
 {
+    // Error persistence is best-effort diagnostics only; failures must never block the original status code response.
     var options = context.RequestServices.GetRequiredService<IOptions<DiagnosticsOptions>>().Value;
     if (!options.StoreErrorLogs)
     {
@@ -809,7 +820,7 @@ static async Task StoreStatusCodeErrorAsync(HttpContext context, int statusCode,
 
 static string BuildStatusCodeHtml(int statusCode, string detail, string traceId, Guid? errorId)
 {
-    // Bonus: lehká hardening ochrana proti XSS, kdyby se do "detail" někdy dostalo něco z requestu.
+    // Defense-in-depth: encode rendered values so unexpected request-derived detail cannot become reflected XSS.
     var safeDetail = System.Net.WebUtility.HtmlEncode(detail);
     var safeTraceId = System.Net.WebUtility.HtmlEncode(traceId);
 

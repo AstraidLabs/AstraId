@@ -9,6 +9,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Middleware;
 
+/// <summary>
+/// Enforces endpoint-level authorization using required scope and AuthServer policy-map permissions for /api routes.
+/// </summary>
 public sealed class EndpointAuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
@@ -18,6 +21,9 @@ public sealed class EndpointAuthorizationMiddleware
         _next = next;
     }
 
+    /// <summary>
+    /// Applies authentication, scope, and permission checks and returns RFC7807 responses for denied API requests.
+    /// </summary>
     public async Task InvokeAsync(
         HttpContext context,
         PolicyMapClient policyMapClient,
@@ -79,6 +85,7 @@ public sealed class EndpointAuthorizationMiddleware
             return;
         }
 
+        // Policy map is a deny-by-default contract: unknown endpoints are rejected until explicitly mapped.
         var requiredPermissions = policyMapClient.FindRequiredPermissions(context.Request.Method, path.Value ?? string.Empty);
         if (requiredPermissions is null)
         {

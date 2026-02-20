@@ -29,6 +29,7 @@ using AstraId.Logging.Audit;
 using AstraId.Logging.Extensions;
 using AstraId.Logging.Redaction;
 
+// API resource server: validates access tokens, enforces scope/permission policy map, and proxies trusted backend operations.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
@@ -46,6 +47,7 @@ var enableSignalRBackplane = builder.Configuration.GetValue<bool>("Redis:EnableS
 var internalTokensSection = builder.Configuration.GetSection(InternalTokenOptions.SectionName);
 var internalTokenLifetime = internalTokensSection.GetValue<int?>("TokenTtlSeconds") ?? 120;
 
+// Fail-fast validation keeps production startup from accepting incomplete identity contract configuration.
 if (!builder.Environment.IsDevelopment())
 {
     if (string.IsNullOrWhiteSpace(configuredIssuer))
@@ -123,6 +125,7 @@ builder.Services.AddScoped<IMapper, ServiceMapper>();
 
 builder.Services.AddCompanyAuth(builder.Configuration, effectiveAudience);
 builder.Services.AddOptions<InternalTokenOptions>()
+    // Internal token options are normalized here so AppServer receives stable issuer/audience values and short-lived service tokens.
     .Bind(internalTokensSection)
     .PostConfigure(options =>
     {
@@ -191,6 +194,7 @@ if (enableSignalRBackplane)
 
 builder.Services.PostConfigureAll<JwtBearerOptions>(options =>
 {
+    // Browsers using SignalR over WebSockets can only pass bearer token through query string during negotiation.
     var prior = options.Events?.OnMessageReceived;
     options.Events ??= new JwtBearerEvents();
     options.Events.OnMessageReceived = async context =>
@@ -386,6 +390,7 @@ builder.Services.AddHttpClient<AppServerClient>((sp, client) =>
         if (string.Equals(options.Mtls.ServerCertificate.ValidationMode, "PinThumbprint", StringComparison.OrdinalIgnoreCase)
             && options.Mtls.ServerCertificate.PinnedThumbprints.Length > 0)
         {
+            // Thumbprint pinning narrows trust to explicit AppServer certificates instead of any CA-trusted certificate.
             var allowed = options.Mtls.ServerCertificate.PinnedThumbprints
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Select(value => value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant())
@@ -454,6 +459,7 @@ builder.Services.AddCors(options =>
             throw new InvalidOperationException("SecurityHardening:Cors:StrictMode forbids wildcard origins.");
         }
 
+        // Credentialed cross-origin calls must use explicit allow-listed origins to avoid token leakage.
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -542,6 +548,7 @@ if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 app.UseRouting();
 app.UseAstraLogging();
 
+// Security headers are applied centrally so every API response follows the same browser hardening and cache policy.
 app.Use(async (context, next) =>
 {
     if (!hardeningOptions.Enabled || !hardeningOptions.Headers.Enabled || !securityHeadersOptions.Enabled)
@@ -589,6 +596,7 @@ if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
 {
     app.UseRateLimiter();
 }
+// Authorization middleware consumes the policy map after authentication to enforce endpoint-level permissions.
 app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
@@ -700,6 +708,7 @@ var content = app.MapGroup("/app");
 var internalTokensOptions = app.Services.GetRequiredService<IOptions<InternalTokenOptions>>().Value;
 if (internalTokensOptions.Jwks.Enabled)
 {
+    // AppServer fetches this JWKS to validate short-lived internal tokens signed by Api.
     app.MapGet(internalTokensOptions.Jwks.Path, (HttpContext context, IOptions<InternalTokenOptions> optionsAccessor, InternalJwksService jwksService) =>
         {
             var options = optionsAccessor.Value;
@@ -843,6 +852,7 @@ api.MapGet("/admin/auth/contract", (PolicyMapClient policyMapClient, ILoggerFact
 
 static bool SecureEquals(string left, string right)
 {
+    // Constant-time comparison protects internal API key checks from timing attacks.
     if (left.Length != right.Length)
     {
         return false;

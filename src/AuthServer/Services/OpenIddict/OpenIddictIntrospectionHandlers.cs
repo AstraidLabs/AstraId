@@ -11,6 +11,9 @@ using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.OpenIddict;
 
+/// <summary>
+/// Centralizes endpoint-level client validation for introspection and revocation to enforce confidential-client constraints.
+/// </summary>
 public static class OpenIddictIntrospectionHandlers
 {
     /// <summary>
