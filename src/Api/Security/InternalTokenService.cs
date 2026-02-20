@@ -7,11 +7,17 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Api.Security;
 
+/// <summary>
+/// Issues short-lived internal service tokens for AppServer calls on behalf of an authenticated API user context.
+/// </summary>
 public interface IInternalTokenService
 {
     string CreateToken(ClaimsPrincipal principal, IEnumerable<string> grantedScopes);
 }
 
+/// <summary>
+/// Builds signed JWTs that carry only claims required for internal authorization and audit correlation.
+/// </summary>
 public sealed class InternalTokenService : IInternalTokenService
 {
     private readonly IOptions<InternalTokenOptions> _options;
@@ -23,6 +29,9 @@ public sealed class InternalTokenService : IInternalTokenService
         _keyRingService = keyRingService;
     }
 
+    /// <summary>
+    /// Creates an internal token whose lifetime is configured in seconds via <c>InternalTokens:TokenTtlSeconds</c>.
+    /// </summary>
     public string CreateToken(ClaimsPrincipal principal, IEnumerable<string> grantedScopes)
     {
         var settings = _options.Value;
@@ -42,6 +51,7 @@ public sealed class InternalTokenService : IInternalTokenService
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
+        // Service identity claims let AppServer distinguish trusted Api calls from end-user access tokens.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, subject),

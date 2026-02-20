@@ -3,6 +3,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AppServer.Security;
 
+/// <summary>
+/// Maintains a cached copy of Api internal-token signing keys from JWKS for local JWT signature validation.
+/// </summary>
 public sealed class InternalJwksCache
 {
     private readonly ILogger<InternalJwksCache> _logger;
@@ -18,11 +21,15 @@ public sealed class InternalJwksCache
         _resolver = resolver;
     }
 
+    /// <summary>
+    /// Refreshes signing keys from JWKS and atomically swaps the in-memory resolver set when at least one key is available.
+    /// </summary>
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken)
     {
         var options = _options.CurrentValue;
         using var client = _httpClientFactory.CreateClient("InternalJwks");
         using var request = new HttpRequestMessage(HttpMethod.Get, options.JwksUrl);
+        // Optional API key protects internal JWKS endpoint from unauthenticated network callers.
         if (!string.IsNullOrWhiteSpace(options.JwksInternalApiKey) && !string.Equals(options.JwksInternalApiKey, "__REPLACE_ME__", StringComparison.Ordinal))
         {
             request.Headers.TryAddWithoutValidation("X-Internal-Api-Key", options.JwksInternalApiKey);
@@ -53,6 +60,9 @@ public sealed class InternalJwksCache
     }
 }
 
+/// <summary>
+/// Periodically refreshes JWKS based on <c>InternalTokens:JwksRefreshMinutes</c> (minutes).
+/// </summary>
 public sealed class InternalJwksRefreshService : BackgroundService
 {
     private readonly InternalJwksCache _cache;

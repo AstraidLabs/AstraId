@@ -17,6 +17,7 @@ using AstraId.Logging.Audit;
 using AstraId.Logging.Extensions;
 using AstraId.Logging.Redaction;
 
+// AppServer hosts internal content APIs and accepts only API-issued service tokens for east-west calls.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
@@ -27,6 +28,7 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 var authServerIssuer = builder.Configuration["AuthServer:Issuer"] ?? "https://localhost:7001/";
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
+// Internal token validation settings define trust contract with Api issuer (JWKS URL, issuer, audience, algorithms).
 builder.Services.AddOptions<InternalTokenOptions>()
     .Bind(builder.Configuration.GetSection(InternalTokenOptions.SectionName))
     .Validate(options => !string.IsNullOrWhiteSpace(options.JwksUrl), "InternalTokens:JwksUrl is required.")
@@ -53,6 +55,7 @@ builder.Services.PostConfigure<SecurityHardeningOptions>(options =>
 var internalOptions = builder.Configuration.GetSection(InternalTokenOptions.SectionName).Get<InternalTokenOptions>() ?? new InternalTokenOptions();
 var legacySecretConfigured = !string.IsNullOrWhiteSpace(internalOptions.LegacyHs256Secret)
     && !string.Equals(internalOptions.LegacyHs256Secret, "__REPLACE_ME__", StringComparison.Ordinal);
+// Legacy HS256 fallback is break-glass only and guarded heavily to avoid accidental long-term use.
 if (internalOptions.AllowLegacyHs256)
 {
     if (builder.Environment.IsProduction() && !internalOptions.BreakGlassOverride)
@@ -81,6 +84,7 @@ if (string.IsNullOrWhiteSpace(internalOptions.JwksUrl))
 
 var mtlsOptions = builder.Configuration.GetSection(AppServerMtlsOptions.SectionName).Get<AppServerMtlsOptions>() ?? new AppServerMtlsOptions();
 
+// Kestrel-level mTLS requirement protects the TLS handshake path before application middleware executes.
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureHttpsDefaults(httpsOptions =>
@@ -114,6 +118,7 @@ builder.Services.AddSingleton(signingKeyResolver);
 builder.Services.AddSingleton<InternalJwksCache>();
 builder.Services.AddHostedService<InternalJwksRefreshService>();
 
+// Only internal tokens minted by Api are accepted; public AuthServer access tokens are rejected for /app endpoints.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -328,6 +333,7 @@ if (hardeningOptions.Enabled && hardeningOptions.Headers.Enabled)
     });
 }
 
+// Request-level certificate checks enforce allow-list rules (thumbprint/subject) for mTLS-protected content routes.
 app.Use(async (context, next) =>
 {
     var options = context.RequestServices.GetRequiredService<IOptions<AppServerMtlsOptions>>().Value;
@@ -394,6 +400,7 @@ app.UseHangfireDashboard("/admin/hangfire", new DashboardOptions
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
+// Content API group is reserved for trusted internal callers and requires mTLS policy plus scope authorization.
 var content = app.MapGroup("/app");
 content.RequireAuthorization("RequireMtls");
 
