@@ -22,12 +22,14 @@ public sealed class ItemCacheService
     {
         var cacheKey = $"items:{itemId}";
         var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
+        // Return cached payload immediately when the item already exists in distributed cache.
         if (!string.IsNullOrWhiteSpace(cached))
         {
             return JsonSerializer.Deserialize<object>(cached) ?? new { id = itemId, source = "cache" };
         }
 
         var value = await factory();
+        // Persist the freshly materialized item with a short TTL for subsequent reads.
         await _cache.SetStringAsync(
             cacheKey,
             JsonSerializer.Serialize(value),

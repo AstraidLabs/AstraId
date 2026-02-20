@@ -43,18 +43,21 @@ public sealed class InternalTokenKeyRingService
         lock (_gate)
         {
             var options = _options.CurrentValue;
+            // Skip rotation entirely when key rotation is disabled by configuration.
             if (!options.Signing.RotationEnabled)
             {
                 return;
             }
 
             var nextRotationDue = _ring.Current.CreatedUtc.AddDays(options.Signing.RotationIntervalDays);
+            // Keep the current key until the configured rotation interval elapses.
             if (DateTimeOffset.UtcNow < nextRotationDue)
             {
                 return;
             }
 
             var newKey = GenerateKey(options);
+            // Store the new key by kid so validators can resolve it from JWT headers.
             _ring.Keys[newKey.Kid] = newKey;
             _ring.CurrentKid = newKey.Kid;
             CleanupOldKeys(options);
@@ -69,8 +72,10 @@ public sealed class InternalTokenKeyRingService
         return new InternalTokenKeyRing
         {
             CurrentKid = key.Kid,
+            // Map key id to signing key for fast lookup by JWT kid.
             Keys = new Dictionary<string, InternalSigningKey>(StringComparer.Ordinal)
             {
+                // Seed the ring with the initial signing key.
                 [key.Kid] = key
             }
         };
@@ -78,9 +83,12 @@ public sealed class InternalTokenKeyRingService
 
     private static InternalSigningKey GenerateKey(InternalTokenOptions options)
     {
+        // Select key creation strategy based on configured signing algorithm.
         return ResolveAlgorithm(options.Signing.Algorithm) switch
         {
+            // Use RSA keys when RS256 is configured.
             SecurityAlgorithms.RsaSha256 => CreateRsaKey(options.Signing.KeySize),
+            // Use ECDSA keys when ES256 is configured.
             SecurityAlgorithms.EcdsaSha256 => CreateEcdsaKey(),
             _ => throw new InvalidOperationException("Unsupported internal token signing algorithm.")
         };
@@ -108,9 +116,12 @@ public sealed class InternalTokenKeyRingService
         return new InternalSigningKey(securityKey.KeyId!, SecurityAlgorithms.EcdsaSha256, securityKey, DateTimeOffset.UtcNow);
     }
 
+    // Map configured algorithm aliases to IdentityModel algorithm constants.
     private static string ResolveAlgorithm(string algorithm) => algorithm.ToUpperInvariant() switch
     {
+        // Resolve RS256 alias to RSA-SHA256.
         "RS256" => SecurityAlgorithms.RsaSha256,
+        // Resolve ES256 alias to ECDSA-SHA256.
         "ES256" => SecurityAlgorithms.EcdsaSha256,
         _ => throw new InvalidOperationException("Unsupported internal token algorithm.")
     };
@@ -118,11 +129,13 @@ public sealed class InternalTokenKeyRingService
     private void CleanupOldKeys(InternalTokenOptions options)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-options.Signing.PreviousKeyRetentionDays);
+        // Collect non-current keys older than retention window for cleanup.
         var removableKids = _ring.Keys.Values
             .Where(key => !string.Equals(key.Kid, _ring.CurrentKid, StringComparison.Ordinal) && key.CreatedUtc < cutoff)
             .Select(key => key.Kid)
             .ToArray();
 
+        // Remove expired key entries from the key dictionary by kid.
         foreach (var kid in removableKids)
         {
             _ring.Keys.Remove(kid);
@@ -137,6 +150,7 @@ public sealed class InternalTokenKeyRingService
         public required string CurrentKid { get; set; }
         public required Dictionary<string, InternalSigningKey> Keys { get; set; }
 
+        // Use current kid as dictionary index to return the active signing key.
         public InternalSigningKey Current => Keys[CurrentKid];
     }
 }

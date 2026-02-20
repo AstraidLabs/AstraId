@@ -35,7 +35,9 @@ public sealed class InternalTokenService : IInternalTokenService
     public string CreateToken(ClaimsPrincipal principal, IEnumerable<string> grantedScopes)
     {
         var settings = _options.Value;
+        // Prefer the OIDC subject claim and fallback to NameIdentifier for compatibility.
         var subject = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        // Fail fast when the authenticated principal cannot be tied to a stable subject identifier.
         if (string.IsNullOrWhiteSpace(subject))
         {
             throw new InvalidOperationException("Cannot issue internal token without subject.");
@@ -47,11 +49,13 @@ public sealed class InternalTokenService : IInternalTokenService
             signingKey.PrivateKey,
             signingKey.Algorithm);
 
+        // Normalize granted scopes into a distinct array for deterministic token content.
         var scopes = grantedScopes
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
         // Service identity claims let AppServer distinguish trusted Api calls from end-user access tokens.
+        // Collect token claims in a mutable list before constructing the JWT payload.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, subject),
@@ -62,16 +66,19 @@ public sealed class InternalTokenService : IInternalTokenService
         };
 
         var tenant = principal.FindFirst("tenant")?.Value;
+        // Include tenant context only when the caller carries a tenant claim.
         if (!string.IsNullOrWhiteSpace(tenant))
         {
             claims.Add(new Claim("tenant", tenant));
         }
 
+        // Copy each distinct permission claim so AppServer can enforce endpoint permissions.
         foreach (var permission in principal.FindAll(AuthConstants.ClaimTypes.Permission).Select(claim => claim.Value).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             claims.Add(new Claim(AuthConstants.ClaimTypes.Permission, permission));
         }
 
+        // Emit the scope claim only when at least one scope is granted.
         if (scopes.Length > 0)
         {
             claims.Add(new Claim("scope", string.Join(' ', scopes)));
@@ -85,6 +92,7 @@ public sealed class InternalTokenService : IInternalTokenService
             expires: now.AddSeconds(settings.TokenTtlSeconds),
             signingCredentials: credentials);
 
+        // Publish key identifier in the header so validators can resolve the signing key quickly.
         token.Header[JwtHeaderParameterNames.Kid] = signingKey.Kid;
 
         return new JwtSecurityTokenHandler().WriteToken(token);

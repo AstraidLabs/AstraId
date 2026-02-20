@@ -22,6 +22,7 @@ public sealed class InternalTokenKeyRotationService : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Rotate keys on a background cadence until service shutdown is requested.
         while (!stoppingToken.IsCancellationRequested)
         {
             _keyRingService.RotateIfDue();

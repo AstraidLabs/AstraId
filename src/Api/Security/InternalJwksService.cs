@@ -17,6 +17,7 @@ public sealed class InternalJwksService
 
     public object GetJwksDocument()
     {
+        // Export each active signing key into a public JWK for discovery consumers.
         var keys = _keyRingService.GetPublicKeys()
             .Select(ToPublicJwk)
             .ToArray();
@@ -26,8 +27,10 @@ public sealed class InternalJwksService
 
     private static JsonWebKey ToPublicJwk(InternalSigningKey key)
     {
+        // Convert private signing key types into their corresponding public JWK forms.
         var jwk = key.PrivateKey switch
         {
+            // Export RSA public parameters for RS256 verification.
             RsaSecurityKey rsaKey => JsonWebKeyConverter.ConvertFromRSASecurityKey(new RsaSecurityKey(rsaKey.Rsa?.ExportParameters(false) ?? rsaKey.Parameters)),
             ECDsaSecurityKey ecKey => JsonWebKeyConverter.ConvertFromECDsaSecurityKey(CreatePublicEcKey(ecKey)),
             _ => throw new InvalidOperationException("Unsupported key type for JWKS export.")
