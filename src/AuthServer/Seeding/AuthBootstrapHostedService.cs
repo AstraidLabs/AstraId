@@ -133,12 +133,24 @@ public sealed class AuthBootstrapHostedService : IHostedService
         foreach (var client in AuthServerDefinitions.Clients)
         {
             var application = await applicationManager.FindByClientIdAsync(client.ClientId, cancellationToken);
+            var clientSecret = ResolveSeededClientSecret(client);
+
+            if (application is null
+                && string.Equals(client.Type, OpenIddictConstants.ClientTypes.Confidential, StringComparison.Ordinal)
+                && string.IsNullOrWhiteSpace(clientSecret))
+            {
+                _logger.LogWarning(
+                    "Skipping creation of confidential seeded client {ClientId} because no client secret is configured.",
+                    client.ClientId);
+                continue;
+            }
+
             var descriptor = new OpenIddictApplicationDescriptor
             {
                 ClientId = client.ClientId,
                 DisplayName = client.DisplayName,
                 ClientType = client.Type,
-                ClientSecret = ResolveSeededClientSecret(client)
+                ClientSecret = clientSecret
             };
 
             foreach (var uri in client.RedirectUris)
