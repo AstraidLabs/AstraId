@@ -30,12 +30,14 @@ public sealed class InternalJwksCache
         using var client = _httpClientFactory.CreateClient("InternalJwks");
         using var request = new HttpRequestMessage(HttpMethod.Get, options.JwksUrl);
         // Optional API key protects internal JWKS endpoint from unauthenticated network callers.
+        // Attach internal API key only when a real key is configured for protected JWKS endpoints.
         if (!string.IsNullOrWhiteSpace(options.JwksInternalApiKey) && !string.Equals(options.JwksInternalApiKey, "__REPLACE_ME__", StringComparison.Ordinal))
         {
             request.Headers.TryAddWithoutValidation("X-Internal-Api-Key", options.JwksInternalApiKey);
         }
 
         using var response = await client.SendAsync(request, cancellationToken);
+        // Abort refresh when JWKS endpoint response is not successful.
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("JWKS refresh failed with status code {StatusCode}", response.StatusCode);
@@ -44,10 +46,12 @@ public sealed class InternalJwksCache
 
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         var jwks = new JsonWebKeySet(payload);
+        // Build a kid-to-key dictionary so JWT validators can resolve keys quickly.
         var resolved = jwks.Keys
             .Where(key => !string.IsNullOrWhiteSpace(key.Kid))
             .ToDictionary(key => key.Kid!, key => (SecurityKey)key, StringComparer.Ordinal);
 
+        // Reject refresh when no usable signing keys are present.
         if (resolved.Count == 0)
         {
             _logger.LogWarning("JWKS refresh returned zero keys.");
@@ -78,6 +82,7 @@ public sealed class InternalJwksRefreshService : BackgroundService
     {
         await _cache.RefreshAsync(stoppingToken);
 
+        // Keep refreshing JWKS periodically until cancellation is requested.
         while (!stoppingToken.IsCancellationRequested)
         {
             var minutes = Math.Max(1, _options.CurrentValue.JwksRefreshMinutes);

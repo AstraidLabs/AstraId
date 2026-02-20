@@ -30,23 +30,27 @@ public sealed class RedisEventSubscriber : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Reuse the Redis pub/sub subscriber to receive app events from the shared channel.
         var subscriber = _redis.GetSubscriber();
         await subscriber.SubscribeAsync(EventChannels.AppEvents, async (_, value) =>
         {
             try
             {
                 var appEvent = JsonSerializer.Deserialize<AppEvent>(value.ToString());
+                // Ignore payloads that cannot be deserialized into the app event contract.
                 if (appEvent is null)
                 {
                     return;
                 }
 
                 var eventName = $"app.{appEvent.Type}";
+                // Fan out user-scoped events to the matching user group.
                 if (!string.IsNullOrWhiteSpace(appEvent.UserId))
                 {
                     await _hubContext.Clients.Group($"user:{appEvent.UserId}").SendAsync(eventName, appEvent, cancellationToken: stoppingToken);
                 }
 
+                // Fan out tenant-scoped events to all clients in the tenant group.
                 if (!string.IsNullOrWhiteSpace(appEvent.TenantId))
                 {
                     await _hubContext.Clients.Group($"tenant:{appEvent.TenantId}").SendAsync(eventName, appEvent, cancellationToken: stoppingToken);
