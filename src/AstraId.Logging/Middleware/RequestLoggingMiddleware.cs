@@ -26,6 +26,9 @@ public sealed class RequestLoggingMiddleware
         _options = options;
     }
 
+    /// <summary>
+    /// Captures request and response metadata and emits a structured request log entry.
+    /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
         var opts = _options.Value;
@@ -78,6 +81,9 @@ public sealed class RequestLoggingMiddleware
         await _next(context);
     }
 
+    /// <summary>
+    /// Determines whether request body logging is allowed for the current path.
+    /// </summary>
     private static bool IsBodyPathAllowed(PathString path, AstraLoggingOptions.RequestLoggingOptions options)
     {
         var pathValue = path.Value ?? string.Empty;

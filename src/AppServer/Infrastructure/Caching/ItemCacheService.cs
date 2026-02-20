@@ -12,6 +12,9 @@ public sealed class ItemCacheService
         _cache = cache;
     }
 
+    /// <summary>
+    /// Returns a cached item when available or materializes and stores it using the factory delegate.
+    /// </summary>
     public async Task<object> GetOrCreateAsync(string itemId, Func<Task<object>> factory, CancellationToken cancellationToken)
     {
         var cacheKey = $"items:{itemId}";

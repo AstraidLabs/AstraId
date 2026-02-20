@@ -14,6 +14,9 @@ public sealed class InternalTokenKeyRotationService : BackgroundService
         _options = options;
     }
 
+    /// <summary>
+    /// Runs the background loop that rotates and prunes internal signing keys.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)

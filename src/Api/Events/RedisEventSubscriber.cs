@@ -22,6 +22,9 @@ public sealed class RedisEventSubscriber : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Subscribes to configured Redis channels and forwards events to SignalR clients.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var subscriber = _redis.GetSubscriber();

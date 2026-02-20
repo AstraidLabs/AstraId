@@ -126,6 +126,9 @@ public sealed class EndpointAuthorizationMiddleware
         await _next(context);
     }
 
+    /// <summary>
+    /// Creates a security audit event payload for endpoint authorization decisions.
+    /// </summary>
     private static SecurityAuditEvent CreateEvent(string eventType, string result, string reasonCode, HttpContext context, IWebHostEnvironment environment, PathString path) => new()
     {
         EventType = eventType,
@@ -142,6 +145,9 @@ public sealed class EndpointAuthorizationMiddleware
         Ip = context.Connection.RemoteIpAddress?.ToString()
     };
 
+    /// <summary>
+    /// Writes a problem-details JSON response for authorization failures.
+    /// </summary>
     private static async Task WriteProblemDetailsAsync(
         HttpContext context,
         IProblemDetailsService problemDetailsService,
