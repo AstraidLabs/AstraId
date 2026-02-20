@@ -58,6 +58,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpPost("password/change")]
+    /// <summary>
+    /// Processes a password change request for the authenticated user.
+    /// </summary>
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         if (IsRateLimited("account-password-change", out var retryAfter))
@@ -152,6 +155,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpPost("email/change-request")]
+    /// <summary>
+    /// Starts an email change flow by validating credentials and sending a confirmation link.
+    /// </summary>
     public async Task<IActionResult> ChangeEmailRequest([FromBody] ChangeEmailRequest request)
     {
         if (IsRateLimited("account-email-change-request", out var retryAfter))
@@ -248,6 +254,9 @@ public sealed class AccountController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("email/change-confirm")]
+    /// <summary>
+    /// Confirms a pending email change using the token delivered to the new address.
+    /// </summary>
     public async Task<IActionResult> ConfirmEmailChange([FromBody] ConfirmEmailChangeRequest request)
     {
         if (IsRateLimited("account-email-change-confirm", out var retryAfter))
@@ -315,6 +324,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpPost("sessions/revoke-others")]
+    /// <summary>
+    /// Revokes active sessions for the current user except the session issuing the request.
+    /// </summary>
     public async Task<IActionResult> RevokeOtherSessions([FromBody] RevokeSessionsRequest request)
     {
         if (IsRateLimited("account-sessions-revoke", out var retryAfter))
@@ -367,6 +379,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpGet("security/overview")]
+    /// <summary>
+    /// Returns a security overview for the authenticated account.
+    /// </summary>
     public async Task<IActionResult> GetSecurityOverview()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -388,6 +403,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpGet("preferences")]
+    /// <summary>
+    /// Returns profile preferences for the authenticated user.
+    /// </summary>
     public async Task<IActionResult> GetPreferences()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -405,6 +423,9 @@ public sealed class AccountController : ControllerBase
     }
 
     [HttpPut("preferences/language")]
+    /// <summary>
+    /// Updates the preferred language for the authenticated user.
+    /// </summary>
     public async Task<IActionResult> SetPreferredLanguage([FromBody] UpdateLanguagePreferenceRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -436,6 +457,9 @@ public sealed class AccountController : ControllerBase
         return Ok(new LanguagePreferenceResponse(user.PreferredLanguage, user.PreferredLanguage));
     }
 
+    /// <summary>
+    /// Persists an account-level audit entry for the current operation.
+    /// </summary>
     private async Task AddAuditAsync(Guid actorUserId, string action, string targetType, string targetId, object payload)
     {
         _dbContext.AuditLogs.Add(new AuditLog
@@ -458,11 +482,17 @@ public sealed class AccountController : ControllerBase
         await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
     }
 
+    /// <summary>
+    /// Checks whether the current user has exceeded the configured rate limit for an action.
+    /// </summary>
     private bool IsRateLimited(string action, out int retryAfterSeconds)
     {
         return _rateLimiter.IsLimited(HttpContext, action, AccountMaxAttempts, AccountWindow, out retryAfterSeconds);
     }
 
+    /// <summary>
+    /// Builds a standard too-many-requests response with retry metadata.
+    /// </summary>
     private IActionResult TooManyRequestsResponse(int retryAfterSeconds)
     {
         if (retryAfterSeconds > 0)
@@ -476,6 +506,9 @@ public sealed class AccountController : ControllerBase
             L("Auth.RateLimit.TooManyAttempts.Detail", "Too many attempts. Please try again later."));
     }
 
+    /// <summary>
+    /// Creates a problem-details response for authentication and authorization errors.
+    /// </summary>
     private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
     {
         var problem = new ProblemDetails
@@ -488,6 +521,9 @@ public sealed class AccountController : ControllerBase
         return StatusCode(statusCode, problem);
     }
 
+    /// <summary>
+    /// Creates a validation problem response for field-level request errors.
+    /// </summary>
     private IActionResult BuildValidationProblem(string title, Dictionary<string, string[]> errors)
     {
         var filtered = errors
@@ -504,17 +540,26 @@ public sealed class AccountController : ControllerBase
         return UnprocessableEntity(details);
     }
 
+    /// <summary>
+    /// Resolves a localized message and falls back to the provided text when missing.
+    /// </summary>
     private string L(string key, string fallback)
     {
         var value = _localizer[key];
         return value.ResourceNotFound ? fallback : value.Value;
     }
 
+    /// <summary>
+    /// Encodes an identity token value so it can be safely used in URLs.
+    /// </summary>
     private static string EncodeToken(string token)
     {
         return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
     }
 
+    /// <summary>
+    /// Decodes a URL-safe token back into its original representation.
+    /// </summary>
     private static string? DecodeToken(string encodedToken)
     {
         try
@@ -527,6 +572,9 @@ public sealed class AccountController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Masks the local-part of an email address for audit and notification messages.
+    /// </summary>
     private static string MaskEmail(string email)
     {
         var atIndex = email.IndexOf('@');

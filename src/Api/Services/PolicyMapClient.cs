@@ -38,6 +38,9 @@ public sealed class PolicyMapClient
         _logger = logger;
     }
 
+    /// <summary>
+    /// Returns the current in-memory authorization policy map entries.
+    /// </summary>
     public IReadOnlyList<PolicyMapEntry> GetEntries()
     {
         lock (_lock)
@@ -46,6 +49,9 @@ public sealed class PolicyMapClient
         }
     }
 
+    /// <summary>
+    /// Returns diagnostic metadata about policy map refresh state.
+    /// </summary>
     public PolicyMapDiagnostics GetDiagnostics()
     {
         var options = _options.CurrentValue;
@@ -57,6 +63,9 @@ public sealed class PolicyMapClient
         }
     }
 
+    /// <summary>
+    /// Refreshes policy map entries from the configured remote policy endpoint.
+    /// </summary>
     public async Task RefreshAsync(CancellationToken cancellationToken)
     {
         var options = _options.CurrentValue;
@@ -117,6 +126,9 @@ public sealed class PolicyMapClient
         }
     }
 
+    /// <summary>
+    /// Records refresh failure details for diagnostics and health reporting.
+    /// </summary>
     private void SetFailureState(string reason)
     {
         lock (_lock)
@@ -127,6 +139,9 @@ public sealed class PolicyMapClient
         }
     }
 
+    /// <summary>
+    /// Finds required permissions for a request method and path when an entry matches.
+    /// </summary>
     public IReadOnlyCollection<string>? FindRequiredPermissions(string method, string path)
     {
         var entries = GetEntries();
@@ -146,6 +161,9 @@ public sealed class PolicyMapClient
         return null;
     }
 
+    /// <summary>
+    /// Builds the remote endpoint URL used to fetch policy map entries.
+    /// </summary>
     private static string BuildEndpointUrl(PolicyMapOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.BaseUrl) || string.IsNullOrWhiteSpace(options.ApiName))
@@ -156,6 +174,9 @@ public sealed class PolicyMapClient
         return new Uri(new Uri(options.BaseUrl.TrimEnd('/') + "/"), $"admin/apis/{options.ApiName}/policy-map").ToString();
     }
 
+    /// <summary>
+    /// Determines whether a runtime path matches a policy template path pattern.
+    /// </summary>
     private static bool IsPathMatch(string template, string path)
     {
         var templateSegments = SplitPath(template);
@@ -183,6 +204,9 @@ public sealed class PolicyMapClient
         return true;
     }
 
+    /// <summary>
+    /// Splits a path into normalized route segments.
+    /// </summary>
     private static string[] SplitPath(string path)
     {
         return path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
