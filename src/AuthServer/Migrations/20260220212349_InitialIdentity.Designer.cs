@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260210162706_InitialIdentity1")]
-    partial class InitialIdentity1
+    [Migration("20260220212349_InitialIdentity")]
+    partial class InitialIdentity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -631,6 +631,75 @@ namespace AuthServer.Migrations
                     b.HasIndex("UserId", "TimestampUtc");
 
                     b.ToTable("LoginHistory");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.OAuthAdvancedPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("BackChannelLogoutEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DeviceFlowEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("DeviceFlowPollingIntervalSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DeviceFlowUserCodeTtlMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("FrontChannelLogoutEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LogoutTokenTtlMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RefreshReuseAction")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RefreshReuseDetectionEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RefreshRotationEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("TokenExchangeAllowedAudiencesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenExchangeAllowedClientIdsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("TokenExchangeEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAtUtc");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("OAuthAdvancedPolicies");
                 });
 
             modelBuilder.Entity("AuthServer.Data.OidcResource", b =>
@@ -1507,6 +1576,14 @@ namespace AuthServer.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AuthServer.Data.OAuthAdvancedPolicy", b =>
+                {
+                    b.HasOne("AuthServer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("AuthServer.Data.PrivacyPolicy", b =>

@@ -56,6 +56,7 @@ namespace AuthServer.Migrations
                     RequestedDeletionUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     LastInactivityWarningSentUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     ScheduledDeletionUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PreferredLanguage = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -580,6 +581,39 @@ namespace AuthServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "OAuthAdvancedPolicies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    DeviceFlowEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    DeviceFlowUserCodeTtlMinutes = table.Column<int>(type: "integer", nullable: false),
+                    DeviceFlowPollingIntervalSeconds = table.Column<int>(type: "integer", nullable: false),
+                    TokenExchangeEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    TokenExchangeAllowedClientIdsJson = table.Column<string>(type: "text", nullable: false),
+                    TokenExchangeAllowedAudiencesJson = table.Column<string>(type: "text", nullable: false),
+                    RefreshRotationEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    RefreshReuseDetectionEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    RefreshReuseAction = table.Column<int>(type: "integer", nullable: false),
+                    BackChannelLogoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    FrontChannelLogoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    LogoutTokenTtlMinutes = table.Column<int>(type: "integer", nullable: false),
+                    UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedByUserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    UpdatedByIp = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OAuthAdvancedPolicies", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_OAuthAdvancedPolicies_AspNetUsers_UpdatedByUserId",
+                        column: x => x.UpdatedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PrivacyPolicies",
                 columns: table => new
                 {
@@ -950,6 +984,16 @@ namespace AuthServer.Migrations
                 columns: new[] { "UserId", "TimestampUtc" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_OAuthAdvancedPolicies_UpdatedAtUtc",
+                table: "OAuthAdvancedPolicies",
+                column: "UpdatedAtUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OAuthAdvancedPolicies_UpdatedByUserId",
+                table: "OAuthAdvancedPolicies",
+                column: "UpdatedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_OidcResources_Name",
                 table: "OidcResources",
                 column: "Name",
@@ -1118,6 +1162,9 @@ namespace AuthServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "LoginHistory");
+
+            migrationBuilder.DropTable(
+                name: "OAuthAdvancedPolicies");
 
             migrationBuilder.DropTable(
                 name: "OidcResources");
