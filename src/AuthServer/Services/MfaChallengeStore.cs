@@ -7,6 +7,9 @@ using StackExchange.Redis;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides mfa challenge store functionality.
+/// </summary>
 public sealed class MfaChallengeStore
 {
     private static readonly TimeSpan DefaultLifetime = TimeSpan.FromMinutes(5);
@@ -121,4 +124,7 @@ public sealed class MfaChallengeStore
     private static string BuildKey(string token) => $"mfa:{token}";
 }
 
+/// <summary>
+/// Provides mfa challenge state functionality.
+/// </summary>
 public sealed record MfaChallengeState(Guid UserId, string? ReturnUrl, DateTimeOffset ExpiresAt);

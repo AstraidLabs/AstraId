@@ -4,11 +4,17 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Defines the contract for client state service.
+/// </summary>
 public interface IClientStateService
 {
     Task<bool> IsClientEnabledAsync(string? clientId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Provides client state service functionality.
+/// </summary>
 public sealed class ClientStateService : IClientStateService
 {
     private readonly IOpenIddictApplicationManager _applicationManager;

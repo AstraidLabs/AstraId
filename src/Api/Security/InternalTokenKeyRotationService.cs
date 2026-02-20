@@ -3,6 +3,9 @@ using Api.Options;
 
 namespace Api.Security;
 
+/// <summary>
+/// Provides internal token key rotation service functionality.
+/// </summary>
 public sealed class InternalTokenKeyRotationService : BackgroundService
 {
     private readonly InternalTokenKeyRingService _keyRingService;

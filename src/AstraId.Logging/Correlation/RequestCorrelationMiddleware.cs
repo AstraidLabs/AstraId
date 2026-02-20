@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 namespace AstraId.Logging.Correlation;
 
+/// <summary>
+/// Implements middleware for request correlation.
+/// </summary>
 public sealed class RequestCorrelationMiddleware
 {
     public const string HeaderName = "X-Correlation-ID";

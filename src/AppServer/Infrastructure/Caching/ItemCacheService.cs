@@ -3,6 +3,9 @@ using Microsoft.Extensions.Caching.Distributed;
 
 namespace AppServer.Infrastructure.Caching;
 
+/// <summary>
+/// Provides item cache service functionality.
+/// </summary>
 public sealed class ItemCacheService
 {
     private readonly IDistributedCache _cache;

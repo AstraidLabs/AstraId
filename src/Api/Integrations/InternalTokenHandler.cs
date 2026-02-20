@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides internal token handler functionality.
+/// </summary>
 public sealed class InternalTokenHandler : DelegatingHandler
 {
     private readonly IHttpContextAccessor _httpContextAccessor;

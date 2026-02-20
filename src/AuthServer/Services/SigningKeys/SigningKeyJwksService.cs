@@ -7,6 +7,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides signing key jwks service functionality.
+/// </summary>
 public sealed class SigningKeyJwksService
 {
     private readonly SigningKeyRingService _keyRingService;

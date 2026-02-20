@@ -4,6 +4,9 @@ using StackExchange.Redis;
 
 namespace AuthServer.Services.Events;
 
+/// <summary>
+/// Provides redis event publisher functionality.
+/// </summary>
 public sealed class RedisEventPublisher : IEventPublisher
 {
     private readonly IConnectionMultiplexer _redis;

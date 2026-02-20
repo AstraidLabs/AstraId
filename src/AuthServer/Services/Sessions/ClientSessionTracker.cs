@@ -3,6 +3,9 @@ using Microsoft.Extensions.Caching.Distributed;
 
 namespace AuthServer.Services.Sessions;
 
+/// <summary>
+/// Provides client session tracker functionality.
+/// </summary>
 public sealed class ClientSessionTracker
 {
     private readonly IDistributedCache _cache;

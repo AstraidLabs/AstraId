@@ -1,5 +1,8 @@
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides service names functionality.
+/// </summary>
 public static class ServiceNames
 {
     public const string AuthServer = "AuthServer";

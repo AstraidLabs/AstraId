@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for governance guardrails.
+/// </summary>
 public sealed class GovernanceGuardrailsOptions
 {
     public const string SectionName = "AuthServer:GovernanceGuardrails";

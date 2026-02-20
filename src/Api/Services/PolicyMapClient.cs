@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 namespace Api.Services;
 
 
+/// <summary>
+/// Provides policy map diagnostics functionality.
+/// </summary>
 public sealed record PolicyMapDiagnostics(
     string EndpointUrl,
     DateTimeOffset? LastRefreshUtc,
@@ -13,6 +16,9 @@ public sealed record PolicyMapDiagnostics(
     string RefreshStatus,
     int EntryCount);
 
+/// <summary>
+/// Provides policy map client functionality.
+/// </summary>
 public sealed class PolicyMapClient
 {
     public const string HttpClientName = "PolicyMap";

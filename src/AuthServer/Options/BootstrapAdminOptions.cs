@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for bootstrap admin.
+/// </summary>
 public sealed class BootstrapAdminOptions
 {
     public const string SectionName = "BootstrapAdmin";

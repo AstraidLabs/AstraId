@@ -3,6 +3,9 @@ using OpenIddict.Server;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides open iddict token policy configurator functionality.
+/// </summary>
 public sealed class OpenIddictTokenPolicyConfigurator : IConfigureOptions<OpenIddictServerOptions>
 {
     private readonly IServiceProvider _serviceProvider;

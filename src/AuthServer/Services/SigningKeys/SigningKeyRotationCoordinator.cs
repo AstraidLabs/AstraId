@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides signing key rotation coordinator functionality.
+/// </summary>
 public sealed class SigningKeyRotationCoordinator
 {
     private readonly ApplicationDbContext _dbContext;

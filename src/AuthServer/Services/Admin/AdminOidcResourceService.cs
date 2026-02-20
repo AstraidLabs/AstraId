@@ -8,6 +8,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin oidc resource service functionality.
+/// </summary>
 public sealed class AdminOidcResourceService : IAdminOidcResourceService
 {
     private readonly ApplicationDbContext _dbContext;

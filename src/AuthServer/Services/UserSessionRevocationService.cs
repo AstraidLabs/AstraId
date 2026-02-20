@@ -4,6 +4,9 @@ using AuthServer.Services.Governance;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides user session revocation service functionality.
+/// </summary>
 public sealed class UserSessionRevocationService
 {
     private readonly TokenRevocationService _tokenRevocationService;

@@ -13,6 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for account.
+/// </summary>
 
 [ApiController]
 [Route("account")]
@@ -56,11 +59,11 @@ public sealed class AccountController : ControllerBase
         _notificationService = notificationService;
         _localizer = localizer;
     }
-
-    [HttpPost("password/change")]
     /// <summary>
     /// Processes a password change request for the authenticated user.
     /// </summary>
+
+    [HttpPost("password/change")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         if (IsRateLimited("account-password-change", out var retryAfter))
@@ -153,11 +156,11 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Account.Password.Updated", "Password updated.")));
     }
-
-    [HttpPost("email/change-request")]
     /// <summary>
     /// Starts an email change flow by validating credentials and sending a confirmation link.
     /// </summary>
+
+    [HttpPost("email/change-request")]
     public async Task<IActionResult> ChangeEmailRequest([FromBody] ChangeEmailRequest request)
     {
         if (IsRateLimited("account-email-change-request", out var retryAfter))
@@ -251,12 +254,12 @@ public sealed class AccountController : ControllerBase
             null,
             "If the email can be changed, you will receive a confirmation link."));
     }
-
-    [AllowAnonymous]
-    [HttpPost("email/change-confirm")]
     /// <summary>
     /// Confirms a pending email change using the token delivered to the new address.
     /// </summary>
+
+    [AllowAnonymous]
+    [HttpPost("email/change-confirm")]
     public async Task<IActionResult> ConfirmEmailChange([FromBody] ConfirmEmailChangeRequest request)
     {
         if (IsRateLimited("account-email-change-confirm", out var retryAfter))
@@ -322,11 +325,11 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, _uiUrlBuilder.BuildLoginUrl(string.Empty), null, L("Account.Email.Updated", "Email updated.")));
     }
-
-    [HttpPost("sessions/revoke-others")]
     /// <summary>
     /// Revokes active sessions for the current user except the session issuing the request.
     /// </summary>
+
+    [HttpPost("sessions/revoke-others")]
     public async Task<IActionResult> RevokeOtherSessions([FromBody] RevokeSessionsRequest request)
     {
         if (IsRateLimited("account-sessions-revoke", out var retryAfter))
@@ -377,11 +380,11 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Account.Sessions.Revoked", "Other sessions were signed out.")));
     }
-
-    [HttpGet("security/overview")]
     /// <summary>
     /// Returns a security overview for the authenticated account.
     /// </summary>
+
+    [HttpGet("security/overview")]
     public async Task<IActionResult> GetSecurityOverview()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -401,11 +404,11 @@ public sealed class AccountController : ControllerBase
             user.Email,
             user.UserName));
     }
-
-    [HttpGet("preferences")]
     /// <summary>
     /// Returns profile preferences for the authenticated user.
     /// </summary>
+
+    [HttpGet("preferences")]
     public async Task<IActionResult> GetPreferences()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -421,11 +424,11 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new LanguagePreferenceResponse(preferred, effective));
     }
-
-    [HttpPut("preferences/language")]
     /// <summary>
     /// Updates the preferred language for the authenticated user.
     /// </summary>
+
+    [HttpPut("preferences/language")]
     public async Task<IActionResult> SetPreferredLanguage([FromBody] UpdateLanguagePreferenceRequest request)
     {
         var user = await _userManager.GetUserAsync(User);

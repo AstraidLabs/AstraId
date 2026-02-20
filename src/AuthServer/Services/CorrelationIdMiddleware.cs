@@ -2,6 +2,9 @@ using System.Collections.Generic;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Implements middleware for correlation id.
+/// </summary>
 public sealed class CorrelationIdMiddleware
 {
     public const string HeaderName = "X-Correlation-ID";

@@ -7,6 +7,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.Sessions;
 
+/// <summary>
+/// Provides back channel logout service functionality.
+/// </summary>
 public sealed class BackChannelLogoutService
 {
     private readonly IHttpClientFactory _httpClientFactory;

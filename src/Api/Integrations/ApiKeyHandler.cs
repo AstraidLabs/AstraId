@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides api key handler functionality.
+/// </summary>
 public sealed class ApiKeyHandler : DelegatingHandler
 {
     private readonly string _serviceName;

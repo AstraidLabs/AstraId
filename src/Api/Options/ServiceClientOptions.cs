@@ -1,5 +1,8 @@
 namespace Api.Options;
 
+/// <summary>
+/// Provides configuration options for service client.
+/// </summary>
 public sealed class ServiceClientOptions
 {
     public string BaseUrl { get; set; } = string.Empty;

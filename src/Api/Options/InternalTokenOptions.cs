@@ -1,5 +1,8 @@
 namespace Api.Options;
 
+/// <summary>
+/// Provides configuration options for internal token.
+/// </summary>
 public sealed class InternalTokenOptions
 {
     public const string SectionName = "InternalTokens";
@@ -12,6 +15,9 @@ public sealed class InternalTokenOptions
     public InternalTokenJwksOptions Jwks { get; set; } = new();
 }
 
+/// <summary>
+/// Provides configuration options for internal token signing.
+/// </summary>
 public sealed class InternalTokenSigningOptions
 {
     public string Algorithm { get; set; } = "RS256";
@@ -21,6 +27,9 @@ public sealed class InternalTokenSigningOptions
     public int KeySize { get; set; } = 2048;
 }
 
+/// <summary>
+/// Provides configuration options for internal token jwks.
+/// </summary>
 public sealed class InternalTokenJwksOptions
 {
     public bool Enabled { get; set; } = true;

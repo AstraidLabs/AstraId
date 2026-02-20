@@ -1,5 +1,8 @@
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides integration ping result functionality.
+/// </summary>
 public sealed record IntegrationPingResult(
     string Service,
     int StatusCode,

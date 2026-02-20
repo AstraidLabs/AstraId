@@ -7,6 +7,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Validation;
 
+/// <summary>
+/// Provides admin validation functionality.
+/// </summary>
 public static class AdminValidation
 {
     public const int PermissionKeyMinLength = 3;

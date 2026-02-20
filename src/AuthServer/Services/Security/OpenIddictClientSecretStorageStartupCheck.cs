@@ -2,6 +2,9 @@ using AstraId.Logging.Audit;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides open iddict client secret storage startup check functionality.
+/// </summary>
 public sealed class OpenIddictClientSecretStorageStartupCheck : IHostedService
 {
     private readonly IWebHostEnvironment _environment;

@@ -2,6 +2,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin client service.
+/// </summary>
 public interface IAdminClientService
 {
     Task<PagedResult<AdminClientListItem>> GetClientsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken);

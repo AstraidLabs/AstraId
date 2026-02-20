@@ -5,6 +5,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Api.Security;
 
+/// <summary>
+/// Provides internal token key ring service functionality.
+/// </summary>
 public sealed class InternalTokenKeyRingService
 {
     private readonly IOptionsMonitor<InternalTokenOptions> _options;
@@ -126,6 +129,9 @@ public sealed class InternalTokenKeyRingService
         }
     }
 
+    /// <summary>
+    /// Provides internal token key ring functionality.
+    /// </summary>
     private sealed class InternalTokenKeyRing
     {
         public required string CurrentKid { get; set; }
@@ -135,4 +141,7 @@ public sealed class InternalTokenKeyRingService
     }
 }
 
+/// <summary>
+/// Provides internal signing key functionality.
+/// </summary>
 public sealed record InternalSigningKey(string Kid, string Algorithm, SecurityKey PrivateKey, DateTimeOffset CreatedUtc);

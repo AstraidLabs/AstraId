@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin data protection.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/security/dataprotection")]

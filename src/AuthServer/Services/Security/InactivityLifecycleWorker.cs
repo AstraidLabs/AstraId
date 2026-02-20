@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Runs background processing for inactivity lifecycle worker.
+/// </summary>
 public sealed class InactivityLifecycleWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

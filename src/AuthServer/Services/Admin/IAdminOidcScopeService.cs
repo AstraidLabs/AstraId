@@ -2,6 +2,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin oidc scope service.
+/// </summary>
 public interface IAdminOidcScopeService
 {
     Task<PagedResult<AdminOidcScopeListItem>> GetScopesAsync(

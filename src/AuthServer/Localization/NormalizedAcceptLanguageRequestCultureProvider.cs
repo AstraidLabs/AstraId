@@ -3,6 +3,9 @@ using Microsoft.Net.Http.Headers;
 
 namespace AuthServer.Localization;
 
+/// <summary>
+/// Provides normalized accept language request culture provider functionality.
+/// </summary>
 public sealed class NormalizedAcceptLanguageRequestCultureProvider : RequestCultureProvider
 {
     public override Task<ProviderCultureResult?> DetermineProviderCultureResult(HttpContext httpContext)

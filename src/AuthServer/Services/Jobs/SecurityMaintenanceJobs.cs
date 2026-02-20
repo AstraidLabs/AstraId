@@ -1,5 +1,8 @@
 namespace AuthServer.Services.Jobs;
 
+/// <summary>
+/// Provides security maintenance jobs functionality.
+/// </summary>
 public sealed class SecurityMaintenanceJobs
 {
     private readonly ILogger<SecurityMaintenanceJobs> _logger;

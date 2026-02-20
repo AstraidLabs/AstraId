@@ -3,6 +3,9 @@ using AuthServer.Data;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides token incident service functionality.
+/// </summary>
 public sealed class TokenIncidentService
 {
     private readonly ApplicationDbContext _dbContext;

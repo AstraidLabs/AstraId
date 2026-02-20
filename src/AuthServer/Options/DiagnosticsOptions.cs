@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for diagnostics.
+/// </summary>
 public sealed class DiagnosticsOptions
 {
     public const string SectionName = "Diagnostics";

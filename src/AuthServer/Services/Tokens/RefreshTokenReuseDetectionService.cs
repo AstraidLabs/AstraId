@@ -5,6 +5,9 @@ using System.Security.Claims;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides refresh token reuse detection service functionality.
+/// </summary>
 public sealed class RefreshTokenReuseDetectionService
 {
     private readonly ApplicationDbContext _dbContext;
@@ -53,6 +56,9 @@ public sealed class RefreshTokenReuseDetectionService
     }
 }
 
+/// <summary>
+/// Represents the available refresh token reuse result values.
+/// </summary>
 public enum RefreshTokenReuseResult
 {
     Consumed = 0,

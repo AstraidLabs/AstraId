@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for graph.
+/// </summary>
 public sealed class GraphOptions
 {
     public string TenantId { get; set; } = string.Empty;

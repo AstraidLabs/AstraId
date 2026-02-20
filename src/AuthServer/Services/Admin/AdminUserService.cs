@@ -11,6 +11,9 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin user service functionality.
+/// </summary>
 public sealed class AdminUserService : IAdminUserService
 {
     private readonly ApplicationDbContext _dbContext;

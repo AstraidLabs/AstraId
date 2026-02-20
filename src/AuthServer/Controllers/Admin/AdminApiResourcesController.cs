@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin api resources.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/api-resources")]

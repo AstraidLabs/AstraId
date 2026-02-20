@@ -11,6 +11,9 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin o auth advanced policy.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/security")]

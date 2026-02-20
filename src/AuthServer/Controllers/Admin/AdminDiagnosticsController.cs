@@ -11,6 +11,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin diagnostics.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/diagnostics/errors")]

@@ -8,6 +8,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Cors;
 
+/// <summary>
+/// Provides client cors policy provider functionality.
+/// </summary>
 public sealed class ClientCorsPolicyProvider : ICorsPolicyProvider
 {
     private const string PolicyName = "Web";

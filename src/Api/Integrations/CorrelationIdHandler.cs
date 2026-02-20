@@ -2,6 +2,9 @@ using Microsoft.Extensions.Primitives;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides correlation id handler functionality.
+/// </summary>
 public sealed class CorrelationIdHandler : DelegatingHandler
 {
     public const string HeaderName = "X-Correlation-ID";

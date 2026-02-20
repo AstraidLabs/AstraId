@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.HealthChecks;
 
+/// <summary>
+/// Provides auth server health check functionality.
+/// </summary>
 public sealed class AuthServerHealthCheck : IHealthCheck
 {
     private readonly IHttpClientFactory _httpClientFactory;

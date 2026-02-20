@@ -8,6 +8,9 @@ using OpenIddict.EntityFrameworkCore.Models;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides refresh token reuse remediation service functionality.
+/// </summary>
 public sealed class RefreshTokenReuseRemediationService
 {
     private readonly ApplicationDbContext _dbContext;

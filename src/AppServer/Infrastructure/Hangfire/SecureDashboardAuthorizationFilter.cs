@@ -4,6 +4,9 @@ using Hangfire.Dashboard;
 
 namespace AppServer.Infrastructure.Hangfire;
 
+/// <summary>
+/// Provides secure dashboard authorization filter functionality.
+/// </summary>
 public sealed class SecureDashboardAuthorizationFilter : IDashboardAuthorizationFilter
 {
     private readonly bool _isDevelopment;

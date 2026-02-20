@@ -3,6 +3,9 @@ using System.Text;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides api key hasher functionality.
+/// </summary>
 public static class ApiKeyHasher
 {
     private const string VersionPrefix = "v2";

@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides client policy snapshot functionality.
+/// </summary>
 public sealed record ClientPolicySnapshot(
     string ClientApplicationType,
     bool AllowIntrospection,

@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for notification.
+/// </summary>
 public sealed class NotificationOptions
 {
     public const string SectionName = "Notifications";

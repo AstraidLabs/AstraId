@@ -9,6 +9,9 @@ using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin signing key service functionality.
+/// </summary>
 public sealed class AdminSigningKeyService
 {
     private readonly ApplicationDbContext _dbContext;

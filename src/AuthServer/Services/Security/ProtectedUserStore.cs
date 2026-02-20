@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides protected user store functionality.
+/// </summary>
 public sealed class ProtectedUserStore : UserStore<ApplicationUser, IdentityRole<Guid>, ApplicationDbContext, Guid>
 {
     private const string InternalLoginProvider = "[AspNetUserStore]";

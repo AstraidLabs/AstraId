@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Identity;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin role service.
+/// </summary>
 public interface IAdminRoleService
 {
     Task<IReadOnlyList<AdminRoleListItem>> GetRolesAsync(CancellationToken cancellationToken);

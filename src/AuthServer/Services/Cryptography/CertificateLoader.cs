@@ -3,6 +3,9 @@ using AuthServer.Options;
 
 namespace AuthServer.Services.Cryptography;
 
+/// <summary>
+/// Provides certificate loader functionality.
+/// </summary>
 public static class CertificateLoader
 {
     public static X509Certificate2? TryLoadCertificate(CertificateDescriptor? descriptor)

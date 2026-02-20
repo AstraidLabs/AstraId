@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Localization;
 
 namespace AuthServer.Localization;
 
+/// <summary>
+/// Provides user preferred language request culture provider functionality.
+/// </summary>
 public sealed class UserPreferredLanguageRequestCultureProvider : RequestCultureProvider
 {
     public override async Task<ProviderCultureResult?> DetermineProviderCultureResult(HttpContext httpContext)

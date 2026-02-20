@@ -3,6 +3,9 @@ using System.Security.Cryptography;
 
 namespace Api.Security;
 
+/// <summary>
+/// Provides internal jwks service functionality.
+/// </summary>
 public sealed class InternalJwksService
 {
     private readonly InternalTokenKeyRingService _keyRingService;

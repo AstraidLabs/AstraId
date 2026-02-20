@@ -5,11 +5,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Defines the contract for open iddict client secret inspector.
+/// </summary>
 public interface IOpenIddictClientSecretInspector
 {
     Task<(int total, int looksHashed, int looksPlaintext)> InspectAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Provides open iddict client secret inspector functionality.
+/// </summary>
 public sealed class OpenIddictClientSecretInspector : IOpenIddictClientSecretInspector
 {
     private static readonly Regex ModularCryptPrefixPattern = new(

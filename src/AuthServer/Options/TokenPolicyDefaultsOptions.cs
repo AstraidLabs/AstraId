@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for token policy defaults.
+/// </summary>
 public sealed class TokenPolicyDefaultsOptions
 {
     public const string SectionName = "AuthServer:TokenPolicyDefaults";

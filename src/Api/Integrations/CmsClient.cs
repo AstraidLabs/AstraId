@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides cms client functionality.
+/// </summary>
 public sealed class CmsClient
 {
     private readonly HttpClient _httpClient;

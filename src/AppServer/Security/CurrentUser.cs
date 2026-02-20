@@ -3,6 +3,9 @@ using Company.Auth.Contracts;
 
 namespace AppServer.Security;
 
+/// <summary>
+/// Defines the contract for current user.
+/// </summary>
 public interface ICurrentUser
 {
     string Subject { get; }
@@ -10,6 +13,9 @@ public interface ICurrentUser
     IReadOnlyCollection<string> Permissions { get; }
 }
 
+/// <summary>
+/// Provides current user functionality.
+/// </summary>
 public sealed class CurrentUser : ICurrentUser
 {
     private readonly IHttpContextAccessor _httpContextAccessor;

@@ -11,6 +11,9 @@ public sealed class AuthServerTokenOptions
     public TokenPresetOptions Confidential { get; set; } = new();
     public RefreshTokenPolicyOptions RefreshPolicy { get; set; } = new();
 
+    /// <summary>
+    /// Provides configuration options for token preset.
+    /// </summary>
     public sealed class TokenPresetOptions
     {
         // Lifetimes are in minutes for short-lived bearer credentials.
@@ -21,6 +24,9 @@ public sealed class AuthServerTokenOptions
         public int RefreshTokenSlidingDays { get; set; } = 7;
     }
 
+    /// <summary>
+    /// Provides configuration options for refresh token policy.
+    /// </summary>
     public sealed class RefreshTokenPolicyOptions
     {
         public bool RotationEnabled { get; set; } = true;

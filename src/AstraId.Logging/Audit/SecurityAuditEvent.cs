@@ -1,5 +1,8 @@
 namespace AstraId.Logging.Audit;
 
+/// <summary>
+/// Provides security audit event functionality.
+/// </summary>
 public sealed class SecurityAuditEvent
 {
     public string EventType { get; set; } = string.Empty;

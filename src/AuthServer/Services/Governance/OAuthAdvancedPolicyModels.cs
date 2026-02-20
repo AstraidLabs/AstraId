@@ -2,6 +2,9 @@ using AuthServer.Data;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides o auth advanced policy snapshot functionality.
+/// </summary>
 public sealed record OAuthAdvancedPolicySnapshot(
     bool DeviceFlowEnabled,
     int DeviceFlowUserCodeTtlMinutes,
