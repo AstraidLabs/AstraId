@@ -481,7 +481,7 @@ builder.Services.AddOpenIddict()
                .SetAuthorizationEndpointUris("connect/authorize")
                .SetTokenEndpointUris("connect/token")
                .SetDeviceAuthorizationEndpointUris("connect/device")
-               .SetVerificationEndpointUris("connect/verify")
+               .SetEndUserVerificationEndpointUris("connect/verify")
                .SetIntrospectionEndpointUris("connect/introspect")
                .SetUserInfoEndpointUris("connect/userinfo")
                .SetEndSessionEndpointUris("connect/logout")
@@ -492,7 +492,7 @@ builder.Services.AddOpenIddict()
                .AllowRefreshTokenFlow()
                .AllowClientCredentialsFlow();
 
-        options.AllowDeviceCodeFlow();
+        options.AllowDeviceAuthorizationFlow();
         options.AllowCustomFlow(TokenExchangeService.GrantType);
 
         if (authFeatures.EnablePasswordGrant)
@@ -514,7 +514,7 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
                .EnableTokenEndpointPassthrough()
-               .EnableVerificationEndpointPassthrough()
+               .EnableEndUserVerificationEndpointPassthrough()
                .EnableUserInfoEndpointPassthrough()
                .EnableEndSessionEndpointPassthrough();
 
