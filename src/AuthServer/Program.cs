@@ -46,6 +46,7 @@ using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore;
 
 // Identity provider host: serves OpenID Connect endpoints, interactive auth UI, and key/token governance jobs.
 var builder = WebApplication.CreateBuilder(args);
@@ -217,9 +218,9 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
 builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(DiagnosticsOptions.SectionName));
-builder.Services.AddOptions<CorsOptions>()
+builder.Services.AddOptions<AuthServer.Options.CorsOptions>()
     // Binds Cors:* where AllowedOrigins is an explicit allow-list; wildcard origins are intentionally rejected below.
-    .Bind(builder.Configuration.GetSection(CorsOptions.SectionName))
+    .Bind(builder.Configuration.GetSection(AuthServer.Options.CorsOptions.SectionName))
     .Validate(options => !options.AllowedOrigins.Any(origin => origin.Trim() == "*"), "Cors:AllowedOrigins cannot contain '*'.")
     .Validate(options => !options.AllowCredentials || options.AllowedOrigins.Length > 0, "Cors:AllowedOrigins must not be empty when AllowCredentials is true.")
     .Validate(options => builder.Environment.IsDevelopment() || (!options.AllowCredentials || options.AllowedOrigins.All(origin => origin.Trim() != "*")), "Unsafe CORS configuration for production.")
@@ -351,7 +352,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Web", policy =>
     {
         var hardening = builder.Configuration.GetSection(SecurityHardeningOptions.SectionName).Get<SecurityHardeningOptions>() ?? new SecurityHardeningOptions();
-        var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
+        var corsOptions = builder.Configuration.GetSection(AuthServer.Options.CorsOptions.SectionName).Get<AuthServer.Options.CorsOptions>() ?? new AuthServer.Options.CorsOptions();
         var origins = corsOptions.AllowedOrigins
             .Where(origin => !string.IsNullOrWhiteSpace(origin))
             .Select(origin => origin.Trim())
