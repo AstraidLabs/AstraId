@@ -3,6 +3,9 @@ using Company.Auth.Contracts;
 
 namespace AuthServer.Authorization;
 
+/// <summary>
+/// Provides admin access evaluator functionality.
+/// </summary>
 public static class AdminAccessEvaluator
 {
     public static bool IsAdminUser(ClaimsPrincipal user)

@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides user lifecycle service functionality.
+/// </summary>
 public sealed class UserLifecycleService
 {
     private readonly ApplicationDbContext _dbContext;

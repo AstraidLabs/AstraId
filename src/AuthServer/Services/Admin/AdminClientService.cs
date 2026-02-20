@@ -12,6 +12,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin client service functionality.
+/// </summary>
 public sealed class AdminClientService : IAdminClientService
 {
     private static readonly IReadOnlyDictionary<string, string> GrantTypeReverseMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -445,6 +448,9 @@ public sealed class AdminClientService : IAdminClientService
             branding);
     }
 
+    /// <summary>
+    /// Provides normalized client request functionality.
+    /// </summary>
     private sealed record NormalizedClientRequest(AdminClientConfiguration Configuration, AdminClientEffectiveConfig Effective, IReadOnlyList<FindingDto> Findings);
 
     private async Task<NormalizedClientRequest> NormalizeAsync(AdminClientCreateRequest request, CancellationToken cancellationToken)
@@ -944,6 +950,9 @@ public sealed class AdminClientService : IAdminClientService
         return Guid.TryParse(userId, out var parsed) ? parsed : null;
     }
 
+    /// <summary>
+    /// Provides admin client configuration functionality.
+    /// </summary>
     private sealed record AdminClientConfiguration(
         string ClientId,
         string? DisplayName,

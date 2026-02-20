@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin client profiles.
+/// </summary>
 
 [ApiController]
 [Route("admin/api")]

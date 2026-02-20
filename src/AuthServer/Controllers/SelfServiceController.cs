@@ -12,6 +12,9 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for self service.
+/// </summary>
 
 [ApiController]
 [Route("auth/me")]

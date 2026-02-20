@@ -3,6 +3,9 @@ using Hangfire.Dashboard;
 
 namespace AuthServer.Services.Jobs;
 
+/// <summary>
+/// Provides local dashboard authorization filter functionality.
+/// </summary>
 public sealed class LocalDashboardAuthorizationFilter : IDashboardAuthorizationFilter
 {
     public bool Authorize([NotNull] DashboardContext context)

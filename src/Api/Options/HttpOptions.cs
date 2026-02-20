@@ -1,5 +1,8 @@
 namespace Api.Options;
 
+/// <summary>
+/// Provides configuration options for http.
+/// </summary>
 public sealed class HttpOptions
 {
     public int TimeoutSeconds { get; set; } = 30;

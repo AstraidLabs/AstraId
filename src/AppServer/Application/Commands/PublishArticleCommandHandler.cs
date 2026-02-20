@@ -6,6 +6,9 @@ using MediatR;
 
 namespace AppServer.Application.Commands;
 
+/// <summary>
+/// Provides publish article command handler functionality.
+/// </summary>
 public sealed class PublishArticleCommandHandler : IRequestHandler<PublishArticleCommand, PublishArticleResult>
 {
     private readonly IBackgroundJobClient _backgroundJobs;

@@ -2,6 +2,9 @@ using AuthServer.Data;
 
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for o auth advanced policy defaults.
+/// </summary>
 public sealed class OAuthAdvancedPolicyDefaultsOptions
 {
     public const string SectionName = "AuthServer:OAuthAdvancedPolicyDefaults";

@@ -7,6 +7,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides o auth advanced policy provider functionality.
+/// </summary>
 public sealed class OAuthAdvancedPolicyProvider : IOAuthAdvancedPolicyProvider
 {
     private const string CacheKey = "governance:oauth-advanced-policy";

@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin email outbox.
+/// </summary>
 
 [ApiController]
 [Authorize(Policy = "AdminOnly")]

@@ -3,6 +3,9 @@ using Api.Options;
 
 namespace Api.Security;
 
+/// <summary>
+/// Provides internal token key rotation service functionality.
+/// </summary>
 public sealed class InternalTokenKeyRotationService : BackgroundService
 {
     private readonly InternalTokenKeyRingService _keyRingService;
@@ -14,8 +17,12 @@ public sealed class InternalTokenKeyRotationService : BackgroundService
         _options = options;
     }
 
+    /// <summary>
+    /// Runs the background loop that rotates and prunes internal signing keys.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Rotate keys on a background cadence until service shutdown is requested.
         while (!stoppingToken.IsCancellationRequested)
         {
             _keyRingService.RotateIfDue();

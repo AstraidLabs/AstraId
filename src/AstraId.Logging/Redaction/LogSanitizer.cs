@@ -5,6 +5,9 @@ using System.Text.RegularExpressions;
 
 namespace AstraId.Logging.Redaction;
 
+/// <summary>
+/// Provides log sanitizer functionality.
+/// </summary>
 public sealed class LogSanitizer : ILogSanitizer
 {
     private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)

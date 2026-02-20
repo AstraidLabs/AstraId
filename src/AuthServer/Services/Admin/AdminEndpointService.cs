@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin endpoint service functionality.
+/// </summary>
 public sealed class AdminEndpointService : IAdminEndpointService
 {
     private readonly ApplicationDbContext _dbContext;

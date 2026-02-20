@@ -6,6 +6,9 @@ using Microsoft.Extensions.Options;
 
 namespace AstraId.Logging.Audit;
 
+/// <summary>
+/// Provides security audit logger functionality.
+/// </summary>
 public sealed class SecurityAuditLogger : ISecurityAuditLogger
 {
     private readonly ILogger _logger;

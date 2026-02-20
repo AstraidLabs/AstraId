@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin permission admin service functionality.
+/// </summary>
 public sealed class AdminPermissionAdminService : IAdminPermissionAdminService
 {
     private readonly ApplicationDbContext _dbContext;

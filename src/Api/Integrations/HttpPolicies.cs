@@ -4,6 +4,9 @@ using Polly.Extensions.Http;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides http policies functionality.
+/// </summary>
 public static class HttpPolicies
 {
     public static IAsyncPolicy<HttpResponseMessage> CreateRetryPolicy(HttpOptions options)

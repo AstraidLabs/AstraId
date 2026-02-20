@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for key rotation defaults.
+/// </summary>
 public sealed class KeyRotationDefaultsOptions
 {
     public const string SectionName = "AuthServer:KeyRotationDefaults";

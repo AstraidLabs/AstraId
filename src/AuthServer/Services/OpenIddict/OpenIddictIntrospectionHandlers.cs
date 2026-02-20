@@ -11,8 +11,15 @@ using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.OpenIddict;
 
+/// <summary>
+/// Centralizes endpoint-level client validation for introspection and revocation to enforce confidential-client constraints.
+/// </summary>
 public static class OpenIddictIntrospectionHandlers
 {
+    /// <summary>
+    /// Enforces that only enabled confidential clients with explicit endpoint permission can call introspection.
+    /// This is used by resource servers that validate opaque/revocable tokens via the issuer.
+    /// </summary>
     public static async ValueTask ValidateIntrospectionClientAsync(OpenIddictServerEvents.ValidateIntrospectionRequestContext context)
     {
         if (string.IsNullOrWhiteSpace(context.ClientId))
@@ -76,6 +83,7 @@ public static class OpenIddictIntrospectionHandlers
         var state = await dbContext.ClientStates.AsNoTracking()
             .FirstOrDefaultAsync((ClientState entry) => entry.ApplicationId == applicationId, context.CancellationToken);
 
+        // Per-client overrides let operations disable introspection without removing baseline OpenIddict permissions.
         var snapshot = ClientPolicySnapshot.From(state?.OverridesJson);
         var permissions = await applicationManager.GetPermissionsAsync(application, context.CancellationToken);
         var permitted = snapshot.AllowIntrospection
@@ -95,6 +103,10 @@ public static class OpenIddictIntrospectionHandlers
         await LogIncidentAsync(httpContext, "oidc_introspection_accepted", context.ClientId, null, context.CancellationToken);
     }
 
+    /// <summary>
+    /// Enforces that only enabled confidential clients with revocation permission can revoke tokens.
+    /// Revocation is primarily called by clients that need immediate logout/token invalidation semantics.
+    /// </summary>
     public static async ValueTask ValidateRevocationClientAsync(OpenIddictServerEvents.ValidateRevocationRequestContext context)
     {
         if (string.IsNullOrWhiteSpace(context.ClientId))
@@ -195,6 +207,7 @@ public static class OpenIddictIntrospectionHandlers
                 })
             });
 
+            // Endpoint audit writes are bounded so token endpoints are not stalled by logging back pressure.
             using var saveChangesTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await dbContext.SaveChangesAsync(saveChangesTimeout.Token);
         }

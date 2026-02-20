@@ -2,6 +2,9 @@ using AstraId.Contracts;
 
 namespace AuthServer.Services.Events;
 
+/// <summary>
+/// Provides in memory event publisher functionality.
+/// </summary>
 public sealed class InMemoryEventPublisher : IEventPublisher
 {
     private readonly ILogger<InMemoryEventPublisher> _logger;

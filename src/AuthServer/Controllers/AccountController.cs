@@ -13,6 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for account.
+/// </summary>
 
 [ApiController]
 [Route("account")]
@@ -56,6 +59,9 @@ public sealed class AccountController : ControllerBase
         _notificationService = notificationService;
         _localizer = localizer;
     }
+    /// <summary>
+    /// Processes a password change request for the authenticated user.
+    /// </summary>
 
     [HttpPost("password/change")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
@@ -150,6 +156,9 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Account.Password.Updated", "Password updated.")));
     }
+    /// <summary>
+    /// Starts an email change flow by validating credentials and sending a confirmation link.
+    /// </summary>
 
     [HttpPost("email/change-request")]
     public async Task<IActionResult> ChangeEmailRequest([FromBody] ChangeEmailRequest request)
@@ -245,6 +254,9 @@ public sealed class AccountController : ControllerBase
             null,
             "If the email can be changed, you will receive a confirmation link."));
     }
+    /// <summary>
+    /// Confirms a pending email change using the token delivered to the new address.
+    /// </summary>
 
     [AllowAnonymous]
     [HttpPost("email/change-confirm")]
@@ -313,6 +325,9 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, _uiUrlBuilder.BuildLoginUrl(string.Empty), null, L("Account.Email.Updated", "Email updated.")));
     }
+    /// <summary>
+    /// Revokes active sessions for the current user except the session issuing the request.
+    /// </summary>
 
     [HttpPost("sessions/revoke-others")]
     public async Task<IActionResult> RevokeOtherSessions([FromBody] RevokeSessionsRequest request)
@@ -355,6 +370,7 @@ public sealed class AccountController : ControllerBase
             HttpContext,
             new { reason = "manual" },
             HttpContext.RequestAborted);
+        // Rotate the security stamp and refresh the current sign-in so this browser remains valid while other sessions are evicted.
         await _userManager.UpdateSecurityStampAsync(user);
         await _signInManager.SignInAsync(user, isPersistent: false);
 
@@ -365,6 +381,9 @@ public sealed class AccountController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Account.Sessions.Revoked", "Other sessions were signed out.")));
     }
+    /// <summary>
+    /// Returns a security overview for the authenticated account.
+    /// </summary>
 
     [HttpGet("security/overview")]
     public async Task<IActionResult> GetSecurityOverview()
@@ -386,6 +405,9 @@ public sealed class AccountController : ControllerBase
             user.Email,
             user.UserName));
     }
+    /// <summary>
+    /// Returns profile preferences for the authenticated user.
+    /// </summary>
 
     [HttpGet("preferences")]
     public async Task<IActionResult> GetPreferences()
@@ -399,10 +421,14 @@ public sealed class AccountController : ControllerBase
         var preferred = string.IsNullOrWhiteSpace(user.PreferredLanguage)
             ? null
             : LanguageTagNormalizer.Normalize(user.PreferredLanguage);
+        // Report both preferred and effective culture so clients can distinguish user intent from runtime fallback behavior.
         var effective = preferred ?? CultureInfo.CurrentUICulture.Name;
 
         return Ok(new LanguagePreferenceResponse(preferred, effective));
     }
+    /// <summary>
+    /// Updates the preferred language for the authenticated user.
+    /// </summary>
 
     [HttpPut("preferences/language")]
     public async Task<IActionResult> SetPreferredLanguage([FromBody] UpdateLanguagePreferenceRequest request)
@@ -415,6 +441,7 @@ public sealed class AccountController : ControllerBase
 
         if (!LanguageTagNormalizer.TryNormalize(request.Language, out var normalized))
         {
+            // Reject unknown language tags early so invalid values are never persisted to identity storage.
             return BuildValidationProblem(
                 L("Common.Validation.InvalidRequest", "Invalid request."),
                 new Dictionary<string, string[]>
@@ -436,6 +463,9 @@ public sealed class AccountController : ControllerBase
         return Ok(new LanguagePreferenceResponse(user.PreferredLanguage, user.PreferredLanguage));
     }
 
+    /// <summary>
+    /// Persists an account-level audit entry for the current operation.
+    /// </summary>
     private async Task AddAuditAsync(Guid actorUserId, string action, string targetType, string targetId, object payload)
     {
         _dbContext.AuditLogs.Add(new AuditLog
@@ -458,11 +488,17 @@ public sealed class AccountController : ControllerBase
         await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
     }
 
+    /// <summary>
+    /// Checks whether the current user has exceeded the configured rate limit for an action.
+    /// </summary>
     private bool IsRateLimited(string action, out int retryAfterSeconds)
     {
         return _rateLimiter.IsLimited(HttpContext, action, AccountMaxAttempts, AccountWindow, out retryAfterSeconds);
     }
 
+    /// <summary>
+    /// Builds a standard too-many-requests response with retry metadata.
+    /// </summary>
     private IActionResult TooManyRequestsResponse(int retryAfterSeconds)
     {
         if (retryAfterSeconds > 0)
@@ -476,6 +512,9 @@ public sealed class AccountController : ControllerBase
             L("Auth.RateLimit.TooManyAttempts.Detail", "Too many attempts. Please try again later."));
     }
 
+    /// <summary>
+    /// Creates a problem-details response for authentication and authorization errors.
+    /// </summary>
     private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
     {
         var problem = new ProblemDetails
@@ -488,6 +527,9 @@ public sealed class AccountController : ControllerBase
         return StatusCode(statusCode, problem);
     }
 
+    /// <summary>
+    /// Creates a validation problem response for field-level request errors.
+    /// </summary>
     private IActionResult BuildValidationProblem(string title, Dictionary<string, string[]> errors)
     {
         var filtered = errors
@@ -504,17 +546,26 @@ public sealed class AccountController : ControllerBase
         return UnprocessableEntity(details);
     }
 
+    /// <summary>
+    /// Resolves a localized message and falls back to the provided text when missing.
+    /// </summary>
     private string L(string key, string fallback)
     {
         var value = _localizer[key];
         return value.ResourceNotFound ? fallback : value.Value;
     }
 
+    /// <summary>
+    /// Encodes an identity token value so it can be safely used in URLs.
+    /// </summary>
     private static string EncodeToken(string token)
     {
         return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
     }
 
+    /// <summary>
+    /// Decodes a URL-safe token back into its original representation.
+    /// </summary>
     private static string? DecodeToken(string encodedToken)
     {
         try
@@ -527,6 +578,9 @@ public sealed class AccountController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Masks the local-part of an email address for audit and notification messages.
+    /// </summary>
     private static string MaskEmail(string email)
     {
         var atIndex = email.IndexOf('@');

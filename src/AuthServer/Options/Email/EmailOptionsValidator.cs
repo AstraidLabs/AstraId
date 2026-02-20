@@ -2,6 +2,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides email options validator functionality.
+/// </summary>
 public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
 {
     public ValidateOptionsResult Validate(string? name, EmailOptions options)

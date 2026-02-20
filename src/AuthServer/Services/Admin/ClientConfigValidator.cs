@@ -6,6 +6,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides client config validator functionality.
+/// </summary>
 public sealed class ClientConfigValidator
 {
     private readonly AuthServerAuthFeaturesOptions _authFeatures;

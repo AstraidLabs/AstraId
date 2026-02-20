@@ -6,6 +6,9 @@ using MimeKit;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides smtp email sender functionality.
+/// </summary>
 public sealed class SmtpEmailSender : IEmailSender
 {
     private readonly IOptions<EmailOptions> _options;

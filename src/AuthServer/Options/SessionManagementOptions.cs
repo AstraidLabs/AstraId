@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for session management.
+/// </summary>
 public sealed class SessionManagementOptions
 {
     public const string SectionName = "AuthServer:SessionManagement";

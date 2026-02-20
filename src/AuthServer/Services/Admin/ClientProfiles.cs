@@ -4,6 +4,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides client profile ids functionality.
+/// </summary>
 public static class ClientProfileIds
 {
     public const string SpaPublic = "SpaPublic";
@@ -13,6 +16,9 @@ public static class ClientProfileIds
     public const string ServiceConfidential = "ServiceConfidential";
 }
 
+/// <summary>
+/// Provides client profile rule functionality.
+/// </summary>
 public sealed record ClientProfileRule(
     string Profile,
     string Summary,
@@ -29,6 +35,9 @@ public sealed record ClientProfileRule(
     IReadOnlyList<AdminClientValidationPattern> ValidationPatterns,
     IReadOnlyDictionary<string, string> Explanations);
 
+/// <summary>
+/// Provides client preset definition functionality.
+/// </summary>
 public sealed record ClientPresetDefinition(
     string Id,
     string Name,
@@ -40,18 +49,27 @@ public sealed record ClientPresetDefinition(
     IReadOnlySet<string> AllowedOverrides,
     IReadOnlyDictionary<string, AdminFieldMetadata> FieldMetadata);
 
+/// <summary>
+/// Defines the contract for client profile registry.
+/// </summary>
 public interface IClientProfileRegistry
 {
     IReadOnlyList<ClientProfileRule> GetRules();
     ClientProfileRule? GetRule(string profile);
 }
 
+/// <summary>
+/// Defines the contract for client preset registry.
+/// </summary>
 public interface IClientPresetRegistry
 {
     IReadOnlyList<ClientPresetDefinition> GetPresets();
     ClientPresetDefinition? GetById(string id);
 }
 
+/// <summary>
+/// Provides client profile registry functionality.
+/// </summary>
 public sealed class ClientProfileRegistry : IClientProfileRegistry
 {
     private static readonly IReadOnlyList<ClientProfileRule> Rules =
@@ -118,6 +136,9 @@ public sealed class ClientProfileRegistry : IClientProfileRegistry
     public ClientProfileRule? GetRule(string profile) => Rules.FirstOrDefault(r => string.Equals(r.Profile, profile, StringComparison.Ordinal));
 }
 
+/// <summary>
+/// Provides client preset registry functionality.
+/// </summary>
 public sealed class ClientPresetRegistry : IClientPresetRegistry
 {
     private static readonly IReadOnlyList<ClientPresetDefinition> Presets =
@@ -161,6 +182,9 @@ public sealed class ClientPresetRegistry : IClientPresetRegistry
     };
 }
 
+/// <summary>
+/// Provides client config composer functionality.
+/// </summary>
 public sealed class ClientConfigComposer
 {
     public AdminClientEffectiveConfig Compose(ClientPresetDefinition preset, JsonElement? overrides)

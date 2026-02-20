@@ -12,6 +12,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin security policies.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/security")]

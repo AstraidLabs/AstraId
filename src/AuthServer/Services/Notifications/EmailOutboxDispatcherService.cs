@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Notifications;
 
+/// <summary>
+/// Provides email outbox dispatcher service functionality.
+/// </summary>
 public sealed class EmailOutboxDispatcherService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

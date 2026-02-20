@@ -6,8 +6,14 @@ using OpenIddict.EntityFrameworkCore.Models;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides token revocation result functionality.
+/// </summary>
 public sealed record TokenRevocationResult(int TokensRevoked, int AuthorizationsRevoked);
 
+/// <summary>
+/// Provides token revocation service functionality.
+/// </summary>
 public sealed class TokenRevocationService
 {
     private readonly ApplicationDbContext _dbContext;

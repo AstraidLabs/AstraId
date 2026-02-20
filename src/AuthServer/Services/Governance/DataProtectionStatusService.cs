@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides data protection status functionality.
+/// </summary>
 public sealed record DataProtectionStatus(
     bool KeysPersisted,
     string? KeyPath,
@@ -12,6 +15,9 @@ public sealed record DataProtectionStatus(
     DateTime? LatestKeyActivationUtc,
     DateTime? LatestKeyExpirationUtc);
 
+/// <summary>
+/// Provides data protection status service functionality.
+/// </summary>
 public sealed class DataProtectionStatusService
 {
     private readonly IKeyManager _keyManager;

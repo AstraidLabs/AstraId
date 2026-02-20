@@ -3,6 +3,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides token policy applier functionality.
+/// </summary>
 public sealed class TokenPolicyApplier
 {
     public const string RefreshTokenAbsoluteExpiryClaim = "astra:refresh_abs_exp";
@@ -43,6 +46,9 @@ public sealed class TokenPolicyApplier
     }
 }
 
+/// <summary>
+/// Represents the available token policy apply result values.
+/// </summary>
 public enum TokenPolicyApplyResult
 {
     Success = 0,

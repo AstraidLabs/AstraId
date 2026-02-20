@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace AstraId.Logging.Redaction;
 
+/// <summary>
+/// Defines the contract for log sanitizer.
+/// </summary>
 public interface ILogSanitizer
 {
     string? SanitizeValue(string? value);

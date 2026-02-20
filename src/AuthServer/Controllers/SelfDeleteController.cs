@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for self delete.
+/// </summary>
 
 [ApiController]
 [Route("auth/self")]

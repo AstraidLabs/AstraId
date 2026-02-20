@@ -5,12 +5,18 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Defines the contract for oidc client policy enforcer.
+/// </summary>
 public interface IOidcClientPolicyEnforcer
 {
     Task<(bool Allowed, string Error, string Description, string RuleCode)> ValidateAuthorizeAsync(OpenIddictRequest request, CancellationToken cancellationToken);
     Task<(bool Allowed, string Error, string Description, string RuleCode)> ValidateTokenAsync(OpenIddictRequest request, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Provides oidc client policy enforcer functionality.
+/// </summary>
 public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
 {
     private readonly IOpenIddictApplicationManager _applicationManager;
@@ -156,6 +162,9 @@ public sealed class OidcClientPolicyEnforcer : IOidcClientPolicyEnforcer
         return uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps;
     }
 
+    /// <summary>
+    /// Provides runtime client policy functionality.
+    /// </summary>
     private sealed record RuntimeClientPolicy(
         string? Profile,
         IReadOnlyList<string> GrantTypes,

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.HealthChecks;
 
+/// <summary>
+/// Provides cms health check functionality.
+/// </summary>
 public sealed class CmsHealthCheck : IHealthCheck
 {
     private readonly IHttpClientFactory _httpClientFactory;

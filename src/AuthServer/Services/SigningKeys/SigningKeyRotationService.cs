@@ -6,6 +6,9 @@ using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Executes signing key lifecycle for issuer tokens and triggers OpenIddict option refresh after rotation.
+/// </summary>
 public sealed class SigningKeyRotationService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -31,6 +34,9 @@ public sealed class SigningKeyRotationService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Runs periodic rotation checks using configured check interval (minutes) and retention policy (days).
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (SigningKeyModeResolver.Resolve(_options.CurrentValue.Mode, _environment) != SigningKeyMode.DbKeyRing)
@@ -58,6 +64,7 @@ public sealed class SigningKeyRotationService : BackgroundService
             var policy = await policyService.GetPolicyAsync(stoppingToken);
             if (policy.Enabled && mode == SigningKeyMode.DbKeyRing)
             {
+                // Removing OpenIddict cached options forces new signing credentials to be used for newly issued tokens.
                 var rotation = await coordinator.RotateIfDueAsync(stoppingToken);
                 if (rotation is not null)
                 {

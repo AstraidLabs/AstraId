@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for email.
+/// </summary>
 public sealed class EmailOptions
 {
     public const string SectionName = "Email";

@@ -8,6 +8,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin oidc scope service functionality.
+/// </summary>
 public sealed class AdminOidcScopeService : IAdminOidcScopeService
 {
     private const string DescriptionProperty = "description";

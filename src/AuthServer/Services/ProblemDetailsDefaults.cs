@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides problem details defaults functionality.
+/// </summary>
 public static class ProblemDetailsDefaults
 {
     public static readonly IReadOnlyDictionary<int, string> DefaultDetails = new Dictionary<int, string>

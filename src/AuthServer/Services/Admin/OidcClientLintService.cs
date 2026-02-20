@@ -6,6 +6,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides oidc client lint service functionality.
+/// </summary>
 public sealed class OidcClientLintService
 {
     private readonly IWebHostEnvironment _hostEnvironment;

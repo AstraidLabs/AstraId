@@ -14,6 +14,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Diagnostics;
 
+/// <summary>
+/// Implements middleware for exception handling.
+/// </summary>
 public sealed class ExceptionHandlingMiddleware
 {
     private const int MaxStackTraceLength = 12_000;

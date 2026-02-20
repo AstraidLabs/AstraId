@@ -10,6 +10,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides signing key ring service functionality.
+/// </summary>
 public sealed class SigningKeyRingService
 {
     private readonly ApplicationDbContext _dbContext;
@@ -311,8 +314,14 @@ public sealed class SigningKeyRingService
     }
 }
 
+/// <summary>
+/// Provides signing key rotation result functionality.
+/// </summary>
 public sealed record SigningKeyRotationResult(SigningKeyRingEntry NewActive, SigningKeyRingEntry? PreviousActive);
 
+/// <summary>
+/// Represents the available signing key revoke result values.
+/// </summary>
 public enum SigningKeyRevokeResult
 {
     Revoked = 0,

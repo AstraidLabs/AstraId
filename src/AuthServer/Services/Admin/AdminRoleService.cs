@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin role service functionality.
+/// </summary>
 public sealed class AdminRoleService : IAdminRoleService
 {
     private readonly ApplicationDbContext _dbContext;

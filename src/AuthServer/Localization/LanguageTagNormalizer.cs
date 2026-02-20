@@ -1,5 +1,8 @@
 namespace AuthServer.Localization;
 
+/// <summary>
+/// Provides language tag normalizer functionality.
+/// </summary>
 public static class LanguageTagNormalizer
 {
     public static string Normalize(string? input)

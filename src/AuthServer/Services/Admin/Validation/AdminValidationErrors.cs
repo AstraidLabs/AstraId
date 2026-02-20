@@ -1,5 +1,8 @@
 namespace AuthServer.Services.Admin.Validation;
 
+/// <summary>
+/// Provides admin validation errors functionality.
+/// </summary>
 public sealed class AdminValidationErrors
 {
     private readonly Dictionary<string, List<string>> _errors = new(StringComparer.OrdinalIgnoreCase);

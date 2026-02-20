@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Api.Hubs;
+/// <summary>
+/// Provides app hub functionality.
+/// </summary>
 
 [Authorize]
 public sealed class AppHub : Hub

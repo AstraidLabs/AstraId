@@ -29,6 +29,7 @@ using AstraId.Logging.Audit;
 using AstraId.Logging.Extensions;
 using AstraId.Logging.Redaction;
 
+// API resource server: validates access tokens, enforces scope/permission policy map, and proxies trusted backend operations.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAstraLogging(builder.Configuration, builder.Environment);
@@ -46,6 +47,7 @@ var enableSignalRBackplane = builder.Configuration.GetValue<bool>("Redis:EnableS
 var internalTokensSection = builder.Configuration.GetSection(InternalTokenOptions.SectionName);
 var internalTokenLifetime = internalTokensSection.GetValue<int?>("TokenTtlSeconds") ?? 120;
 
+// Fail-fast validation keeps production startup from accepting incomplete identity contract configuration.
 if (!builder.Environment.IsDevelopment())
 {
     if (string.IsNullOrWhiteSpace(configuredIssuer))
@@ -123,6 +125,7 @@ builder.Services.AddScoped<IMapper, ServiceMapper>();
 
 builder.Services.AddCompanyAuth(builder.Configuration, effectiveAudience);
 builder.Services.AddOptions<InternalTokenOptions>()
+    // Internal token options are normalized here so AppServer receives stable issuer/audience values and short-lived service tokens.
     .Bind(internalTokensSection)
     .PostConfigure(options =>
     {
@@ -191,6 +194,7 @@ if (enableSignalRBackplane)
 
 builder.Services.PostConfigureAll<JwtBearerOptions>(options =>
 {
+    // Browsers using SignalR over WebSockets can only pass bearer token through query string during negotiation.
     var prior = options.Events?.OnMessageReceived;
     options.Events ??= new JwtBearerEvents();
     options.Events.OnMessageReceived = async context =>
@@ -289,11 +293,31 @@ builder.Services.AddHttpClient(PolicyMapClient.HttpClientName, (sp, client) =>
     })
     .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.AuthServer, builder.Configuration.GetSection("Services:AuthServer"));
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Configuration.GetSection("Services:Cms"));
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.AppServer, builder.Configuration.GetSection("Services:AppServer"));
-builder.Services.Configure<AppServerOptions>(builder.Configuration.GetSection("AppServer"));
-builder.Services.Configure<HttpOptions>(builder.Configuration.GetSection("Http"));
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.AuthServer)
+    .Bind(builder.Configuration.GetSection("Services:AuthServer"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:AuthServer:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:AuthServer:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.Cms)
+    .Bind(builder.Configuration.GetSection("Services:Cms"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:Cms:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:Cms:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.AppServer)
+    .Bind(builder.Configuration.GetSection("Services:AppServer"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:AppServer:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:AppServer:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<AppServerOptions>()
+    .Bind(builder.Configuration.GetSection("AppServer"))
+    .Validate(options => !options.Mtls.Enabled || options.Mtls.ClientCertificate.Source is "File" or "Store", "AppServer:Mtls:ClientCertificate:Source must be File or Store when mTLS is enabled.")
+    .ValidateOnStart();
+builder.Services.AddOptions<HttpOptions>()
+    .Bind(builder.Configuration.GetSection("Http"))
+    .Validate(options => options.TimeoutSeconds is >= 1 and <= 300, "Http:TimeoutSeconds must be between 1 and 300.")
+    .Validate(options => options.RetryCount is >= 0 and <= 10, "Http:RetryCount must be between 0 and 10.")
+    .Validate(options => options.RetryBaseDelaySeconds is > 0 and <= 30, "Http:RetryBaseDelaySeconds must be greater than zero and at most 30.")
+    .ValidateOnStart();
 
 builder.Services.AddTransient<CorrelationIdHandler>();
 builder.Services.AddTransient<InternalTokenHandler>();
@@ -366,6 +390,7 @@ builder.Services.AddHttpClient<AppServerClient>((sp, client) =>
         if (string.Equals(options.Mtls.ServerCertificate.ValidationMode, "PinThumbprint", StringComparison.OrdinalIgnoreCase)
             && options.Mtls.ServerCertificate.PinnedThumbprints.Length > 0)
         {
+            // Thumbprint pinning narrows trust to explicit AppServer certificates instead of any CA-trusted certificate.
             var allowed = options.Mtls.ServerCertificate.PinnedThumbprints
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Select(value => value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant())
@@ -434,6 +459,7 @@ builder.Services.AddCors(options =>
             throw new InvalidOperationException("SecurityHardening:Cors:StrictMode forbids wildcard origins.");
         }
 
+        // Credentialed cross-origin calls must use explicit allow-listed origins to avoid token leakage.
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -522,6 +548,7 @@ if (app.Environment.IsProduction() && securityHeadersOptions.EnableHsts)
 app.UseRouting();
 app.UseAstraLogging();
 
+// Security headers are applied centrally so every API response follows the same browser hardening and cache policy.
 app.Use(async (context, next) =>
 {
     if (!hardeningOptions.Enabled || !hardeningOptions.Headers.Enabled || !securityHeadersOptions.Enabled)
@@ -569,6 +596,7 @@ if (hardeningOptions.Enabled && hardeningOptions.RateLimiting.Enabled)
 {
     app.UseRateLimiter();
 }
+// Authorization middleware consumes the policy map after authentication to enforce endpoint-level permissions.
 app.UseMiddleware<EndpointAuthorizationMiddleware>();
 app.UseAuthorization();
 
@@ -680,6 +708,7 @@ var content = app.MapGroup("/app");
 var internalTokensOptions = app.Services.GetRequiredService<IOptions<InternalTokenOptions>>().Value;
 if (internalTokensOptions.Jwks.Enabled)
 {
+    // AppServer fetches this JWKS to validate short-lived internal tokens signed by Api.
     app.MapGet(internalTokensOptions.Jwks.Path, (HttpContext context, IOptions<InternalTokenOptions> optionsAccessor, InternalJwksService jwksService) =>
         {
             var options = optionsAccessor.Value;
@@ -823,6 +852,7 @@ api.MapGet("/admin/auth/contract", (PolicyMapClient policyMapClient, ILoggerFact
 
 static bool SecureEquals(string left, string right)
 {
+    // Constant-time comparison protects internal API key checks from timing attacks.
     if (left.Length != right.Length)
     {
         return false;

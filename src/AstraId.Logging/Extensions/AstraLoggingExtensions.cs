@@ -13,6 +13,9 @@ using Microsoft.Extensions.Options;
 
 namespace AstraId.Logging.Extensions;
 
+/// <summary>
+/// Provides astra logging extensions functionality.
+/// </summary>
 public static class AstraLoggingExtensions
 {
     public static IServiceCollection AddAstraLogging(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
@@ -50,6 +53,9 @@ public static class AstraLoggingExtensions
     }
 }
 
+/// <summary>
+/// Provides astra logger filter configurator functionality.
+/// </summary>
 internal sealed class AstraLoggerFilterConfigurator : IConfigureOptions<LoggerFilterOptions>
 {
     private readonly IOptions<AstraLoggingOptions> _options;

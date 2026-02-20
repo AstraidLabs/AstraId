@@ -1,5 +1,8 @@
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides delegating email sender functionality.
+/// </summary>
 public sealed class DelegatingEmailSender : IEmailSender
 {
     private readonly EmailSenderFactory _factory;

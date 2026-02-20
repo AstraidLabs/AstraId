@@ -7,6 +7,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides send grid email sender functionality.
+/// </summary>
 public sealed class SendGridEmailSender : IEmailSender
 {
     private readonly HttpClient _httpClient;

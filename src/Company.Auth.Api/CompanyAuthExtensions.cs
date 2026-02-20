@@ -19,6 +19,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Company.Auth.Api;
 
+/// <summary>
+/// Provides company auth extensions functionality.
+/// </summary>
 public static class CompanyAuthExtensions
 {
     public const string JwtScheme = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
@@ -110,6 +113,9 @@ public static class CompanyAuthExtensions
     }
 }
 
+/// <summary>
+/// Provides token reader functionality.
+/// </summary>
 internal static class TokenReader
 {
     public static string? ReadBearerToken(StringValues authorizationHeader)
@@ -165,6 +171,9 @@ internal static class TokenReader
     }
 }
 
+/// <summary>
+/// Provides auth introspection handler functionality.
+/// </summary>
 public sealed class AuthIntrospectionHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(45);
@@ -387,6 +396,9 @@ public sealed class AuthIntrospectionHandler : AuthenticationHandler<Authenticat
     }
 }
 
+/// <summary>
+/// Provides auth introspection result functionality.
+/// </summary>
 internal sealed record AuthIntrospectionResult(bool IsSuccess, ClaimsPrincipal? Principal, string? Error)
 {
     public static AuthIntrospectionResult Success(ClaimsPrincipal principal) => new(true, principal, null);
@@ -404,6 +416,9 @@ internal sealed record AuthIntrospectionResult(bool IsSuccess, ClaimsPrincipal? 
     }
 }
 
+/// <summary>
+/// Provides configuration options for auth validation.
+/// </summary>
 public sealed class AuthValidationOptions
 {
     public AuthValidationMode ValidationMode { get; set; } = AuthValidationMode.Jwt;
@@ -417,6 +432,9 @@ public sealed class AuthValidationOptions
     public AuthIntrospectionOptions Introspection { get; set; } = new();
 }
 
+/// <summary>
+/// Provides configuration options for auth introspection.
+/// </summary>
 public sealed class AuthIntrospectionOptions
 {
     public string? ClientId { get; set; }
@@ -426,6 +444,9 @@ public sealed class AuthIntrospectionOptions
     public string? Scope { get; set; }
 }
 
+/// <summary>
+/// Represents the available auth validation mode values.
+/// </summary>
 public enum AuthValidationMode
 {
     Jwt,
@@ -433,6 +454,9 @@ public enum AuthValidationMode
     Hybrid
 }
 
+/// <summary>
+/// Provides auth validation mode parser functionality.
+/// </summary>
 public static class AuthValidationModeParser
 {
     public static bool TryParse(string? value, out AuthValidationMode mode)
@@ -448,6 +472,9 @@ public static class AuthValidationModeParser
     }
 }
 
+/// <summary>
+/// Provides permission policies functionality.
+/// </summary>
 public static class PermissionPolicies
 {
     public const string DefaultPermissionPolicyName = "RequireSystemAdminPermission";

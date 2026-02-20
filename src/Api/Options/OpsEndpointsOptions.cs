@@ -1,5 +1,8 @@
 namespace Api.Options;
 
+/// <summary>
+/// Provides configuration options for ops endpoints.
+/// </summary>
 public sealed class OpsEndpointsOptions
 {
     public const string SectionName = "OpsEndpoints";

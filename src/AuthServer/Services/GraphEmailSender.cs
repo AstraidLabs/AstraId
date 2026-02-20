@@ -8,6 +8,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides graph email sender functionality.
+/// </summary>
 public sealed class GraphEmailSender : IEmailSender
 {
     private readonly HttpClient _httpClient;
@@ -130,6 +133,9 @@ public sealed class GraphEmailSender : IEmailSender
 
     private static bool IsTransientFailure(HttpStatusCode statusCode) => statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
 
+    /// <summary>
+    /// Provides graph token response functionality.
+    /// </summary>
     private sealed record GraphTokenResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
         [property: JsonPropertyName("expires_in")] int ExpiresIn);

@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin api resource service functionality.
+/// </summary>
 public sealed class AdminApiResourceService : IAdminApiResourceService
 {
     private readonly ApplicationDbContext _dbContext;

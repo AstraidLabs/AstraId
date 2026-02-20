@@ -1,5 +1,8 @@
 namespace AuthServer.Services.Notifications;
 
+/// <summary>
+/// Provides notification type functionality.
+/// </summary>
 public static class NotificationType
 {
     public const string PasswordChanged = "password_changed";

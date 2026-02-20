@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Represents the available csp mode values.
+/// </summary>
 public enum CspMode
 {
     Off,
@@ -7,6 +10,9 @@ public enum CspMode
     Enforce
 }
 
+/// <summary>
+/// Provides configuration options for security headers.
+/// </summary>
 public sealed class SecurityHeadersOptions
 {
     public const string SectionName = "SecurityHeaders";

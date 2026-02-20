@@ -4,8 +4,14 @@ using MediatR;
 
 namespace AuthServer.Application.Commands;
 
+/// <summary>
+/// Provides send email command functionality.
+/// </summary>
 public sealed record SendEmailCommand(string ToEmail, string Subject, string Body) : IRequest;
 
+/// <summary>
+/// Provides send email command handler functionality.
+/// </summary>
 public sealed class SendEmailCommandHandler : IRequestHandler<SendEmailCommand>
 {
     private readonly IEmailSender _emailSender;

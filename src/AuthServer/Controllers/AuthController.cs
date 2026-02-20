@@ -18,6 +18,9 @@ using OpenIddict.Abstractions;
 using System.Text.Json;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for auth.
+/// </summary>
 
 [ApiController]
 [Route("auth")]
@@ -88,6 +91,9 @@ public class AuthController : ControllerBase
         _issuerName = ResolveIssuerName(configuration);
         _localizer = localizer;
     }
+    /// <summary>
+    /// Returns client and scope context used by the login screen for an authorization request.
+    /// </summary>
 
 
     [HttpGet("login-context")]
@@ -130,6 +136,9 @@ public class AuthController : ControllerBase
             branding?.TermsUrl,
             scopes));
     }
+    /// <summary>
+    /// Authenticates a user with credentials and returns session bootstrap details for the client.
+    /// </summary>
 
     [HttpPost("login")]
     [AllowAnonymous]
@@ -195,6 +204,7 @@ public class AuthController : ControllerBase
 
         if (result.RequiresTwoFactor)
         {
+            // Persist the post-MFA destination so second-factor completion cannot be used to pivot to a different return URL.
             var token = _mfaChallengeStore.Create(user.Id, redirectTo);
             return Ok(new LoginResponse(false, redirectTo, null, true, token));
         }
@@ -225,6 +235,7 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            // Keep failure responses uniform to avoid disclosing whether the credential failure was username or password related.
             await _eventLogger.LogAsync("LoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
             await _loginHistoryService.RecordAsync(user.Id, emailOrUsername, false, "invalid_password", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
@@ -238,6 +249,9 @@ public class AuthController : ControllerBase
         await _userLifecycleService.TrackLoginAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         return Ok(new LoginResponse(true, redirectTo, null));
     }
+    /// <summary>
+    /// Completes a pending login challenge using authenticator or recovery code validation.
+    /// </summary>
 
     [HttpPost("login/mfa")]
     [AllowAnonymous]
@@ -265,6 +279,7 @@ public class AuthController : ControllerBase
 
         if (!_mfaChallengeStore.TryConsume(request.MfaToken, out var challenge))
         {
+            // MFA challenges are one-time and short-lived, so consumed/expired tokens must be treated as invalid.
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Invalid code",
@@ -316,6 +331,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, redirectTo, null));
     }
+    /// <summary>
+    /// Returns the MFA enrollment status for the authenticated user.
+    /// </summary>
 
     [HttpGet("mfa/status")]
     [Authorize]
@@ -332,6 +350,9 @@ public class AuthController : ControllerBase
 
         return Ok(new MfaStatusResponse(user.TwoFactorEnabled, !string.IsNullOrWhiteSpace(key), recoveryCodesLeft));
     }
+    /// <summary>
+    /// Initializes MFA enrollment by provisioning an authenticator key and QR payload.
+    /// </summary>
 
     [HttpPost("mfa/setup/start")]
     [Authorize]
@@ -374,6 +395,9 @@ public class AuthController : ControllerBase
         var qrSvg = GenerateQrCodeSvg(otpauth);
         return Ok(new MfaSetupResponse(sharedKey, otpauth, qrSvg));
     }
+    /// <summary>
+    /// Confirms MFA enrollment after validating the submitted authenticator code.
+    /// </summary>
 
     [HttpPost("mfa/setup/confirm")]
     [Authorize]
@@ -445,6 +469,9 @@ public class AuthController : ControllerBase
         }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
+    /// <summary>
+    /// Regenerates one-time MFA recovery codes for the authenticated account.
+    /// </summary>
 
     [HttpPost("mfa/recovery-codes/regenerate")]
     [Authorize]
@@ -483,6 +510,9 @@ public class AuthController : ControllerBase
         }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
+    /// <summary>
+    /// Disables MFA after validating the user password.
+    /// </summary>
 
     [HttpPost("mfa/disable")]
     [Authorize]
@@ -555,6 +585,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
+    /// <summary>
+    /// Registers a new account and sends activation instructions when applicable.
+    /// </summary>
 
     [HttpPost("register")]
     [AllowAnonymous]
@@ -660,6 +693,9 @@ public class AuthController : ControllerBase
 
         return Ok(BuildRegistrationResponse(returnUrl));
     }
+    /// <summary>
+    /// Starts the password reset workflow for the supplied email address.
+    /// </summary>
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
@@ -695,6 +731,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Auth.Reset.Forgot.Generic", "If an account exists for this email, you’ll receive a password reset link shortly.")));
     }
+    /// <summary>
+    /// Applies a password reset token and updates the account password.
+    /// </summary>
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
@@ -760,6 +799,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
+    /// <summary>
+    /// Resends account activation instructions for an unverified account.
+    /// </summary>
 
     [HttpPost("resend-activation")]
     [AllowAnonymous]
@@ -795,6 +837,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
+    /// <summary>
+    /// Confirms account activation using the encoded email confirmation token.
+    /// </summary>
 
     [HttpPost("activate")]
     [AllowAnonymous]
@@ -846,6 +891,9 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
+    /// <summary>
+    /// Signs out the current session and returns the post-logout redirect target.
+    /// </summary>
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
@@ -855,6 +903,9 @@ public class AuthController : ControllerBase
         await _eventLogger.LogAsync("Logout", user?.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return NoContent();
     }
+    /// <summary>
+    /// Returns the currently authenticated user session profile and permissions.
+    /// </summary>
 
     [HttpGet("session")]
     [AllowAnonymous]
@@ -883,11 +934,17 @@ public class AuthController : ControllerBase
             permissions));
     }
 
+    /// <summary>
+    /// Encodes token content for URL-safe transport.
+    /// </summary>
     private static string EncodeToken(string token)
     {
         return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
     }
 
+    /// <summary>
+    /// Decodes URL-safe token content back to its original value.
+    /// </summary>
     private static string? DecodeToken(string encodedToken)
     {
         try
@@ -900,11 +957,17 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Checks and records whether the current request exceeds the configured action rate limit.
+    /// </summary>
     private bool IsRateLimited(string action, int maxAttempts, TimeSpan window, out int retryAfterSeconds)
     {
         return _rateLimiter.IsLimited(HttpContext, action, maxAttempts, window, out retryAfterSeconds);
     }
 
+    /// <summary>
+    /// Builds a standardized response payload for rate-limited requests.
+    /// </summary>
     private IActionResult TooManyRequestsResponse(int retryAfterSeconds)
     {
         if (retryAfterSeconds > 0)
@@ -918,6 +981,9 @@ public class AuthController : ControllerBase
             L("Auth.RateLimit.TooManyAttempts.Detail", "Too many attempts. Please try again later."));
     }
 
+    /// <summary>
+    /// Builds a problem-details response for authentication flow errors.
+    /// </summary>
     private IActionResult BuildAuthProblem(int statusCode, string title, string detail)
     {
         var problem = new ProblemDetails
@@ -930,6 +996,9 @@ public class AuthController : ControllerBase
         return StatusCode(statusCode, problem);
     }
 
+    /// <summary>
+    /// Builds a validation problem response for request field errors.
+    /// </summary>
     private IActionResult BuildValidationProblem(string title, Dictionary<string, string[]> errors)
     {
         var filtered = errors
@@ -946,6 +1015,9 @@ public class AuthController : ControllerBase
         return UnprocessableEntity(details);
     }
 
+    /// <summary>
+    /// Creates a successful registration response with an optional safe redirect.
+    /// </summary>
     private AuthResponse BuildRegistrationResponse(string? returnUrl)
     {
         var redirectTo = string.IsNullOrWhiteSpace(returnUrl)
@@ -956,6 +1028,9 @@ public class AuthController : ControllerBase
     }
 
 
+    /// <summary>
+    /// Extracts requested scopes from an authorization request query payload.
+    /// </summary>
     private static IReadOnlyCollection<string> ResolveRequestedScopes(Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
     {
         if (!query.TryGetValue("scope", out var scopeValues))
@@ -963,6 +1038,7 @@ public class AuthController : ControllerBase
             return Array.Empty<string>();
         }
 
+        // Bound scope fan-out from user-controlled query strings to keep login-context responses predictable.
         return scopeValues
             .ToString()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -971,6 +1047,9 @@ public class AuthController : ControllerBase
             .ToArray();
     }
 
+    /// <summary>
+    /// Parses and validates an authorize return URL and its query parameters.
+    /// </summary>
     private static bool TryParseAuthorizeReturnUrl(
         string? returnUrl,
         out Uri authorizeUri,
@@ -984,6 +1063,7 @@ public class AuthController : ControllerBase
             || returnUrl.StartsWith("//", StringComparison.Ordinal)
             || returnUrl.StartsWith("/\\", StringComparison.Ordinal))
         {
+            // Only relative local URLs are accepted here to prevent open-redirect abuse in pre-login flows.
             return false;
         }
 
@@ -994,6 +1074,7 @@ public class AuthController : ControllerBase
 
         if (!string.Equals(authorizeUri.AbsolutePath, "/connect/authorize", StringComparison.Ordinal))
         {
+            // Limit parsing to authorize requests so arbitrary application paths cannot influence login context metadata.
             return false;
         }
 
@@ -1002,6 +1083,9 @@ public class AuthController : ControllerBase
         return true;
     }
 
+    /// <summary>
+    /// Loads optional branding metadata for a client application.
+    /// </summary>
     private async Task<ClientBranding?> GetClientBrandingAsync(object application, CancellationToken cancellationToken)
     {
         var properties = await _applicationManager.GetPropertiesAsync(application, cancellationToken);
@@ -1014,6 +1098,9 @@ public class AuthController : ControllerBase
         return raw.Deserialize<ClientBranding>();
     }
 
+    /// <summary>
+    /// Resolves the preferred culture used in outbound account emails.
+    /// </summary>
     private string ResolveEmailCulture(ApplicationUser? user)
     {
         if (!string.IsNullOrWhiteSpace(user?.PreferredLanguage))
@@ -1024,18 +1111,27 @@ public class AuthController : ControllerBase
         return LanguageTagNormalizer.Normalize(CultureInfo.CurrentUICulture.Name);
     }
 
+    /// <summary>
+    /// Returns a localized string and falls back to the provided default text.
+    /// </summary>
     private string L(string key, string fallback)
     {
         var value = _localizer[key];
         return value.ResourceNotFound ? fallback : value.Value;
     }
 
+    /// <summary>
+    /// Normalizes user-entered MFA codes by removing formatting characters.
+    /// </summary>
     private static string NormalizeCode(string code)
     {
         return code.Replace(" ", string.Empty, StringComparison.Ordinal)
             .Replace("-", string.Empty, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Formats an authenticator key for human-readable display.
+    /// </summary>
     private static string FormatKey(string key)
     {
         var result = new StringBuilder();
@@ -1054,6 +1150,9 @@ public class AuthController : ControllerBase
         return result.ToString().ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Builds an OTPAUTH URI consumed by authenticator applications.
+    /// </summary>
     private string BuildOtpAuthUri(string email, string unformattedKey)
     {
         return string.Format(
@@ -1064,17 +1163,24 @@ public class AuthController : ControllerBase
             unformattedKey);
     }
 
+    /// <summary>
+    /// Resolves the issuer label used in OTP authenticator metadata.
+    /// </summary>
     private static string ResolveIssuerName(IConfiguration configuration)
     {
         var issuer = configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
         if (Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host))
         {
+            // Authenticator apps display the host label; stripping to host keeps OTP labels stable across path changes.
             return uri.Host;
         }
 
         return "AstraId";
     }
 
+    /// <summary>
+    /// Generates an SVG QR code for authenticator enrollment payloads.
+    /// </summary>
     private static string GenerateQrCodeSvg(string payload)
     {
         var generator = new QRCoder.QRCodeGenerator();

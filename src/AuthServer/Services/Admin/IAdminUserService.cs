@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Identity;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin user service.
+/// </summary>
 public interface IAdminUserService
 {
     Task<PagedResult<AdminUserListItem>> GetUsersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken);

@@ -3,6 +3,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Seeding;
 
+/// <summary>
+/// Provides auth server definitions functionality.
+/// </summary>
 public static class AuthServerDefinitions
 {
     public static readonly IReadOnlyCollection<PermissionDefinition> Permissions =

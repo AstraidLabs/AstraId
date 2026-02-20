@@ -28,6 +28,10 @@ using Microsoft.Extensions.Options;
 namespace AuthServer.Controllers;
 
 [ApiController]
+/// <summary>
+/// Hosts OpenID Connect endpoints consumed by browser-based users, OIDC clients, and resource servers.
+/// The actions in this controller enforce client policy, consent, and token issuance rules for the issuer.
+/// </summary>
 public class AuthorizationController : ControllerBase
 {
     private static readonly IReadOnlySet<string> AllowedScopes = AuthServerScopeRegistry.AllowedScopes;
@@ -106,6 +110,9 @@ public class AuthorizationController : ControllerBase
         _localizer = localizer;
     }
 
+    /// <summary>
+    /// Starts the authorization code flow for a client redirecting the user through the browser.
+    /// </summary>
     [HttpGet("~/connect/authorize")]
     public async Task<IActionResult> Authorize()
     {
@@ -152,6 +159,7 @@ public class AuthorizationController : ControllerBase
             return Forbid(CreateUserDisabledProperties(), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
+        // Only scopes explicitly registered by the issuer are eligible for consent and token emission.
         var requestedScopes = request.GetScopes().Intersect(AllowedScopes).ToArray();
         var app = string.IsNullOrWhiteSpace(request.ClientId)
             ? null
@@ -190,6 +198,9 @@ public class AuthorizationController : ControllerBase
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    /// <summary>
+    /// Finalizes user consent for the authorization request posted from the consent UI.
+    /// </summary>
     [HttpPost("~/connect/authorize")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SubmitConsent([FromForm] string decision, [FromForm] bool remember)
@@ -222,6 +233,7 @@ public class AuthorizationController : ControllerBase
         var applicationId = app is null ? null : await _applicationManager.GetIdAsync(app, HttpContext.RequestAborted);
 
         var authorization = await FindValidAuthorizationAsync(user.Id, applicationId, requestedScopes, HttpContext.RequestAborted);
+        // Permanent authorizations back "remember consent" so repeated prompts are avoided for the same client/scope set.
         if (remember && authorization is null && !string.IsNullOrWhiteSpace(applicationId))
         {
             authorization = await _authorizationManager.CreateAsync(
@@ -243,6 +255,9 @@ public class AuthorizationController : ControllerBase
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    /// <summary>
+    /// Exchanges grants for tokens for client applications and rotates refresh tokens for signed-in users.
+    /// </summary>
     [HttpPost("~/connect/token")]
     public async Task<IActionResult> Exchange()
     {
@@ -253,6 +268,7 @@ public class AuthorizationController : ControllerBase
             return BadRequest(CreateErrorResponse(OpenIddictConstants.Errors.InvalidRequest, L("Oidc.Token.InvalidRequest", "The token request is invalid.")));
         }
 
+        // Restrict grant types at the endpoint boundary so unsupported flows fail before deeper processing.
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType() && !request.IsClientCredentialsGrantType() && !request.IsPasswordGrantType() && !string.Equals(request.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
         {
             _logger.LogWarning("Unsupported grant type for client {ClientId}.", request.ClientId);
@@ -341,6 +357,7 @@ public class AuthorizationController : ControllerBase
                 policy.RefreshReuseLeewaySeconds,
                 HttpContext.RequestAborted);
 
+            // Reuse detection treats replay as possible theft and triggers the configured remediation strategy.
             if (reuseResult == RefreshTokenReuseResult.Reused)
             {
                 await _incidentService.LogIncidentAsync(
@@ -389,6 +406,9 @@ public class AuthorizationController : ControllerBase
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    /// <summary>
+    /// Returns subject profile claims to a client using a valid access token.
+    /// </summary>
     [HttpGet("~/connect/userinfo")]
     [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
     public async Task<IActionResult> Userinfo()
@@ -407,6 +427,9 @@ public class AuthorizationController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Ends the local session and triggers back-channel logout notifications for participating clients.
+    /// </summary>
     [HttpGet("~/connect/logout")]
     public async Task<IActionResult> Logout()
     {
@@ -423,6 +446,9 @@ public class AuthorizationController : ControllerBase
         return SignOut(new AuthenticationProperties { RedirectUri = "/" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    /// <summary>
+    /// Serves the device verification endpoint where the user confirms a user_code shown on another device.
+    /// </summary>
     [Authorize]
     [HttpGet("~/connect/verify")]
     public async Task<IActionResult> VerifyDevice([FromQuery(Name = OpenIddictConstants.Parameters.UserCode)] string? userCode)
@@ -436,6 +462,9 @@ public class AuthorizationController : ControllerBase
         return RenderDeviceVerificationPage(userCode, false, null);
     }
 
+    /// <summary>
+    /// Processes device verification endpoint approval/denial posted by the authenticated end user.
+    /// </summary>
     [Authorize]
     [ValidateAntiForgeryToken]
     [HttpPost("~/connect/verify")]

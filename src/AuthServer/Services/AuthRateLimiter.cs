@@ -6,6 +6,9 @@ using StackExchange.Redis;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides auth rate limiter functionality.
+/// </summary>
 public sealed class AuthRateLimiter
 {
     private readonly IMemoryCache _memoryCache;
@@ -112,5 +115,8 @@ public sealed class AuthRateLimiter
         return string.IsNullOrWhiteSpace(ip) ? "unknown" : ip;
     }
 
+    /// <summary>
+    /// Provides rate limit state functionality.
+    /// </summary>
     private sealed record RateLimitState(int Count, DateTimeOffset WindowStart);
 }

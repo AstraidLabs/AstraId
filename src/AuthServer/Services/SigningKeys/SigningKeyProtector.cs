@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides signing key protector functionality.
+/// </summary>
 public sealed class SigningKeyProtector : ISigningKeyProtector
 {
     private readonly IDataProtector _protector;

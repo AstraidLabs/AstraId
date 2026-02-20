@@ -3,6 +3,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin permission admin service.
+/// </summary>
 public interface IAdminPermissionAdminService
 {
     Task<IReadOnlyList<Permission>> GetPermissionsAsync(CancellationToken cancellationToken);

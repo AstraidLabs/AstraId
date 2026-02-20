@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Notifications;
 
+/// <summary>
+/// Provides email outbox service functionality.
+/// </summary>
 public sealed class EmailOutboxService
 {
     private readonly ApplicationDbContext _dbContext;

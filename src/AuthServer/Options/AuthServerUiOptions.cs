@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for auth server ui.
+/// </summary>
 public sealed class AuthServerUiOptions
 {
     public const string SectionName = "AuthServer";

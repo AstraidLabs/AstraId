@@ -3,6 +3,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AppServer.Security;
 
+/// <summary>
+/// Maintains a cached copy of Api internal-token signing keys from JWKS for local JWT signature validation.
+/// </summary>
 public sealed class InternalJwksCache
 {
     private readonly ILogger<InternalJwksCache> _logger;
@@ -18,17 +21,23 @@ public sealed class InternalJwksCache
         _resolver = resolver;
     }
 
+    /// <summary>
+    /// Refreshes signing keys from JWKS and atomically swaps the in-memory resolver set when at least one key is available.
+    /// </summary>
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken)
     {
         var options = _options.CurrentValue;
         using var client = _httpClientFactory.CreateClient("InternalJwks");
         using var request = new HttpRequestMessage(HttpMethod.Get, options.JwksUrl);
+        // Optional API key protects internal JWKS endpoint from unauthenticated network callers.
+        // Attach internal API key only when a real key is configured for protected JWKS endpoints.
         if (!string.IsNullOrWhiteSpace(options.JwksInternalApiKey) && !string.Equals(options.JwksInternalApiKey, "__REPLACE_ME__", StringComparison.Ordinal))
         {
             request.Headers.TryAddWithoutValidation("X-Internal-Api-Key", options.JwksInternalApiKey);
         }
 
         using var response = await client.SendAsync(request, cancellationToken);
+        // Abort refresh when JWKS endpoint response is not successful.
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("JWKS refresh failed with status code {StatusCode}", response.StatusCode);
@@ -37,10 +46,12 @@ public sealed class InternalJwksCache
 
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         var jwks = new JsonWebKeySet(payload);
+        // Build a kid-to-key dictionary so JWT validators can resolve keys quickly.
         var resolved = jwks.Keys
             .Where(key => !string.IsNullOrWhiteSpace(key.Kid))
             .ToDictionary(key => key.Kid!, key => (SecurityKey)key, StringComparer.Ordinal);
 
+        // Reject refresh when no usable signing keys are present.
         if (resolved.Count == 0)
         {
             _logger.LogWarning("JWKS refresh returned zero keys.");
@@ -53,6 +64,9 @@ public sealed class InternalJwksCache
     }
 }
 
+/// <summary>
+/// Periodically refreshes JWKS based on <c>InternalTokens:JwksRefreshMinutes</c> (minutes).
+/// </summary>
 public sealed class InternalJwksRefreshService : BackgroundService
 {
     private readonly InternalJwksCache _cache;
@@ -68,6 +82,7 @@ public sealed class InternalJwksRefreshService : BackgroundService
     {
         await _cache.RefreshAsync(stoppingToken);
 
+        // Keep refreshing JWKS periodically until cancellation is requested.
         while (!stoppingToken.IsCancellationRequested)
         {
             var minutes = Math.Max(1, _options.CurrentValue.JwksRefreshMinutes);
