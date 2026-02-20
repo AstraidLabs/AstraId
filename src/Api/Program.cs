@@ -289,11 +289,31 @@ builder.Services.AddHttpClient(PolicyMapClient.HttpClientName, (sp, client) =>
     })
     .AddPolicyHandler((sp, _) => HttpPolicies.CreateRetryPolicy(sp.GetRequiredService<IOptions<HttpOptions>>().Value));
 
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.AuthServer, builder.Configuration.GetSection("Services:AuthServer"));
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.Cms, builder.Configuration.GetSection("Services:Cms"));
-builder.Services.Configure<ServiceClientOptions>(ServiceNames.AppServer, builder.Configuration.GetSection("Services:AppServer"));
-builder.Services.Configure<AppServerOptions>(builder.Configuration.GetSection("AppServer"));
-builder.Services.Configure<HttpOptions>(builder.Configuration.GetSection("Http"));
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.AuthServer)
+    .Bind(builder.Configuration.GetSection("Services:AuthServer"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:AuthServer:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:AuthServer:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.Cms)
+    .Bind(builder.Configuration.GetSection("Services:Cms"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:Cms:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:Cms:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<ServiceClientOptions>(ServiceNames.AppServer)
+    .Bind(builder.Configuration.GetSection("Services:AppServer"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.BaseUrl), "Services:AppServer:BaseUrl is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Services:AppServer:BaseUrl must be a valid absolute URI.")
+    .ValidateOnStart();
+builder.Services.AddOptions<AppServerOptions>()
+    .Bind(builder.Configuration.GetSection("AppServer"))
+    .Validate(options => !options.Mtls.Enabled || options.Mtls.ClientCertificate.Source is "File" or "Store", "AppServer:Mtls:ClientCertificate:Source must be File or Store when mTLS is enabled.")
+    .ValidateOnStart();
+builder.Services.AddOptions<HttpOptions>()
+    .Bind(builder.Configuration.GetSection("Http"))
+    .Validate(options => options.TimeoutSeconds is >= 1 and <= 300, "Http:TimeoutSeconds must be between 1 and 300.")
+    .Validate(options => options.RetryCount is >= 0 and <= 10, "Http:RetryCount must be between 0 and 10.")
+    .Validate(options => options.RetryBaseDelaySeconds is > 0 and <= 30, "Http:RetryBaseDelaySeconds must be greater than zero and at most 30.")
+    .ValidateOnStart();
 
 builder.Services.AddTransient<CorrelationIdHandler>();
 builder.Services.AddTransient<InternalTokenHandler>();

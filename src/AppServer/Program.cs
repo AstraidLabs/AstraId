@@ -31,9 +31,13 @@ builder.Services.AddOptions<InternalTokenOptions>()
     .Bind(builder.Configuration.GetSection(InternalTokenOptions.SectionName))
     .Validate(options => !string.IsNullOrWhiteSpace(options.JwksUrl), "InternalTokens:JwksUrl is required.")
     .Validate(options => options.JwksRefreshMinutes > 0, "InternalTokens:JwksRefreshMinutes must be greater than zero.")
+    .Validate(options => options.AllowedAlgorithms.Length > 0, "InternalTokens:AllowedAlgorithms must contain at least one value.")
+    .Validate(options => options.AllowedAlgorithms.All(algorithm => !string.IsNullOrWhiteSpace(algorithm)), "InternalTokens:AllowedAlgorithms cannot contain empty values.")
     .ValidateOnStart();
 builder.Services.AddOptions<AppServerMtlsOptions>()
     .Bind(builder.Configuration.GetSection(AppServerMtlsOptions.SectionName))
+    .Validate(options => !options.RequireClientCertificate || options.Enabled, "AppServer:Mtls:RequireClientCertificate requires AppServer:Mtls:Enabled=true.")
+    .Validate(options => !options.RequireClientCertificate || options.AllowedClientThumbprints.Length > 0 || options.AllowedClientSubjectNames.Length > 0, "AppServer:Mtls requires AllowedClientThumbprints or AllowedClientSubjectNames when client certificates are required.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecurityHardeningOptions>()
     .Bind(builder.Configuration.GetSection(SecurityHardeningOptions.SectionName));
