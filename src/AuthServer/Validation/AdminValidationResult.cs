@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AuthServer.Validation;
 
+/// <summary>
+/// Provides admin validation result functionality.
+/// </summary>
 public sealed class AdminValidationResult
 {
     private readonly Dictionary<string, List<string>> _fieldErrors = new(StringComparer.OrdinalIgnoreCase);

@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for smtp.
+/// </summary>
 public sealed class SmtpOptions
 {
     public string Host { get; set; } = string.Empty;

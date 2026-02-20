@@ -9,6 +9,9 @@ using OpenIddict.Server;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides open iddict signing credentials configurator functionality.
+/// </summary>
 public sealed class OpenIddictSigningCredentialsConfigurator : IConfigureOptions<OpenIddictServerOptions>
 {
     private readonly IServiceProvider _serviceProvider;

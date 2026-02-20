@@ -2,6 +2,9 @@ using System.Globalization;
 
 namespace AuthServer.Localization;
 
+/// <summary>
+/// Provides supported cultures functionality.
+/// </summary>
 public static class SupportedCultures
 {
     public const string Default = "en-US";

@@ -11,6 +11,9 @@ using OpenIddict.Server.AspNetCore;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides admin token policy service functionality.
+/// </summary>
 public sealed class AdminTokenPolicyService
 {
     private readonly ApplicationDbContext _dbContext;

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Diagnostics;
 
+/// <summary>
+/// Provides error log cleanup service functionality.
+/// </summary>
 public sealed class ErrorLogCleanupService : BackgroundService
 {
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromDays(1);

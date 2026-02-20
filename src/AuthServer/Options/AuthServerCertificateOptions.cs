@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Provides configuration options for auth server certificate.
+/// </summary>
 public sealed class AuthServerCertificateOptions
 {
     public const string SectionName = "AuthServer:Certificates";
@@ -8,6 +11,9 @@ public sealed class AuthServerCertificateOptions
     public CertificateDescriptor? Encryption { get; set; }
 }
 
+/// <summary>
+/// Provides certificate descriptor functionality.
+/// </summary>
 public sealed class CertificateDescriptor
 {
     public string? Path { get; set; }

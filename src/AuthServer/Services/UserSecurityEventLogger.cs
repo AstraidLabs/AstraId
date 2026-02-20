@@ -5,12 +5,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Defines the contract for user security event logger.
+/// </summary>
 public interface IUserSecurityEventLogger
 {
     Task LogAsync(string eventType, Guid? userId, HttpContext httpContext, string? clientId = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserSecurityEvent>> GetRecentForUserAsync(Guid userId, int take, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Provides user security event logger functionality.
+/// </summary>
 public sealed class UserSecurityEventLogger : IUserSecurityEventLogger
 {
     private readonly ApplicationDbContext _dbContext;

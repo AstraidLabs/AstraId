@@ -3,6 +3,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Services.Admin.Validation;
 
+/// <summary>
+/// Provides oidc validation spec functionality.
+/// </summary>
 public static class OidcValidationSpec
 {
     public const int NameMinLength = 3;

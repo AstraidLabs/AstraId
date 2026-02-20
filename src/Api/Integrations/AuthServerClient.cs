@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides auth server client functionality.
+/// </summary>
 public sealed class AuthServerClient
 {
     private readonly HttpClient _httpClient;

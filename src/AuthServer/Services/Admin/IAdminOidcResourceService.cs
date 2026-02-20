@@ -2,6 +2,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin oidc resource service.
+/// </summary>
 public interface IAdminOidcResourceService
 {
     Task<PagedResult<AdminOidcResourceListItem>> GetResourcesAsync(

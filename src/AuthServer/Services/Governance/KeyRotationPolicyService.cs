@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides key rotation policy service functionality.
+/// </summary>
 public sealed class KeyRotationPolicyService
 {
     private readonly ApplicationDbContext _dbContext;

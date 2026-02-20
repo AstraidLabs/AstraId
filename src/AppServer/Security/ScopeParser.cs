@@ -2,6 +2,9 @@ using System.Security.Claims;
 
 namespace AppServer.Security;
 
+/// <summary>
+/// Provides scope parser functionality.
+/// </summary>
 public static class ScopeParser
 {
     public static HashSet<string> GetScopes(ClaimsPrincipal principal)

@@ -2,6 +2,9 @@ using AuthServer.Seeding;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides return url validator functionality.
+/// </summary>
 public sealed class ReturnUrlValidator
 {
     private static readonly HashSet<string> AllowedRedirectUris = AuthServerDefinitions.Clients

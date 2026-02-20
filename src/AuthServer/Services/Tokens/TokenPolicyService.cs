@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides token policy service functionality.
+/// </summary>
 public sealed class TokenPolicyService
 {
     private readonly ApplicationDbContext _dbContext;

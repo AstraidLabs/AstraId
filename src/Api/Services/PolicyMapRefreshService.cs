@@ -2,6 +2,9 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Services;
 
+/// <summary>
+/// Provides policy map refresh service functionality.
+/// </summary>
 public sealed class PolicyMapRefreshService : BackgroundService
 {
     private readonly PolicyMapClient _policyMapClient;

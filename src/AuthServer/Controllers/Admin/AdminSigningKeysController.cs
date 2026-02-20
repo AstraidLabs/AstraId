@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 using AuthServer.Data;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin signing keys.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/signing-keys")]

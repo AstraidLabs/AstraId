@@ -1,5 +1,8 @@
 namespace AppServer.Security;
 
+/// <summary>
+/// Provides configuration options for internal token.
+/// </summary>
 public sealed class InternalTokenOptions
 {
     public const string SectionName = "InternalTokens";
@@ -17,6 +20,9 @@ public sealed class InternalTokenOptions
     public string LegacyHs256Secret { get; set; } = "__REPLACE_ME__";
 }
 
+/// <summary>
+/// Provides configuration options for app server mtls.
+/// </summary>
 public sealed class AppServerMtlsOptions
 {
     public const string SectionName = "AppServer:Mtls";

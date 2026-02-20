@@ -1,5 +1,8 @@
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Provides client application types functionality.
+/// </summary>
 public static class ClientApplicationTypes
 {
     public const string Web = "web";

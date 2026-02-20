@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides admin ui manifest service functionality.
+/// </summary>
 public sealed class AdminUiManifestService
 {
     private readonly IWebHostEnvironment _environment;
@@ -92,6 +95,9 @@ public sealed class AdminUiManifestService
         return File.Exists(vite) ? vite : direct;
     }
 
+    /// <summary>
+    /// Provides vite manifest entry functionality.
+    /// </summary>
     public sealed class ViteManifestEntry
     {
         public string File { get; set; } = string.Empty;

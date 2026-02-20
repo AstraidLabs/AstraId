@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 using AuthServer.Services.Governance;
 
 namespace AuthServer.Controllers.Admin;
+/// <summary>
+/// Exposes HTTP endpoints for admin tokens.
+/// </summary>
 
 [ApiController]
 [Route("admin/api/tokens")]

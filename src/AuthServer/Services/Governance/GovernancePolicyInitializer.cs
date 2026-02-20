@@ -1,5 +1,8 @@
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides governance policy initializer functionality.
+/// </summary>
 public sealed class GovernancePolicyInitializer : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;

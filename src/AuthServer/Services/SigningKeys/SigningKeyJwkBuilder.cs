@@ -4,6 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace AuthServer.Services.SigningKeys;
 
+/// <summary>
+/// Provides signing key jwk builder functionality.
+/// </summary>
 public static class SigningKeyJwkBuilder
 {
     public static JsonWebKey FromCertificate(X509Certificate2 certificate, string algorithm)

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides governance policy store functionality.
+/// </summary>
 public sealed class GovernancePolicyStore
 {
     private readonly ApplicationDbContext _dbContext;

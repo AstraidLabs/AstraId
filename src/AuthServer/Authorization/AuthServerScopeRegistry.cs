@@ -3,6 +3,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Authorization;
 
+/// <summary>
+/// Provides auth server scope registry functionality.
+/// </summary>
 public static class AuthServerScopeRegistry
 {
     public const string ApiScope = "api";

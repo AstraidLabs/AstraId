@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services.Governance;
 
+/// <summary>
+/// Provides encryption key status functionality.
+/// </summary>
 public sealed record EncryptionKeyStatus(
     bool Enabled,
     string Source,
@@ -13,6 +16,9 @@ public sealed record EncryptionKeyStatus(
     DateTime? NotBeforeUtc,
     DateTime? NotAfterUtc);
 
+/// <summary>
+/// Provides encryption key status service functionality.
+/// </summary>
 public sealed class EncryptionKeyStatusService
 {
     private readonly IOptions<AuthServerCertificateOptions> _options;

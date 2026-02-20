@@ -12,6 +12,9 @@ using AstraId.Logging.Audit;
 
 namespace AuthServer.Seeding;
 
+/// <summary>
+/// Runs background processing for auth bootstrap hosted service.
+/// </summary>
 public sealed class AuthBootstrapHostedService : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;

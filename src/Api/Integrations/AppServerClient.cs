@@ -2,6 +2,9 @@ using System.Net.Http.Json;
 
 namespace Api.Integrations;
 
+/// <summary>
+/// Provides app server client functionality.
+/// </summary>
 public sealed class AppServerClient
 {
     private readonly HttpClient _httpClient;

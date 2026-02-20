@@ -2,6 +2,9 @@ using AuthServer.Data;
 
 namespace AuthServer.Services.Notifications;
 
+/// <summary>
+/// Provides notification service functionality.
+/// </summary>
 public sealed class NotificationService
 {
     private readonly EmailOutboxService _outbox;

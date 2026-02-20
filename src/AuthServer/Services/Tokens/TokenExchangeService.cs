@@ -7,6 +7,9 @@ using OpenIddict.Server;
 
 namespace AuthServer.Services.Tokens;
 
+/// <summary>
+/// Provides token exchange service functionality.
+/// </summary>
 public sealed class TokenExchangeService
 {
     public const string GrantType = "urn:ietf:params:oauth:grant-type:token-exchange";

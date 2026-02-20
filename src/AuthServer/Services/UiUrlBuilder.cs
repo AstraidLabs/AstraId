@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides ui url builder functionality.
+/// </summary>
 public sealed class UiUrlBuilder
 {
     private readonly AuthServerUiOptions _options;

@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides privacy governance service functionality.
+/// </summary>
 public sealed class PrivacyGovernanceService
 {
     private readonly ApplicationDbContext _dbContext;

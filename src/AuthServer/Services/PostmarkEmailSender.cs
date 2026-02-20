@@ -7,6 +7,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides postmark email sender functionality.
+/// </summary>
 public sealed class PostmarkEmailSender : IEmailSender
 {
     private readonly HttpClient _httpClient;

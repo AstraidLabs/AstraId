@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides login history service functionality.
+/// </summary>
 public sealed class LoginHistoryService
 {
     private readonly ApplicationDbContext _dbContext;

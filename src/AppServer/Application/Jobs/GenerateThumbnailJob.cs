@@ -1,5 +1,8 @@
 namespace AppServer.Application.Jobs;
 
+/// <summary>
+/// Provides generate thumbnail job functionality.
+/// </summary>
 public sealed class GenerateThumbnailJob
 {
     private readonly ILogger<GenerateThumbnailJob> _logger;

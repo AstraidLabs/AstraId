@@ -4,6 +4,9 @@ using AuthServer.Services.Admin.Models;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin endpoint service.
+/// </summary>
 public interface IAdminEndpointService
 {
     Task<IReadOnlyList<ApiEndpoint>> GetEndpointsAsync(Guid apiResourceId, CancellationToken cancellationToken);

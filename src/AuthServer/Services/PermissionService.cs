@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides permission service functionality.
+/// </summary>
 public sealed class PermissionService : IPermissionService
 {
     private readonly ApplicationDbContext _dbContext;

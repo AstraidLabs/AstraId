@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides retention cleanup service functionality.
+/// </summary>
 public sealed class RetentionCleanupService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

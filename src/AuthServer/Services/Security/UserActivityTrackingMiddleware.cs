@@ -3,6 +3,9 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Implements middleware for user activity tracking.
+/// </summary>
 public sealed class UserActivityTrackingMiddleware
 {
     private static readonly TimeSpan WriteThrottle = TimeSpan.FromMinutes(10);

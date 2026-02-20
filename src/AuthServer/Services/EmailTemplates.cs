@@ -2,6 +2,9 @@ using AuthServer.Localization;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides email templates functionality.
+/// </summary>
 public static class EmailTemplates
 {
     public static (string Subject, string HtmlBody, string TextBody) BuildActivationEmail(string link)

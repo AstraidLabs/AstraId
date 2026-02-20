@@ -18,6 +18,9 @@ using OpenIddict.Abstractions;
 using System.Text.Json;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for auth.
+/// </summary>
 
 [ApiController]
 [Route("auth")]
@@ -88,13 +91,13 @@ public class AuthController : ControllerBase
         _issuerName = ResolveIssuerName(configuration);
         _localizer = localizer;
     }
+    /// <summary>
+    /// Returns client and scope context used by the login screen for an authorization request.
+    /// </summary>
 
 
     [HttpGet("login-context")]
     [AllowAnonymous]
-    /// <summary>
-    /// Returns client and scope context used by the login screen for an authorization request.
-    /// </summary>
     public async Task<ActionResult<LoginContextResponse>> GetLoginContext([FromQuery] string? returnUrl)
     {
         Response.Headers.CacheControl = "no-store";
@@ -133,12 +136,12 @@ public class AuthController : ControllerBase
             branding?.TermsUrl,
             scopes));
     }
-
-    [HttpPost("login")]
-    [AllowAnonymous]
     /// <summary>
     /// Authenticates a user with credentials and returns session bootstrap details for the client.
     /// </summary>
+
+    [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (IsRateLimited("login", LoginMaxAttempts, LoginWindow, out var retryAfter))
@@ -244,12 +247,12 @@ public class AuthController : ControllerBase
         await _userLifecycleService.TrackLoginAsync(user.Id, DateTime.UtcNow, HttpContext.RequestAborted);
         return Ok(new LoginResponse(true, redirectTo, null));
     }
-
-    [HttpPost("login/mfa")]
-    [AllowAnonymous]
     /// <summary>
     /// Completes a pending login challenge using authenticator or recovery code validation.
     /// </summary>
+
+    [HttpPost("login/mfa")]
+    [AllowAnonymous]
     public async Task<IActionResult> LoginMfa([FromBody] MfaLoginRequest request)
     {
         if (IsRateLimited("login-mfa", MfaMaxAttempts, MfaWindow, out var retryAfter))
@@ -325,12 +328,12 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, redirectTo, null));
     }
-
-    [HttpGet("mfa/status")]
-    [Authorize]
     /// <summary>
     /// Returns the MFA enrollment status for the authenticated user.
     /// </summary>
+
+    [HttpGet("mfa/status")]
+    [Authorize]
     public async Task<IActionResult> GetMfaStatus()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -344,12 +347,12 @@ public class AuthController : ControllerBase
 
         return Ok(new MfaStatusResponse(user.TwoFactorEnabled, !string.IsNullOrWhiteSpace(key), recoveryCodesLeft));
     }
-
-    [HttpPost("mfa/setup/start")]
-    [Authorize]
     /// <summary>
     /// Initializes MFA enrollment by provisioning an authenticator key and QR payload.
     /// </summary>
+
+    [HttpPost("mfa/setup/start")]
+    [Authorize]
     public async Task<IActionResult> StartMfaSetup()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -389,12 +392,12 @@ public class AuthController : ControllerBase
         var qrSvg = GenerateQrCodeSvg(otpauth);
         return Ok(new MfaSetupResponse(sharedKey, otpauth, qrSvg));
     }
-
-    [HttpPost("mfa/setup/confirm")]
-    [Authorize]
     /// <summary>
     /// Confirms MFA enrollment after validating the submitted authenticator code.
     /// </summary>
+
+    [HttpPost("mfa/setup/confirm")]
+    [Authorize]
     public async Task<IActionResult> ConfirmMfaSetup([FromBody] MfaConfirmRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -463,12 +466,12 @@ public class AuthController : ControllerBase
         }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
-
-    [HttpPost("mfa/recovery-codes/regenerate")]
-    [Authorize]
     /// <summary>
     /// Regenerates one-time MFA recovery codes for the authenticated account.
     /// </summary>
+
+    [HttpPost("mfa/recovery-codes/regenerate")]
+    [Authorize]
     public async Task<IActionResult> RegenerateRecoveryCodes()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -504,12 +507,12 @@ public class AuthController : ControllerBase
         }
         return Ok(new MfaRecoveryCodesResponse(recoveryCodes.ToArray()));
     }
-
-    [HttpPost("mfa/disable")]
-    [Authorize]
     /// <summary>
     /// Disables MFA after validating the user password.
     /// </summary>
+
+    [HttpPost("mfa/disable")]
+    [Authorize]
     public async Task<IActionResult> DisableMfa([FromBody] MfaDisableRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -579,12 +582,12 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
-
-    [HttpPost("register")]
-    [AllowAnonymous]
     /// <summary>
     /// Registers a new account and sends activation instructions when applicable.
     /// </summary>
+
+    [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         if (IsRateLimited("register", RegistrationMaxAttempts, RegistrationWindow, out var retryAfter))
@@ -687,12 +690,12 @@ public class AuthController : ControllerBase
 
         return Ok(BuildRegistrationResponse(returnUrl));
     }
-
-    [HttpPost("forgot-password")]
-    [AllowAnonymous]
     /// <summary>
     /// Starts the password reset workflow for the supplied email address.
     /// </summary>
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         if (IsRateLimited("forgot-password", ResetMaxAttempts, ResetWindow, out var retryAfter))
@@ -725,12 +728,12 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null, L("Auth.Reset.Forgot.Generic", "If an account exists for this email, you’ll receive a password reset link shortly.")));
     }
-
-    [HttpPost("reset-password")]
-    [AllowAnonymous]
     /// <summary>
     /// Applies a password reset token and updates the account password.
     /// </summary>
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         if (IsRateLimited("reset-password", ResetMaxAttempts, ResetWindow, out var retryAfter))
@@ -793,12 +796,12 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
-
-    [HttpPost("resend-activation")]
-    [AllowAnonymous]
     /// <summary>
     /// Resends account activation instructions for an unverified account.
     /// </summary>
+
+    [HttpPost("resend-activation")]
+    [AllowAnonymous]
     public async Task<IActionResult> ResendActivation([FromBody] ResendActivationRequest request)
     {
         if (IsRateLimited("resend-activation", ResetMaxAttempts, ResetWindow, out var retryAfter))
@@ -831,12 +834,12 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
-
-    [HttpPost("activate")]
-    [AllowAnonymous]
     /// <summary>
     /// Confirms account activation using the encoded email confirmation token.
     /// </summary>
+
+    [HttpPost("activate")]
+    [AllowAnonymous]
     public async Task<IActionResult> ActivateAccount([FromBody] ActivateAccountRequest request)
     {
         if (IsRateLimited("activate", ResetMaxAttempts, ResetWindow, out var retryAfter))
@@ -885,11 +888,11 @@ public class AuthController : ControllerBase
 
         return Ok(new AuthResponse(true, null, null));
     }
-
-    [HttpPost("logout")]
     /// <summary>
     /// Signs out the current session and returns the post-logout redirect target.
     /// </summary>
+
+    [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -897,12 +900,12 @@ public class AuthController : ControllerBase
         await _eventLogger.LogAsync("Logout", user?.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
         return NoContent();
     }
-
-    [HttpGet("session")]
-    [AllowAnonymous]
     /// <summary>
     /// Returns the currently authenticated user session profile and permissions.
     /// </summary>
+
+    [HttpGet("session")]
+    [AllowAnonymous]
     public async Task<IActionResult> Session()
     {
         if (!User.Identity?.IsAuthenticated ?? true)

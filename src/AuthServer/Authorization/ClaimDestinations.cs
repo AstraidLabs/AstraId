@@ -5,6 +5,9 @@ using OpenIddict.Abstractions;
 
 namespace AuthServer.Authorization;
 
+/// <summary>
+/// Provides claim destinations functionality.
+/// </summary>
 public static class ClaimDestinations
 {
     public static IEnumerable<string> GetDestinations(Claim claim, ClaimsPrincipal principal)

@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides email sender factory functionality.
+/// </summary>
 public sealed class EmailSenderFactory
 {
     private readonly IServiceProvider _services;

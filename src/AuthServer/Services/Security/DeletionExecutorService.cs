@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides deletion executor service functionality.
+/// </summary>
 public sealed class DeletionExecutorService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

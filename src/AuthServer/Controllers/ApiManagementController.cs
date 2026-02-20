@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for api management.
+/// </summary>
 
 [ApiController]
 [Route("admin")]

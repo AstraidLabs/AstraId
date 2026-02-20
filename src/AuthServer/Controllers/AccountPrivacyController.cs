@@ -11,6 +11,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Controllers;
+/// <summary>
+/// Exposes HTTP endpoints for account privacy.
+/// </summary>
 
 [ApiController]
 [Route("account")]

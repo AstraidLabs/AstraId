@@ -1,5 +1,8 @@
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides request accepts functionality.
+/// </summary>
 public static class RequestAccepts
 {
     public static bool WantsHtml(HttpRequest request)

@@ -2,6 +2,9 @@ using AuthServer.Data;
 
 namespace AuthServer.Services.Admin;
 
+/// <summary>
+/// Defines the contract for admin api resource service.
+/// </summary>
 public interface IAdminApiResourceService
 {
     Task<IReadOnlyList<ApiResource>> GetApiResourcesAsync(CancellationToken cancellationToken);

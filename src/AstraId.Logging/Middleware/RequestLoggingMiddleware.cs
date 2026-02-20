@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace AstraId.Logging.Middleware;
 
+/// <summary>
+/// Implements middleware for request logging.
+/// </summary>
 public sealed class RequestLoggingMiddleware
 {
     private readonly RequestDelegate _next;

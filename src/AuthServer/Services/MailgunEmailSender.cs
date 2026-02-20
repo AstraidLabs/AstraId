@@ -6,6 +6,9 @@ using Microsoft.Extensions.Options;
 
 namespace AuthServer.Services;
 
+/// <summary>
+/// Provides mailgun email sender functionality.
+/// </summary>
 public sealed class MailgunEmailSender : IEmailSender
 {
     private readonly HttpClient _httpClient;

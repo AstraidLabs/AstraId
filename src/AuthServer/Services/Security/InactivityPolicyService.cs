@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthServer.Services.Security;
 
+/// <summary>
+/// Provides inactivity policy service functionality.
+/// </summary>
 public sealed class InactivityPolicyService
 {
     private readonly ApplicationDbContext _db;

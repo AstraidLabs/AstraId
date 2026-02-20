@@ -6,6 +6,9 @@ using StackExchange.Redis;
 
 namespace Api.Events;
 
+/// <summary>
+/// Provides redis event subscriber functionality.
+/// </summary>
 public sealed class RedisEventSubscriber : BackgroundService
 {
     private readonly IConnectionMultiplexer _redis;

@@ -8,11 +8,17 @@ using Microsoft.Extensions.Options;
 
 namespace Api.Services.Ops;
 
+/// <summary>
+/// Defines the contract for platform health snapshot cache.
+/// </summary>
 public interface IPlatformHealthSnapshotCache
 {
     PlatformHealthDto? GetLatest();
 }
 
+/// <summary>
+/// Provides platform health snapshot cache functionality.
+/// </summary>
 public sealed partial class PlatformHealthSnapshotCache : BackgroundService, IPlatformHealthSnapshotCache
 {
     private readonly HealthCheckService _healthCheckService;
