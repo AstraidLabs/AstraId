@@ -73,6 +73,7 @@ builder.Services.AddScoped<IUserStore<ApplicationUser>, ProtectedUserStore>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
+    // Keep the primary auth cookie browser-only and HTTPS-only because it carries interactive user session state.
     options.Cookie.Name = "AstraId.Auth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.None;
@@ -214,6 +215,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
 builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(DiagnosticsOptions.SectionName));
 builder.Services.AddOptions<CorsOptions>()
+    // Binds Cors:* where AllowedOrigins is an explicit allow-list; wildcard origins are intentionally rejected below.
     .Bind(builder.Configuration.GetSection(CorsOptions.SectionName))
     .Validate(options => !options.AllowedOrigins.Any(origin => origin.Trim() == "*"), "Cors:AllowedOrigins cannot contain '*'.")
     .Validate(options => !options.AllowCredentials || options.AllowedOrigins.Length > 0, "Cors:AllowedOrigins must not be empty when AllowCredentials is true.")
@@ -261,6 +263,7 @@ builder.Services.AddOptions<OAuthAdvancedPolicyDefaultsOptions>()
     .ValidateOnStart();
 builder.Services.AddHttpClient(nameof(AuthServer.Services.Sessions.BackChannelLogoutService));
 builder.Services.AddOptions<AuthServerSigningKeyOptions>()
+    // Binds AuthServer:SigningKeys where intervals are expressed in days/minutes and KeySize is RSA bits.
     .Bind(builder.Configuration.GetSection(AuthServerSigningKeyOptions.SectionName))
     .Validate(options =>
     {
@@ -273,6 +276,7 @@ builder.Services.AddOptions<AuthServerSigningKeyOptions>()
     }, "Signing key options are invalid.")
     .ValidateOnStart();
 builder.Services.AddOptions<AuthServerTokenOptions>()
+    // Binds AuthServer:Tokens where token lifetimes are minutes (access/id) and days (refresh).
     .Bind(builder.Configuration.GetSection(AuthServerTokenOptions.SectionName))
     .Validate(options =>
     {
@@ -450,6 +454,7 @@ builder.Services.AddOpenIddict()
         var authFeatures = builder.Configuration
             .GetSection(AuthServerAuthFeaturesOptions.SectionName)
             .Get<AuthServerAuthFeaturesOptions>() ?? new AuthServerAuthFeaturesOptions();
+        // Issuer must be a stable public URI seen by clients and resource servers during token validation.
         var issuer = builder.Configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
         if (!Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
         {
@@ -464,6 +469,7 @@ builder.Services.AddOpenIddict()
 
         options.SetIssuer(issuerUri);
 
+        // These OpenID Connect endpoints are called by clients/resource servers; discovery and JWKS are consumed automatically.
         options.SetConfigurationEndpointUris(".well-known/openid-configuration")
                .SetJsonWebKeySetEndpointUris(".well-known/jwks")
                .SetAuthorizationEndpointUris("connect/authorize")
@@ -489,6 +495,7 @@ builder.Services.AddOpenIddict()
 
         options.RegisterScopes(AuthServerScopeRegistry.AllowedScopes.ToArray());
 
+        // Access tokens are JWTs consumed by first-party resource servers, so signature validation is relied on instead of encryption.
         options.DisableAccessTokenEncryption();
 
         var certificateOptions = builder.Configuration
@@ -513,6 +520,7 @@ builder.Services.AddOpenIddict()
         {
             builder.UseInlineHandler(OpenIddictIntrospectionHandlers.ValidateRevocationClientAsync);
         });
+        // Device authorization can be switched off at runtime without redeploying OpenIddict server configuration.
         options.AddEventHandler<OpenIddictServerEvents.ValidateDeviceAuthorizationRequestContext>(handler =>
         {
             handler.UseInlineHandler(async context =>
@@ -535,6 +543,7 @@ builder.Services.AddOpenIddict()
         {
             handler.UseInlineHandler(async context =>
             {
+                // Limit this handler to token exchange so other grant validations follow default OpenIddict behavior.
                 if (!string.Equals(context.Request?.GrantType, TokenExchangeService.GrantType, StringComparison.Ordinal))
                 {
                     return;

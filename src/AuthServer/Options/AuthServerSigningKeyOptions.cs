@@ -1,5 +1,8 @@
 namespace AuthServer.Options;
 
+/// <summary>
+/// Configuration for issuer signing-key generation and rotation used by OpenID Connect/JWT token issuance.
+/// </summary>
 public sealed class AuthServerSigningKeyOptions
 {
     public const string SectionName = "AuthServer:SigningKeys";
@@ -13,6 +16,9 @@ public sealed class AuthServerSigningKeyOptions
     public int KeySize { get; set; } = 2048;
 }
 
+/// <summary>
+/// Selects where signing keys come from: automatic generation, certificates, or the database-backed key ring.
+/// </summary>
 public enum SigningKeyMode
 {
     Auto = 0,
