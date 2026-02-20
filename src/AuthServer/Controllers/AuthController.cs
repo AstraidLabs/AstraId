@@ -204,6 +204,7 @@ public class AuthController : ControllerBase
 
         if (result.RequiresTwoFactor)
         {
+            // Persist the post-MFA destination so second-factor completion cannot be used to pivot to a different return URL.
             var token = _mfaChallengeStore.Create(user.Id, redirectTo);
             return Ok(new LoginResponse(false, redirectTo, null, true, token));
         }
@@ -234,6 +235,7 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            // Keep failure responses uniform to avoid disclosing whether the credential failure was username or password related.
             await _eventLogger.LogAsync("LoginFailed", user.Id, HttpContext, cancellationToken: HttpContext.RequestAborted);
             await _loginHistoryService.RecordAsync(user.Id, emailOrUsername, false, "invalid_password", HttpContext, null, HttpContext.RequestAborted);
             return BuildAuthProblem(
@@ -277,6 +279,7 @@ public class AuthController : ControllerBase
 
         if (!_mfaChallengeStore.TryConsume(request.MfaToken, out var challenge))
         {
+            // MFA challenges are one-time and short-lived, so consumed/expired tokens must be treated as invalid.
             return BuildAuthProblem(
                 StatusCodes.Status400BadRequest,
                 "Invalid code",
@@ -1035,6 +1038,7 @@ public class AuthController : ControllerBase
             return Array.Empty<string>();
         }
 
+        // Bound scope fan-out from user-controlled query strings to keep login-context responses predictable.
         return scopeValues
             .ToString()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -1059,6 +1063,7 @@ public class AuthController : ControllerBase
             || returnUrl.StartsWith("//", StringComparison.Ordinal)
             || returnUrl.StartsWith("/\\", StringComparison.Ordinal))
         {
+            // Only relative local URLs are accepted here to prevent open-redirect abuse in pre-login flows.
             return false;
         }
 
@@ -1069,6 +1074,7 @@ public class AuthController : ControllerBase
 
         if (!string.Equals(authorizeUri.AbsolutePath, "/connect/authorize", StringComparison.Ordinal))
         {
+            // Limit parsing to authorize requests so arbitrary application paths cannot influence login context metadata.
             return false;
         }
 
@@ -1165,6 +1171,7 @@ public class AuthController : ControllerBase
         var issuer = configuration["AuthServer:Issuer"] ?? AuthConstants.DefaultIssuer;
         if (Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host))
         {
+            // Authenticator apps display the host label; stripping to host keeps OTP labels stable across path changes.
             return uri.Host;
         }
 
