@@ -370,6 +370,7 @@ public sealed class AccountController : ControllerBase
             HttpContext,
             new { reason = "manual" },
             HttpContext.RequestAborted);
+        // Rotate the security stamp and refresh the current sign-in so this browser remains valid while other sessions are evicted.
         await _userManager.UpdateSecurityStampAsync(user);
         await _signInManager.SignInAsync(user, isPersistent: false);
 
@@ -420,6 +421,7 @@ public sealed class AccountController : ControllerBase
         var preferred = string.IsNullOrWhiteSpace(user.PreferredLanguage)
             ? null
             : LanguageTagNormalizer.Normalize(user.PreferredLanguage);
+        // Report both preferred and effective culture so clients can distinguish user intent from runtime fallback behavior.
         var effective = preferred ?? CultureInfo.CurrentUICulture.Name;
 
         return Ok(new LanguagePreferenceResponse(preferred, effective));
@@ -439,6 +441,7 @@ public sealed class AccountController : ControllerBase
 
         if (!LanguageTagNormalizer.TryNormalize(request.Language, out var normalized))
         {
+            // Reject unknown language tags early so invalid values are never persisted to identity storage.
             return BuildValidationProblem(
                 L("Common.Validation.InvalidRequest", "Invalid request."),
                 new Dictionary<string, string[]>
