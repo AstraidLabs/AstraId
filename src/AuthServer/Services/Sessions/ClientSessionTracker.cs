@@ -42,7 +42,7 @@ public sealed class ClientSessionTracker
         var payload = await _cache.GetStringAsync(BuildKey(subject), cancellationToken);
         return string.IsNullOrWhiteSpace(payload)
             ? Array.Empty<string>()
-            : JsonSerializer.Deserialize<HashSet<string>>(payload) ?? Array.Empty<string>();
+            : JsonSerializer.Deserialize<HashSet<string>>(payload) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public Task ClearAsync(string subject, CancellationToken cancellationToken)
