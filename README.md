@@ -1,7 +1,7 @@
 # AstraId
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
-![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
+![React](https://img.shields.io/badge/React-18-20232A?logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![OpenID%20Connect](https://img.shields.io/badge/OpenID%20Connect-OAuth2%2FOIDC-2E77BC)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
@@ -149,6 +149,20 @@ dotnet build AstraId.sln
 - `src/Company.Auth.Api` – reusable API authentication integration.
 - `src/AstraId.Contracts` – shared event contracts.
 - `scripts/dev.sh`, `scripts/dev.ps1` – convenience local startup scripts.
+
+### Documentation
+
+- [Development runbook](docs/runbook/development.md)
+- [Production runbook](docs/runbook/production.md)
+- [Security hardening](docs/security/hardening.md)
+- [Architecture overview](docs/architecture/overview.md)
+- [Architecture request flows](docs/architecture/request-flows.md)
+- [IAM MVP scope](docs/iam/mvp.md)
+- [IAM advanced OAuth features](docs/iam/advanced-oauth-features.md)
+- [Platform checks](docs/ops/platform-checks.md)
+- [Logging and audit](docs/ops/logging-and-audit.md)
+- [Health and readiness](docs/ops/health-and-readiness.md)
+- [Multi-tenant model](docs/tenancy/multi-tenant-model.md)
 
 ### 3.3 Admin UI build pipeline (AuthServer csproj target)
 

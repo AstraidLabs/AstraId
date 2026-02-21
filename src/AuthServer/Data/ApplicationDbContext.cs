@@ -334,7 +334,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasKey(policy => policy.Id);
             entity.HasIndex(policy => policy.UpdatedAtUtc);
             entity.Property(policy => policy.UpdatedByIp).HasMaxLength(64);
-            entity.Property(policy => policy.RowVersion).IsRowVersion();
+            entity.Property(policy => policy.RowVersion)
+                .IsRowVersion()
+                .HasDefaultValueSql("''::bytea");
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(policy => policy.UpdatedByUserId)
