@@ -111,6 +111,14 @@ AstraId is a multi-service identity and access platform: it combines an OIDC/OAu
 - Web (Vite): `http://localhost:5173`.
 
 
+
+## Quick host-run scripts (no Docker)
+
+- Dev (multi-terminal): `./scripts/astraid-dev.sh up` or `./scripts/astraid-dev.ps1 up`
+- Prod-style host run + publish: `./scripts/astraid-prod.sh up` or `./scripts/astraid-prod.ps1 up`
+- Stop launched services: `down` command on the matching script
+
+See also: `docs/INSTALL-DEV.md`, `docs/INSTALL-PROD.md`, `docs/CONFIGURATION.md`, `docs/DATABASE.md`.
 ## 2) 🧰 Prerequisites
 
 1. **.NET SDK 10.x** (all server projects target `net10.0`).

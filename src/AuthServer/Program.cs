@@ -216,7 +216,11 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
-builder.Services.Configure<AuthServerUiOptions>(builder.Configuration.GetSection(AuthServerUiOptions.SectionName));
+builder.Services.AddOptions<AuthServerUiOptions>()
+    .Bind(builder.Configuration.GetSection(AuthServerUiOptions.SectionName))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.UiMode), "AuthServer:UiMode is required.")
+    .Validate(options => options.IsHosted || Uri.TryCreate(options.UiBaseUrl, UriKind.Absolute, out _), "AuthServer:UiBaseUrl must be an absolute URI when UiMode is Separate.")
+    .ValidateOnStart();
 builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection(DiagnosticsOptions.SectionName));
 builder.Services.AddOptions<AuthServer.Options.CorsOptions>()
     // Binds Cors:* where AllowedOrigins is an explicit allow-list; wildcard origins are intentionally rejected below.
