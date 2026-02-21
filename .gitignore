@@ -28,3 +28,12 @@ node_modules/
 
 # ASP.NET Core DataProtection keys (local/runtime secrets)
 **/data-protection-keys/
+.env.*
+!.env.example
+!.env.dev.example
+!.env.prod.example
+appsettings.*.Local.json
+scripts/.state/
+.certs/
+.keys/
+artifacts/
