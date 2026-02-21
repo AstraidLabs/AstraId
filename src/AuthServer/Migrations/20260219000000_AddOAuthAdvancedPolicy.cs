@@ -30,7 +30,7 @@ namespace AuthServer.Migrations
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedByUserId = table.Column<Guid>(type: "uuid", nullable: true),
                     UpdatedByIp = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false, defaultValueSql: "''::bytea")
                 },
                 constraints: table =>
                 {
